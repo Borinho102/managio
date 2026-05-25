@@ -1,0 +1,34 @@
+<?php
+
+defined('BASEPATH') or exit('No direct script access allowed');
+
+$lang['wekonex_bridge_settings'] = 'Wekonex Bridge';
+$lang['wekonex_bridge_enabled'] = 'Enable Wekonex integration';
+$lang['wekonex_bridge_wekonex_url'] = 'Wekonex base URL';
+$lang['wekonex_bridge_sso_secret'] = 'SSO shared secret (HMAC)';
+$lang['wekonex_bridge_sso_secret_hint'] = 'Must match MANAGIO_SSO_SECRET in Wekonex .env (min. 32 characters recommended).';
+$lang['wekonex_bridge_webhook_secret'] = 'Webhook secret (X-Wekonex-Webhook-Secret header)';
+$lang['wekonex_bridge_log_days'] = 'Sync log retention (days)';
+$lang['wekonex_bridge_sso_consume_url'] = 'SSO consume URL';
+$lang['wekonex_bridge_webhook_ping'] = 'Health check URL';
+$lang['wekonex_bridge_sso_validated'] = 'SSO token validated. Full login will be enabled in Phase 1.';
+$lang['wekonex_bridge_api_setup_title'] = 'PerfexGo API — Wekonex Integration (Phase 0.3 & 0.4)';
+$lang['wekonex_bridge_api_setup_desc'] = 'Create the dedicated staff account and verify login_api returns a valid JWT and X-API-KEY.';
+$lang['wekonex_bridge_step_03'] = 'Step 0.3 — Create integration staff';
+$lang['wekonex_bridge_step_04'] = 'Step 0.4 — Test JWT + X-API-KEY';
+$lang['wekonex_bridge_api_staff_email'] = 'Integration staff email';
+$lang['wekonex_bridge_api_staff_password'] = 'Integration staff password';
+$lang['wekonex_bridge_api_password_hint'] = 'Stored in Managio options for API tests. Copy the same values to Wekonex .env (MANAGIO_API_EMAIL / MANAGIO_API_PASSWORD).';
+$lang['wekonex_bridge_create_staff'] = 'Create or update staff';
+$lang['wekonex_bridge_test_api'] = 'Run PerfexGo API test';
+$lang['wekonex_bridge_staff_created'] = 'Integration staff created successfully.';
+$lang['wekonex_bridge_staff_exists'] = 'Integration staff already exists (password updated if provided).';
+$lang['wekonex_bridge_staff_create_failed'] = 'Could not create integration staff.';
+$lang['wekonex_bridge_staff_current'] = 'Current integration staff';
+$lang['wekonex_bridge_api_missing_credentials'] = 'Set integration staff email and password first.';
+$lang['wekonex_bridge_api_test_ok'] = 'PerfexGo login and authenticated API call succeeded.';
+$lang['wekonex_bridge_api_test_failed'] = 'PerfexGo API test failed.';
+$lang['wekonex_bridge_api_last_test'] = 'Last API test';
+$lang['wekonex_bridge_login_api_url'] = 'PerfexGo login endpoint';
+$lang['wekonex_bridge_copy_to_wekonex'] = 'Copy to Wekonex .env';
+$lang['wekonex_bridge_token_hidden_hint'] = 'Full JWT is stored in wekonex_bridge_api_token. Use Test API or copy from last successful test log.';
