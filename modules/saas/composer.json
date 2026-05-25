@@ -1,7 +1,0 @@
-{
-    "require": {
-        "plesk/api-php-lib": "^2.0",
-        "athlon1600/php-proxy": "^5.2",
-        "srmklive/paypal": "^3.0"
-    }
-}
