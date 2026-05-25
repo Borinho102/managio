@@ -15,6 +15,8 @@ define('WEKONEX_BRIDGE_MODULE', 'wekonex_bridge');
 $CI = &get_instance();
 $CI->load->helper(WEKONEX_BRIDGE_MODULE . '/' . WEKONEX_BRIDGE_MODULE);
 
+register_language_files(WEKONEX_BRIDGE_MODULE, [WEKONEX_BRIDGE_MODULE]);
+
 register_activation_hook(WEKONEX_BRIDGE_MODULE, 'wekonex_bridge_activation');
 register_deactivation_hook(WEKONEX_BRIDGE_MODULE, 'wekonex_bridge_deactivation');
 register_uninstall_hook(WEKONEX_BRIDGE_MODULE, 'wekonex_bridge_uninstall');
