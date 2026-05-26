@@ -160,3 +160,96 @@ function wekonex_bridge_verify_webhook_request(): bool
 
     return is_string($header) && hash_equals($secret, $header);
 }
+
+function wekonex_bridge_split_name(string $fullName): array
+{
+    $fullName = trim($fullName);
+    if ($fullName === '') {
+        return ['Member', '.'];
+    }
+
+    $parts = preg_split('/\s+/', $fullName, 2);
+    if (count($parts) === 1) {
+        return [$parts[0], '.'];
+    }
+
+    return [$parts[0], $parts[1]];
+}
+
+/**
+ * Enregistre une valeur de champ personnalisé si le champ existe (slug = name).
+ */
+function wekonex_bridge_set_custom_field_value(string $fieldTo, int $relId, string $slug, string $value): void
+{
+    $CI = &get_instance();
+    $field = $CI->db
+        ->where('fieldto', $fieldTo)
+        ->where('slug', $slug)
+        ->get(db_prefix() . 'customfields')
+        ->row();
+
+    if (!$field) {
+        return;
+    }
+
+    $table = db_prefix() . 'customfieldsvalues';
+    $row = $CI->db
+        ->where('relid', $relId)
+        ->where('fieldid', $field->id)
+        ->where('fieldto', $fieldTo)
+        ->get($table)
+        ->row();
+
+    if ($row) {
+        $CI->db->where('id', $row->id)->update($table, ['value' => $value]);
+    } else {
+        $CI->db->insert($table, [
+            'relid' => $relId,
+            'fieldid' => $field->id,
+            'fieldto' => $fieldTo,
+            'value' => $value,
+        ]);
+    }
+}
+
+/**
+ * Installe les champs personnalisés documentés (idempotent).
+ */
+function wekonex_bridge_install_custom_fields(): void
+{
+    $CI = &get_instance();
+    $CI->load->model('custom_fields_model');
+
+    $definitions = [
+        ['fieldto' => 'customers', 'name' => 'wekonex_tenant_id', 'type' => 'input'],
+        ['fieldto' => 'customers', 'name' => 'wekonex_domain', 'type' => 'input'],
+        ['fieldto' => 'contacts', 'name' => 'wekonex_user_id', 'type' => 'input'],
+        ['fieldto' => 'contacts', 'name' => 'wekonex_tenant_id', 'type' => 'input'],
+        ['fieldto' => 'contacts', 'name' => 'wekonex_user_uuid', 'type' => 'input'],
+        ['fieldto' => 'contacts', 'name' => 'wekonex_role', 'type' => 'input'],
+        ['fieldto' => 'contacts', 'name' => 'wekonex_is_alumni', 'type' => 'input'],
+        ['fieldto' => 'contacts', 'name' => 'wekonex_company', 'type' => 'input'],
+        ['fieldto' => 'contacts', 'name' => 'wekonex_job_title', 'type' => 'input'],
+        ['fieldto' => 'invoice', 'name' => 'wekonex_payment_id', 'type' => 'input'],
+        ['fieldto' => 'invoice', 'name' => 'wekonex_payment_uuid', 'type' => 'input'],
+    ];
+
+    foreach ($definitions as $def) {
+        $exists = $CI->db
+            ->where('fieldto', $def['fieldto'])
+            ->where('slug', $def['name'])
+            ->count_all_results(db_prefix() . 'customfields');
+        if ($exists > 0) {
+            continue;
+        }
+
+        $CI->custom_fields_model->add([
+            'fieldto' => $def['fieldto'],
+            'name' => $def['name'],
+            'type' => $def['type'],
+            'bs_column' => 12,
+            'required' => 0,
+            'only_admin' => 0,
+        ]);
+    }
+}

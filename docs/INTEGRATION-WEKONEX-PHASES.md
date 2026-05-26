@@ -14,7 +14,7 @@
 **Principe** : API + SSO — **ne pas** fusionner les bases SQL ni modifier le core Perfex en profondeur. Extension via module `wekonex_bridge` + API **PerfexGo** (`perfex_mobile_companion`).
 
 **Dernière mise à jour** : 2026-05-25  
-**Statut global** : 🟢 Phase 0 terminée — Phase 1 à démarrer
+**Statut global** : 🟢 Phase 1 implémentée — tests E2E à valider en prod
 
 ---
 
@@ -49,7 +49,7 @@
 | Phase | Objectif | Statut | Cible |
 |-------|----------|--------|-------|
 | **0** | Fondations (module bridge, config, API, health check) | ✅ | 2026-05-25 |
-| **1** | SSO + sync contacts + sync factures / paiements | ⬜ | — |
+| **1** | SSO + sync contacts + sync factures / paiements | ✅ | 2026-05-26 |
 | **2** | Events → CRM, webhooks, notifications | ⬜ | — |
 | **3** | IA, scoring, automatisations diaspora | ⬜ | — |
 
@@ -82,12 +82,12 @@
 
 | # | Tâche | Repo | Statut | Responsable | Notes |
 |---|--------|------|--------|-------------|-------|
-| 1.1.1 | Émission token SSO | Wekonex | ⬜ | | |
-| 1.1.2 | Jeton one-time HMAC (TTL 60–120 s) | Wekonex | ⬜ | | Secret partagé dans module |
-| 1.1.3 | **`wekonex_bridge/controllers/Auth.php`** — `consume` | **Managio** | ⬜ | | Créer session sans modifier core |
-| 1.1.4 | Mapping rôle → staff limité ou contact portail | **Managio** | ⬜ | | |
-| 1.1.5 | Lien retour Wekonex (optionnel) | **Managio** | ⬜ | | |
-| 1.1.6 | Journal SSO + rate limit | **Managio** | ⬜ | | |
+| 1.1.1 | Émission token SSO | Wekonex | ✅ | | `GET admin/managio/open` |
+| 1.1.2 | Jeton one-time HMAC (TTL 60–120 s) | Wekonex | ✅ | | Secret partagé dans module |
+| 1.1.3 | **`wekonex_bridge/controllers/Auth.php`** — `consume` | **Managio** | ✅ | | Session staff / portail |
+| 1.1.4 | Mapping rôle → staff limité ou contact portail | **Managio** | ✅ | | E-mail staff ou contact mappé |
+| 1.1.5 | Bouton « Ouvrir Managio » | Wekonex | ✅ | | Dashboard admin |
+| 1.1.6 | Journal SSO + rate limit | **Managio** | ✅ | | `wekonex_sync_logs` + RateLimiter Wekonex |
 
 **Critère de fin 1.1** : URL `managio.africa/.../wekonex_bridge/auth/consume?token=...` ouvre une session valide.
 
@@ -97,11 +97,11 @@
 
 | # | Tâche | Repo | Statut | Responsable | Notes |
 |---|--------|------|--------|-------------|-------|
-| 1.2.1–1.2.4 | Jobs + hooks inscription (Wekonex) | Wekonex | ⬜ | | |
-| 1.2.5 | Endpoint / hook **upsert contact** | **Managio** | ⬜ | | `Clients_model` + hooks `after_client_created` |
-| 1.2.6 | Groupes clients par association (`tenant_id`) | **Managio** | ⬜ | | `customer_groups` |
-| 1.2.7 | Champs personnalisés `wekonex_user_id`, `wekonex_tenant_id` | **Managio** | ⬜ | | `Custom_fields_model` |
-| 1.2.8 | Retry côté Wekonex | Wekonex | ⬜ | | |
+| 1.2.1–1.2.4 | Jobs + hooks inscription (Wekonex) | Wekonex | ✅ | | `SyncMemberToManagioJob` + hooks |
+| 1.2.5 | Webhook **`member.upsert`** | **Managio** | ✅ | | `Wekonex_sync_model` |
+| 1.2.6 | Groupes clients par association (`tenant_id`) | **Managio** | ✅ | | `WEKONEX-TENANT-*` |
+| 1.2.7 | Champs personnalisés Wekonex | **Managio** | ✅ | | `install.php` / `upgrade.php` |
+| 1.2.8 | Retry côté Wekonex | Wekonex | ✅ | | Jobs 3× · mapping `failed` |
 
 **Tables Perfex concernées** : `{prefix}clients`, `{prefix}contacts`, `{prefix}customfieldsvalues`, `{prefix}customer_groups`.
 
@@ -113,11 +113,11 @@
 
 | # | Tâche | Repo | Statut | Responsable | Notes |
 |---|--------|------|--------|-------------|-------|
-| 1.3.1–1.3.2 | Déclenchement après paiement Wekonex | Wekonex | ⬜ | | |
-| 1.3.3 | Création facture adhésion | **Managio** | ⬜ | | `Invoices_model` |
-| 1.3.4 | Création facture event | **Managio** | ⬜ | | |
-| 1.3.5 | Création facture don (si applicable) | **Managio** | ⬜ | | |
-| 1.3.6 | Idempotency (ref externe `wekonex_payment_id`) | **Managio** | ⬜ | | Éviter doublon |
+| 1.3.1–1.3.2 | Déclenchement après paiement Wekonex | Wekonex | ✅ | | `OrderController::verify` |
+| 1.3.3 | Création facture adhésion | **Managio** | ✅ | | `payment.record` |
+| 1.3.4 | Création facture event | **Managio** | ✅ | | Même action |
+| 1.3.5 | Création facture don (si applicable) | **Managio** | ⬜ | | Phase 2 |
+| 1.3.6 | Idempotency (ref externe `wekonex_payment_id`) | **Managio** | ✅ | | `wekonex_entity_mappings` |
 | 1.3.7 | **`Payments_model`** — enregistrement paiement | **Managio** | ⬜ | | |
 | 1.3.8 | Maviance | Wekonex | ⬜ | | Facturation Managio inchangée |
 
