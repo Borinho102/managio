@@ -44,28 +44,27 @@ class Auth extends App_Controller
 
         if (in_array($role, $adminRoles, true)) {
             $staff = $this->wekonex_sync_model->find_staff_for_sso($email);
+            if (!$staff) {
+                $staff = $this->wekonex_bridge_model->ensure_sso_staff($payload);
+            }
+
             if ($staff && (int) $staff->two_factor_auth_enabled === 0) {
-                hooks()->do_action('before_staff_login', [
-                    'email' => $email,
-                    'userid' => $staff->staffid,
-                ]);
+                $this->login_staff_session($staff, $email, $role);
 
-                $this->session->set_userdata([
-                    'staff_user_id' => $staff->staffid,
-                    'staff_logged_in' => true,
-                ]);
-                $this->authentication_model->update_login_info($staff->staffid, true);
+                return;
+            }
 
-                wekonex_bridge_log('sso_consume', true, [
-                    'payload' => [
-                        'email' => $email,
-                        'role' => $role,
-                        'session' => 'staff',
-                    ],
+            if ($staff && (int) $staff->two_factor_auth_enabled !== 0) {
+                wekonex_bridge_log('sso_consume', false, [
+                    'error_message' => 'Staff has 2FA enabled',
+                    'payload' => ['email' => $email],
                 ]);
+                $this->redirect_sso_failure(
+                    $payload,
+                    _l('wekonex_bridge_sso_staff_2fa')
+                );
 
-                set_alert('success', _l('wekonex_bridge_sso_staff_ok'));
-                redirect(admin_url());
+                return;
             }
         }
 
@@ -94,6 +93,8 @@ class Auth extends App_Controller
 
             set_alert('success', _l('wekonex_bridge_sso_contact_ok'));
             redirect(site_url('clients'));
+
+            return;
         }
 
         wekonex_bridge_log('sso_consume', false, [
@@ -101,8 +102,56 @@ class Auth extends App_Controller
             'payload' => ['email' => $email, 'role' => $role],
         ]);
 
-        $wekonexUrl = rtrim(get_option('wekonex_bridge_wekonex_url'), '/');
-        set_alert('warning', _l('wekonex_bridge_sso_no_account'));
-        redirect($wekonexUrl ?: admin_url());
+        $this->redirect_sso_failure(
+            $payload,
+            _l('wekonex_bridge_sso_no_account') . ' (' . html_escape($email) . ')'
+        );
+    }
+
+    private function login_staff_session(object $staff, string $email, string $role): void
+    {
+        hooks()->do_action('before_staff_login', [
+            'email' => $email,
+            'userid' => $staff->staffid,
+        ]);
+
+        $this->session->set_userdata([
+            'staff_user_id' => $staff->staffid,
+            'staff_logged_in' => true,
+        ]);
+        $this->authentication_model->update_login_info($staff->staffid, true);
+
+        wekonex_bridge_log('sso_consume', true, [
+            'payload' => [
+                'email' => $email,
+                'role' => $role,
+                'session' => 'staff',
+            ],
+        ]);
+
+        set_alert('success', _l('wekonex_bridge_sso_staff_ok'));
+        redirect(admin_url());
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function redirect_sso_failure(array $payload, string $message): void
+    {
+        set_alert('warning', $message);
+
+        $returnUrl = trim((string) ($payload['return_url'] ?? ''));
+        if ($returnUrl !== '' && preg_match('#^https?://#i', $returnUrl)) {
+            redirect($returnUrl . (str_contains($returnUrl, '?') ? '&' : '?') . 'managio_sso=failed');
+            return;
+        }
+
+        $fallback = rtrim((string) get_option('wekonex_bridge_wekonex_url'), '/');
+        if ($fallback !== '') {
+            redirect($fallback . '?managio_sso=failed');
+            return;
+        }
+
+        redirect(admin_url('authentication'));
     }
 }

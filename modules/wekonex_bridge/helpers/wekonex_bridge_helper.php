@@ -13,6 +13,7 @@ function wekonex_bridge_ensure_options(): void
         'wekonex_bridge_api_last_test' => '',
         'wekonex_bridge_api_last_test_status' => '',
         'wekonex_bridge_api_last_test_message' => '',
+        'wekonex_bridge_sso_auto_staff' => '1',
     ];
 
     foreach ($defaults as $name => $value) {

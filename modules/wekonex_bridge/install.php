@@ -15,6 +15,7 @@ add_option('wekonex_bridge_api_token', '');
 add_option('wekonex_bridge_api_last_test', '');
 add_option('wekonex_bridge_api_last_test_status', '');
 add_option('wekonex_bridge_api_last_test_message', '');
+add_option('wekonex_bridge_sso_auto_staff', '1');
 
 $CI = &get_instance();
 $CI->load->dbforge();

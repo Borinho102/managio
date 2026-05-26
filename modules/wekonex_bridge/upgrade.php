@@ -25,3 +25,7 @@ if (!$CI->db->table_exists($mappings)) {
 }
 
 wekonex_bridge_install_custom_fields();
+
+if (get_option('wekonex_bridge_sso_auto_staff') === false) {
+    add_option('wekonex_bridge_sso_auto_staff', '1');
+}
