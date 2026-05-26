@@ -23,6 +23,19 @@ register_uninstall_hook(WEKONEX_BRIDGE_MODULE, 'wekonex_bridge_uninstall');
 
 hooks()->add_action('admin_init', 'wekonex_bridge_admin_init');
 hooks()->add_action('admin_init', 'wekonex_bridge_ensure_options');
+hooks()->add_action('admin_init', 'wekonex_bridge_run_upgrade');
+
+function wekonex_bridge_run_upgrade(): void
+{
+    if (!is_admin()) {
+        return;
+    }
+
+    $table = db_prefix() . 'wekonex_entity_mappings';
+    if (!get_instance()->db->table_exists($table)) {
+        require_once __DIR__ . '/upgrade.php';
+    }
+}
 
 function wekonex_bridge_activation()
 {

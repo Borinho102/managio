@@ -3,7 +3,7 @@
 defined('BASEPATH') or exit('No direct script access allowed');
 
 /**
- * SSO Wekonex → Managio (Phase 0 : validation jeton ; Phase 1 : session staff/contact).
+ * SSO Wekonex → Managio (Phase 1 : session staff / portail contact).
  */
 class Auth extends App_Controller
 {
@@ -35,18 +35,74 @@ class Auth extends App_Controller
 
         $this->wekonex_bridge_model->store_sso_token($payload['nonce'], $payload, $token);
 
-        wekonex_bridge_log('sso_consume', true, [
-            'payload' => [
-                'email' => $payload['email'] ?? null,
-                'role' => $payload['role'] ?? null,
-                'tenant_id' => $payload['tenant_id'] ?? null,
-            ],
+        $this->load->model('wekonex_bridge/wekonex_sync_model');
+        $this->load->model('authentication_model');
+
+        $email = strtolower(trim((string) ($payload['email'] ?? '')));
+        $role = (string) ($payload['role'] ?? 'alumni');
+        $adminRoles = ['super_admin', 'admin', 'board_member'];
+
+        if (in_array($role, $adminRoles, true)) {
+            $staff = $this->wekonex_sync_model->find_staff_for_sso($email);
+            if ($staff && (int) $staff->two_factor_auth_enabled === 0) {
+                hooks()->do_action('before_staff_login', [
+                    'email' => $email,
+                    'userid' => $staff->staffid,
+                ]);
+
+                $this->session->set_userdata([
+                    'staff_user_id' => $staff->staffid,
+                    'staff_logged_in' => true,
+                ]);
+                $this->authentication_model->update_login_info($staff->staffid, true);
+
+                wekonex_bridge_log('sso_consume', true, [
+                    'payload' => [
+                        'email' => $email,
+                        'role' => $role,
+                        'session' => 'staff',
+                    ],
+                ]);
+
+                set_alert('success', _l('wekonex_bridge_sso_staff_ok'));
+                redirect(admin_url());
+            }
+        }
+
+        $contact = $this->wekonex_sync_model->find_contact_for_sso($payload);
+        if ($contact) {
+            hooks()->do_action('before_client_login', [
+                'email' => $contact->email,
+                'userid' => $contact->userid,
+                'contact_user_id' => $contact->id,
+            ]);
+
+            $this->session->set_userdata([
+                'client_user_id' => $contact->userid,
+                'contact_user_id' => $contact->id,
+                'client_logged_in' => true,
+            ]);
+            $this->authentication_model->update_login_info($contact->id, false);
+
+            wekonex_bridge_log('sso_consume', true, [
+                'payload' => [
+                    'email' => $contact->email,
+                    'role' => $role,
+                    'session' => 'contact',
+                ],
+            ]);
+
+            set_alert('success', _l('wekonex_bridge_sso_contact_ok'));
+            redirect(site_url('clients'));
+        }
+
+        wekonex_bridge_log('sso_consume', false, [
+            'error_message' => 'No matching staff or contact for SSO',
+            'payload' => ['email' => $email, 'role' => $role],
         ]);
 
-        // Phase 1 : créer session staff / contact selon $payload['role']
         $wekonexUrl = rtrim(get_option('wekonex_bridge_wekonex_url'), '/');
-        set_alert('success', _l('wekonex_bridge_sso_validated'));
-
+        set_alert('warning', _l('wekonex_bridge_sso_no_account'));
         redirect($wekonexUrl ?: admin_url());
     }
 }

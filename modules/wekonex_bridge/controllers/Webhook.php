@@ -27,6 +27,7 @@ class Webhook extends App_Controller
 
         if (!wekonex_bridge_verify_webhook_request()) {
             wekonex_bridge_log('webhook_receive', false, ['error_message' => 'Invalid webhook secret', 'http_status' => 401]);
+
             return $this->jsonResponse(['status' => false, 'message' => 'Unauthorized'], 401);
         }
 
@@ -40,31 +41,61 @@ class Webhook extends App_Controller
                 'status' => true,
                 'message' => 'Already processed',
                 'replay' => true,
+                'action' => $action,
             ]);
         }
 
         $payload = $this->input->post();
-        $responseHash = hash('sha256', json_encode(['status' => true, 'action' => $action]));
+        $result = ['success' => true, 'message' => 'Received'];
+
+        $syncActions = ['tenant.sync', 'member.upsert', 'payment.record'];
+        if (in_array($action, $syncActions, true)) {
+            $staffId = (int) get_option('wekonex_bridge_api_staff_id');
+            if ($staffId > 0) {
+                $this->session->set_userdata([
+                    'staff_user_id' => $staffId,
+                    'staff_logged_in' => true,
+                ]);
+            }
+
+            $this->load->model('wekonex_bridge/wekonex_sync_model');
+            $result = $this->wekonex_sync_model->handle_webhook_action($action, $payload);
+
+            if (empty($result['success'])) {
+                wekonex_bridge_log($action, false, [
+                    'error_message' => $result['message'] ?? 'Sync failed',
+                    'http_status' => 422,
+                    'payload' => array_diff_key($payload, ['password' => 1]),
+                ]);
+
+                return $this->jsonResponse([
+                    'status' => false,
+                    'message' => $result['message'] ?? 'Sync failed',
+                    'action' => $action,
+                ], 422);
+            }
+        }
+
+        $responseHash = hash('sha256', json_encode($result));
 
         if (!empty($idempotencyKey)) {
             wekonex_bridge_idempotency_store($idempotencyKey, $action, $responseHash);
         }
 
-        wekonex_bridge_log('webhook_receive', true, [
+        wekonex_bridge_log($action, true, [
             'direction' => 'inbound',
             'payload' => [
                 'action' => $action,
-                'keys' => array_keys($payload),
+                'result' => array_diff_key($result, ['password' => 1]),
             ],
         ]);
 
         hooks()->do_action('wekonex_bridge_webhook_received', $payload, $action);
 
-        return $this->jsonResponse([
+        return $this->jsonResponse(array_merge([
             'status' => true,
-            'message' => 'Received',
             'action' => $action,
-        ]);
+        ], $result));
     }
 
     private function jsonResponse(array $data, int $code = 200)
