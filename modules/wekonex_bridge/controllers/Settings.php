@@ -21,6 +21,7 @@ class Settings extends AdminController
             update_option('wekonex_bridge_sso_secret', trim($this->input->post('wekonex_bridge_sso_secret', true)));
             update_option('wekonex_bridge_webhook_secret', trim($this->input->post('wekonex_bridge_webhook_secret', true)));
             update_option('wekonex_bridge_log_days', (int) $this->input->post('wekonex_bridge_log_days'));
+            update_option('wekonex_bridge_sso_auto_staff', $this->input->post('wekonex_bridge_sso_auto_staff') ? '1' : '0');
 
             set_alert('success', _l('settings_updated'));
             redirect(admin_url('wekonex_bridge/settings'));

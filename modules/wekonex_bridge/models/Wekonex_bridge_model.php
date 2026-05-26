@@ -104,6 +104,48 @@ class Wekonex_bridge_model extends App_Model
         ];
     }
 
+    /**
+     * Crée un staff limité pour le SSO admin Wekonex (si option activée).
+     */
+    public function ensure_sso_staff(array $payload): ?object
+    {
+        if (get_option('wekonex_bridge_sso_auto_staff') !== '1') {
+            return null;
+        }
+
+        $email = strtolower(trim((string) ($payload['email'] ?? '')));
+        $role = (string) ($payload['role'] ?? '');
+        if ($email === '' || !in_array($role, ['admin', 'board_member', 'super_admin'], true)) {
+            return null;
+        }
+
+        $existing = $this->db->where('email', $email)->get(db_prefix() . 'staff')->row();
+        if ($existing) {
+            return $existing;
+        }
+
+        [$firstname, $lastname] = wekonex_bridge_split_name((string) ($payload['name'] ?? $email));
+
+        $this->load->model('staff_model');
+        $staffId = $this->staff_model->add([
+            'firstname' => $firstname,
+            'lastname' => $lastname,
+            'email' => $email,
+            'password' => bin2hex(random_bytes(16)),
+            'active' => 1,
+            'send_welcome_email' => false,
+            'permissions' => self::INTEGRATION_PERMISSIONS,
+        ]);
+
+        if (!$staffId) {
+            return null;
+        }
+
+        log_activity('Wekonex Bridge: SSO staff auto-provisioned [' . $email . ', ID:' . $staffId . ']');
+
+        return $this->db->where('staffid', $staffId)->get(db_prefix() . 'staff')->row();
+    }
+
     public function get_integration_staff(): ?object
     {
         $staffId = (int) get_option('wekonex_bridge_api_staff_id');

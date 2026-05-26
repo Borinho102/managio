@@ -19,6 +19,11 @@
                         <p class="text-muted"><?php echo _l('wekonex_bridge_sso_secret_hint'); ?></p>
                         <?php echo render_input('wekonex_bridge_webhook_secret', 'wekonex_bridge_webhook_secret', get_option('wekonex_bridge_webhook_secret'), 'password'); ?>
                         <?php echo render_input('wekonex_bridge_log_days', 'wekonex_bridge_log_days', get_option('wekonex_bridge_log_days'), 'number'); ?>
+                        <div class="checkbox checkbox-primary">
+                            <input type="checkbox" name="wekonex_bridge_sso_auto_staff" id="wekonex_bridge_sso_auto_staff" value="1" <?php echo get_option('wekonex_bridge_sso_auto_staff', '1') == '1' ? 'checked' : ''; ?>>
+                            <label for="wekonex_bridge_sso_auto_staff"><?php echo _l('wekonex_bridge_sso_auto_staff'); ?></label>
+                        </div>
+                        <p class="text-muted"><?php echo _l('wekonex_bridge_sso_auto_staff_hint'); ?></p>
                         <hr />
                         <p><strong><?php echo _l('wekonex_bridge_sso_consume_url'); ?>:</strong><br><code><?php echo html_escape($sso_consume_url); ?>?token=...</code></p>
                         <p><strong><?php echo _l('wekonex_bridge_webhook_ping'); ?>:</strong><br><code><?php echo html_escape($webhook_ping_url); ?></code></p>
