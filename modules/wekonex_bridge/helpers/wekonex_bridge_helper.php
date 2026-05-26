@@ -232,6 +232,7 @@ function wekonex_bridge_install_custom_fields(): void
         ['fieldto' => 'contacts', 'name' => 'wekonex_job_title', 'type' => 'input'],
         ['fieldto' => 'invoice', 'name' => 'wekonex_payment_id', 'type' => 'input'],
         ['fieldto' => 'invoice', 'name' => 'wekonex_payment_uuid', 'type' => 'input'],
+        ['fieldto' => 'invoice', 'name' => 'wekonex_payment_type', 'type' => 'input'],
     ];
 
     foreach ($definitions as $def) {

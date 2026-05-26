@@ -116,10 +116,10 @@
 | 1.3.1–1.3.2 | Déclenchement après paiement Wekonex | Wekonex | ✅ | | `OrderController::verify` |
 | 1.3.3 | Création facture adhésion | **Managio** | ✅ | | `payment.record` |
 | 1.3.4 | Création facture event | **Managio** | ✅ | | Même action |
-| 1.3.5 | Création facture don (si applicable) | **Managio** | ⬜ | | Phase 2 |
+| 1.3.5 | Création facture don (`ALUDONATION`) | **Managio** | ✅ | | `payment_type=donation` · dons invités |
 | 1.3.6 | Idempotency (ref externe `wekonex_payment_id`) | **Managio** | ✅ | | `wekonex_entity_mappings` |
-| 1.3.7 | **`Payments_model`** — enregistrement paiement | **Managio** | ⬜ | | |
-| 1.3.8 | Maviance | Wekonex | ⬜ | | Facturation Managio inchangée |
+| 1.3.7 | **`Payments_model`** — enregistrement paiement | **Managio** | ✅ | | `record_perfex_payment()` + `update_invoice_status` |
+| 1.3.8 | Toutes passerelles (Maviance, Maxicash, etc.) | Wekonex | ✅ | | Observer `Payment` → `managioSyncPayment()` |
 
 **Critère de fin 1.3** : facture + paiement liés au bon `contact` / `client`.
 

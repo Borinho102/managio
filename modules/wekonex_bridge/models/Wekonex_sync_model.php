@@ -201,11 +201,12 @@ class Wekonex_sync_model extends App_Model
             'tenant_id' => $tenantId,
             'user_id' => $userId,
             'tenant_name' => $payload['tenant_name'] ?? '',
-            'name' => $payload['customer_name'] ?? '',
+            'name' => $payload['customer_name'] ?? ($payload['name'] ?? ''),
             'email' => $payload['email'] ?? '',
             'mobile' => $payload['mobile'] ?? '',
             'active' => 1,
             'role' => $payload['role'] ?? 'alumni',
+            'is_guest' => !empty($payload['is_guest']),
         ]);
         if (!$memberResult['success']) {
             return $memberResult;
@@ -219,6 +220,7 @@ class Wekonex_sync_model extends App_Model
 
         $currencyName = (string) ($payload['currency'] ?? get_base_currency()->name);
         $currencyId = $this->resolve_currency_id($currencyName);
+        $paymentType = (string) ($payload['payment_type'] ?? 'other');
         $description = (string) ($payload['description'] ?? 'Wekonex payment');
         $date = !empty($payload['payment_date'])
             ? date('Y-m-d', strtotime($payload['payment_date']))
@@ -269,6 +271,29 @@ class Wekonex_sync_model extends App_Model
             wekonex_bridge_set_custom_field_value('invoice', $invoiceId, 'wekonex_payment_uuid', (string) $payload['payment_uuid']);
         }
 
+        $paymentRecordId = $this->record_perfex_payment($invoiceId, $amount, $date, $payload, $paymentId);
+        if (!$paymentRecordId) {
+            return ['success' => false, 'message' => 'Invoice created but payment record failed', 'invoice_id' => $invoiceId];
+        }
+
+        wekonex_bridge_set_custom_field_value('invoice', $invoiceId, 'wekonex_payment_type', $paymentType);
+
+        $this->save_mapping($externalKey, 'invoice', $invoiceId, $tenantId);
+        $this->save_mapping('payment_record:' . $paymentId, 'payment_record', (int) $paymentRecordId, $tenantId);
+
+        return [
+            'success' => true,
+            'invoice_id' => $invoiceId,
+            'payment_record_id' => $paymentRecordId,
+            'invoice_status' => $this->get_invoice_status_label($invoiceId),
+        ];
+    }
+
+    /**
+     * Enregistre le paiement Perfex (invoicepaymentrecords) et met la facture à jour.
+     */
+    private function record_perfex_payment(int $invoiceId, float $amount, string $date, array $payload, string $wekonexPaymentId): int|false
+    {
         $paymentModeId = $this->resolve_payment_mode_id((string) ($payload['gateway'] ?? 'Wekonex'));
         $paymentRecord = [
             'invoiceid' => $invoiceId,
@@ -276,21 +301,26 @@ class Wekonex_sync_model extends App_Model
             'paymentmode' => $paymentModeId,
             'date' => $date,
             'transactionid' => (string) ($payload['transaction_id'] ?? ''),
-            'note' => 'Wekonex payment #' . $paymentId,
+            'note' => 'Wekonex ' . ($payload['payment_type'] ?? 'payment') . ' #' . $wekonexPaymentId,
         ];
 
         $paymentRecordId = $this->payments_model->add($paymentRecord);
         if (!$paymentRecordId) {
-            return ['success' => false, 'message' => 'Invoice created but payment record failed', 'invoice_id' => $invoiceId];
+            return false;
         }
 
-        $this->save_mapping($externalKey, 'invoice', $invoiceId, $tenantId);
+        if (function_exists('update_invoice_status')) {
+            update_invoice_status($invoiceId, true);
+        }
 
-        return [
-            'success' => true,
-            'invoice_id' => $invoiceId,
-            'payment_record_id' => $paymentRecordId,
-        ];
+        return (int) $paymentRecordId;
+    }
+
+    private function get_invoice_status_label(int $invoiceId): string
+    {
+        $invoice = $this->db->where('id', $invoiceId)->get(db_prefix() . 'invoices')->row();
+
+        return $invoice ? (string) $invoice->status : '';
     }
 
     /**
