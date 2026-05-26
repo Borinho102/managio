@@ -9,6 +9,17 @@ class Auth extends App_Controller
 {
     public function consume()
     {
+        try {
+            $this->consume_sso();
+        } catch (\Throwable $e) {
+            log_message('error', 'Wekonex Bridge SSO: ' . $e->getMessage());
+            wekonex_bridge_log('sso_consume', false, ['error_message' => $e->getMessage()]);
+            show_error('SSO error: ' . $e->getMessage(), 500);
+        }
+    }
+
+    private function consume_sso(): void
+    {
         if (!wekonex_bridge_is_enabled()) {
             show_error('Wekonex Bridge is disabled.', 503);
         }
@@ -36,7 +47,6 @@ class Auth extends App_Controller
         $this->wekonex_bridge_model->store_sso_token($payload['nonce'], $payload, $token);
 
         $this->load->model('wekonex_bridge/wekonex_sync_model');
-        $this->load->model('authentication_model');
 
         $email = strtolower(trim((string) ($payload['email'] ?? '')));
         $role = (string) ($payload['role'] ?? 'alumni');
@@ -48,13 +58,13 @@ class Auth extends App_Controller
                 $staff = $this->wekonex_bridge_model->ensure_sso_staff($payload);
             }
 
-            if ($staff && (int) $staff->two_factor_auth_enabled === 0) {
+            if ($staff && !wekonex_bridge_staff_has_2fa($staff)) {
                 $this->login_staff_session($staff, $email, $role);
 
                 return;
             }
 
-            if ($staff && (int) $staff->two_factor_auth_enabled !== 0) {
+            if ($staff && wekonex_bridge_staff_has_2fa($staff)) {
                 wekonex_bridge_log('sso_consume', false, [
                     'error_message' => 'Staff has 2FA enabled',
                     'payload' => ['email' => $email],
@@ -81,7 +91,7 @@ class Auth extends App_Controller
                 'contact_user_id' => $contact->id,
                 'client_logged_in' => true,
             ]);
-            $this->authentication_model->update_login_info($contact->id, false);
+            wekonex_bridge_touch_login((int) $contact->id, false);
 
             wekonex_bridge_log('sso_consume', true, [
                 'payload' => [
@@ -108,7 +118,7 @@ class Auth extends App_Controller
         );
     }
 
-    private function login_staff_session(object $staff, string $email, string $role): void
+    private function login_staff_session($staff, string $email, string $role): void
     {
         hooks()->do_action('before_staff_login', [
             'email' => $email,
@@ -119,7 +129,7 @@ class Auth extends App_Controller
             'staff_user_id' => $staff->staffid,
             'staff_logged_in' => true,
         ]);
-        $this->authentication_model->update_login_info($staff->staffid, true);
+        wekonex_bridge_touch_login((int) $staff->staffid, true);
 
         wekonex_bridge_log('sso_consume', true, [
             'payload' => [
@@ -142,7 +152,8 @@ class Auth extends App_Controller
 
         $returnUrl = trim((string) ($payload['return_url'] ?? ''));
         if ($returnUrl !== '' && preg_match('#^https?://#i', $returnUrl)) {
-            redirect($returnUrl . (str_contains($returnUrl, '?') ? '&' : '?') . 'managio_sso=failed');
+            $separator = strpos($returnUrl, '?') !== false ? '&' : '?';
+            redirect($returnUrl . $separator . 'managio_sso=failed');
             return;
         }
 

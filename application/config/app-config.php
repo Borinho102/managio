@@ -87,5 +87,10 @@ define('APP_SESSION_COOKIE_SAME_SITE', 'Lax');
  */
 define('APP_CSRF_PROTECTION', true);
 
+/**
+ * Logs détaillés (actif tant que index.php → ENVIRONMENT = development).
+ * 4 = tous les messages · voir application/logs/
+ */
+define('APP_LOG_THRESHOLD', 4);
 
 require_once(FCPATH . 'modules/saas/config/my_config.php'); // added by saas

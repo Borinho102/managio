@@ -292,7 +292,10 @@ class Wekonex_sync_model extends App_Model
     /**
      * Enregistre le paiement Perfex (invoicepaymentrecords) et met la facture à jour.
      */
-    private function record_perfex_payment(int $invoiceId, float $amount, string $date, array $payload, string $wekonexPaymentId): int|false
+    /**
+     * @return int|false
+     */
+    private function record_perfex_payment(int $invoiceId, float $amount, string $date, array $payload, string $wekonexPaymentId)
     {
         $paymentModeId = $this->resolve_payment_mode_id((string) ($payload['gateway'] ?? 'Wekonex'));
         $paymentRecord = [
