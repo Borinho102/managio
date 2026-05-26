@@ -124,6 +124,11 @@ class Wekonex_bridge_model extends App_Model
             return $existing;
         }
 
+        $duplicate = $this->db->where('email', $email)->count_all_results(db_prefix() . 'staff');
+        if ($duplicate > 0) {
+            return $this->db->where('email', $email)->get(db_prefix() . 'staff')->row();
+        }
+
         [$firstname, $lastname] = wekonex_bridge_split_name((string) ($payload['name'] ?? $email));
 
         $this->load->model('staff_model');

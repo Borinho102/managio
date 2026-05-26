@@ -162,6 +162,32 @@ function wekonex_bridge_verify_webhook_request(): bool
     return is_string($header) && hash_equals($secret, $header);
 }
 
+/**
+ * Met à jour last_login / last_ip après SSO (update_login_info est private dans Authentication_model).
+ */
+function wekonex_bridge_touch_login(int $userId, bool $isStaff): void
+{
+    $CI = &get_instance();
+    $table = $isStaff ? db_prefix() . 'staff' : db_prefix() . 'contacts';
+    $idColumn = $isStaff ? 'staffid' : 'id';
+
+    $CI->db->set('last_ip', $CI->input->ip_address());
+    $CI->db->set('last_login', date('Y-m-d H:i:s'));
+    $CI->db->where($idColumn, $userId);
+    $CI->db->update($table);
+
+    log_activity('Wekonex Bridge SSO login [User Id: ' . $userId . ', Staff: ' . ($isStaff ? 'Yes' : 'No') . ']');
+}
+
+function wekonex_bridge_staff_has_2fa(object $staff): bool
+{
+    if (!isset($staff->two_factor_auth_enabled)) {
+        return false;
+    }
+
+    return (int) $staff->two_factor_auth_enabled !== 0;
+}
+
 function wekonex_bridge_split_name(string $fullName): array
 {
     $fullName = trim($fullName);
