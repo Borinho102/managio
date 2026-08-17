@@ -2,6 +2,7 @@
 
 defined('BASEPATH') or exit('No direct script access allowed');
 
+#[\AllowDynamicProperties]
 class Saas_model extends App_Model
 {
     public $_table_name;
@@ -98,6 +99,56 @@ class Saas_model extends App_Model
             $menu['custom_domain']['badge'] = array(
                 'value' => $total_requests,
                 'type' => 'warning'
+            );
+        }
+        // Netim domain registrar
+        $netim_pending = 0;
+        if ($this->db->table_exists('tbl_saas_netim_requests')) {
+            $netim_pending = total_rows('tbl_saas_netim_requests', array('status' => 'pending'));
+        }
+        $menu['netim_domains'] = array(
+            'slug'     => 'netim_domains',
+            'name'     => 'Domain Registrar',
+            'position' => 4,
+            'badge'    => array(),
+            'icon'     => 'fa fa-shopping-cart',
+            'href'     => saas_url('netim_domains/domain_list'),
+            'children' => array(
+                array(
+                    'parent_slug' => 'netim_domains',
+                    'slug'        => 'netim_requests',
+                    'name'        => 'Purchase Requests',
+                    'badge'       => array(),
+                    'href'        => saas_url('netim_domains/requests'),
+                    'position'    => 1,
+                    'icon'        => '',
+                ),
+                array(
+                    'parent_slug' => 'netim_domains',
+                    'slug'        => 'netim_domain_list',
+                    'name'        => 'Registered Domains',
+                    'href'        => saas_url('netim_domains/domain_list'),
+                    'position'    => 2,
+                    'icon'        => '',
+                ),
+                array(
+                    'parent_slug' => 'netim_domains',
+                    'slug'        => 'netim_settings',
+                    'name'        => 'Netim Settings',
+                    'href'        => saas_url('netim_domains/settings'),
+                    'position'    => 3,
+                    'icon'        => '',
+                ),
+            ),
+        );
+        if ($netim_pending > 0) {
+            $menu['netim_domains']['badge'] = array(
+                'value' => $netim_pending,
+                'type'  => 'danger',
+            );
+            $menu['netim_domains']['children'][0]['badge'] = array(
+                'value' => $netim_pending,
+                'type'  => 'danger',
             );
         }
         // assign package
@@ -756,6 +807,9 @@ class Saas_model extends App_Model
 
 
         if (!empty($company_info)) {
+            $server_type = ConfigItems('saas_server') ?: 'local';
+            log_message('debug', '[create_database] company_id=' . $id . ' server=' . $server_type . ' domain=' . $company_info->domain);
+
             if (ConfigItems('saas_server') === 'cpanel') {
                 $server_result = $this->createCPanelDatabase($company_info);
             } elseif (ConfigItems('saas_server') === 'plesk') {
@@ -767,6 +821,7 @@ class Saas_model extends App_Model
             }
 
             if (!empty($server_result['db_name'])) {
+                log_message('debug', '[create_database] DB created: ' . $server_result['db_name']);
                 if (empty($_POST['username'])) {
                     $server_result['status'] = 'running';
                 }
@@ -779,16 +834,19 @@ class Saas_model extends App_Model
                     $this->save_old($server_result, $company_info->id);
                 }
                 $company_info->db_name = $server_result['db_name'];
-
+                log_message('debug', '[create_database] Running create_tables for db=' . $server_result['db_name']);
                 $this->create_tables($company_info, $fresh_db);
-                // Create database tables
                 $result['result'] = 'success';
                 $result['db_name'] = $server_result['db_name'];
+                log_message('debug', '[create_database] Completed successfully db=' . $server_result['db_name']);
             } else if (!empty($server_result['error'])) {
+                log_message('error', '[create_database] Server error: ' . $server_result['error']);
                 $result['error'] = $server_result['error'];
             } else if (!empty($server_result['warning'])) {
+                log_message('error', '[create_database] Server warning: ' . $server_result['warning']);
                 $result['error'] = $server_result['warning'];
             } else {
+                log_message('error', '[create_database] Unknown failure for company_id=' . $id);
                 $result['error'] = 'Database not created';
             }
             return $result;
@@ -797,12 +855,24 @@ class Saas_model extends App_Model
 
     private function install_basic_data($companyInfo, $fresh_db)
     {
-        // check if already exist the email address on tbl_users
         $db_name = $companyInfo->db_name;
         $old_db_name = $this->db->database;
         $uTable = db_prefix() . 'staff';
+        log_message('debug', '[install_basic_data] db=' . $db_name . ' email=' . $companyInfo->email . ' fresh_db=' . ($fresh_db ? 'yes' : 'no'));
         if (empty($fresh_db)) {
-            $this->db->query("INSERT INTO `" . $db_name . "`.`" . $uTable . "` SELECT * FROM `" . $old_db_name . "`.`" . $uTable . "` WHERE `" . $uTable . "`.`role` != 4");
+            $dest_cols = array_column(
+                $this->db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '" . $db_name . "' AND TABLE_NAME = '" . $uTable . "' ORDER BY ORDINAL_POSITION")->result_array(),
+                'COLUMN_NAME'
+            );
+            $src_cols = array_column(
+                $this->db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '" . $old_db_name . "' AND TABLE_NAME = '" . $uTable . "' ORDER BY ORDINAL_POSITION")->result_array(),
+                'COLUMN_NAME'
+            );
+            $common_cols = array_values(array_intersect($dest_cols, $src_cols));
+            if (!empty($common_cols)) {
+                $cols_str = '`' . implode('`, `', $common_cols) . '`';
+                $this->db->query("INSERT INTO `" . $db_name . "`.`" . $uTable . "` (" . $cols_str . ") SELECT " . $cols_str . " FROM `" . $old_db_name . "`.`" . $uTable . "` WHERE `" . $uTable . "`.`role` != 4");
+            }
         }
         $already_exist = $this->db->where('email', $companyInfo->email)->get($db_name . '.' . $uTable)->row();
         if (!empty($_POST['firstname'])) {
@@ -937,30 +1007,73 @@ class Saas_model extends App_Model
     private
     function create_tables($companyInfo, $fresh_db = null)
     {
+        log_message('debug', '[create_tables] START company_id=' . ($companyInfo->id ?? 'unknown') . ' db_name=' . ($companyInfo->db_name ?? 'unknown') . ' for_seed=' . ($companyInfo->for_seed ?? 'no') . ' fresh_db=' . ($fresh_db ?? 'null'));
+
         $sample_database = seed_db();
 
+        log_message('debug', '[create_tables] seed_db() result=' . ($sample_database ? 'found db_name=' . $sample_database->db_name . ' id=' . $sample_database->id : 'FALSE — no seed company found'));
 
         $old_db_name = $this->db->database;
         if (!empty($sample_database)) {
-            $db_name = $companyInfo->db_name;
+            $db_name      = $companyInfo->db_name;
             $seed_db_name = $sample_database->db_name;
-            // get all tables from different database name is $sample_database
+
+            log_message('debug', '[create_tables] target_db=' . $db_name . ' seed_db=' . $seed_db_name);
+            log_message('debug', '[create_tables] Calling config_db(' . $seed_db_name . ')');
+
             $this->sample_db = config_db($seed_db_name);
 
-            $seeds_tables = $this->sample_db->list_tables();
-            if (empty($seeds_tables) || $companyInfo->for_seed == 'yes') {
+            if ($this->sample_db === false) {
+                log_message('error', '[create_tables] config_db(' . $seed_db_name . ') returned FALSE — seed database does not exist or connection failed. Falling back to fresh_seeds.');
                 $this->fresh_seeds($companyInfo);
+                $old_db_name = $this->db->database;
+                $this->db->database = $old_db_name;
+                $this->install_basic_data($companyInfo, $fresh_db);
+                $this->db->db_debug = true;
+                return true;
+            }
+
+            log_message('debug', '[create_tables] config_db(' . $seed_db_name . ') connected successfully');
+
+            $seeds_tables = $this->sample_db->list_tables();
+
+            log_message('debug', '[create_tables] seed table count=' . count($seeds_tables) . ' for_seed=' . ($companyInfo->for_seed ?? 'no'));
+
+            if (empty($seeds_tables) || $companyInfo->for_seed == 'yes') {
+                log_message('debug', '[create_tables] Seed DB empty or for_seed=yes — calling fresh_seeds then re-connecting');
+                $this->fresh_seeds($companyInfo);
+
+                log_message('debug', '[create_tables] Calling config_db(' . $sample_database->db_name . ') after fresh_seeds');
                 $this->sample_db = config_db($sample_database->db_name);
+
+                if ($this->sample_db === false) {
+                    log_message('error', '[create_tables] config_db(' . $sample_database->db_name . ') returned FALSE after fresh_seeds — cannot continue');
+                    return false;
+                }
+
                 $seeds_tables = $this->sample_db->list_tables();
+                log_message('debug', '[create_tables] Post-fresh_seeds table count=' . count($seeds_tables));
 
                 return true;
             }
+
             $this->sample_db->close();
+            log_message('debug', '[create_tables] Calling config_db(' . $db_name . ') for company DB');
+
             $this->company_db = config_db($db_name);
+
+            if ($this->company_db === false) {
+                log_message('error', '[create_tables] config_db(' . $db_name . ') returned FALSE — company database does not exist');
+                return false;
+            }
+
             $tables = $this->company_db->list_tables();
+            log_message('debug', '[create_tables] Company DB table count=' . count($tables));
             $this->company_db->close();
 
             $this->db->query("SET SESSION sql_mode = ''");
+            log_message('debug', '[create_tables] Dropping ' . count($tables) . ' existing tables from ' . $db_name);
+
             // drop all tables
             foreach ($tables as $table) {
                 // drop all tables with foreign key constraints and cascade delete
@@ -984,10 +1097,14 @@ class Saas_model extends App_Model
                 db_prefix() . 'tickets_priorities',
                 db_prefix() . 'tickets_status',
             );
+
+            log_message('debug', '[create_tables] Copying ' . count($seeds_tables) . ' tables from ' . $seed_db_name . ' to ' . $db_name . ' fresh_db=' . ($fresh_db ? 'yes' : 'no'));
+
             foreach ($seeds_tables as $table) {
                 $this->db->query("CREATE TABLE IF NOT EXISTS `" . $db_name . "`.`" . $table . "` LIKE `" . $seed_db_name . "`.`" . $table . "`");
                 // check if the tbl_users table then skip the tbl_users table
                 if ($table == db_prefix() . 'modules' || $table == db_prefix() . 'staff') {
+                    log_message('debug', '[create_tables] Skipping table=' . $table);
                     continue;
                 }
                 if (!empty($fresh_db)) {
@@ -998,15 +1115,20 @@ class Saas_model extends App_Model
                     $this->db->query("INSERT INTO `" . $db_name . "`.`" . $table . "` SELECT * FROM `" . $seed_db_name . "`.`" . $table . "`");
                 }
             }
+
+            log_message('debug', '[create_tables] Table copy complete');
         } else {
+            log_message('debug', '[create_tables] No seed DB — calling fresh_seeds');
             $this->fresh_seeds($companyInfo);
             $old_db_name = $this->db->database;
         }
 
         $this->db->database = $old_db_name;
+        log_message('debug', '[create_tables] Calling install_basic_data company_id=' . ($companyInfo->id ?? 'unknown'));
         $this->install_basic_data($companyInfo, $fresh_db);
 
         $this->db->db_debug = true;
+        log_message('debug', '[create_tables] DONE company_id=' . ($companyInfo->id ?? 'unknown'));
         return true;
     }
 
@@ -1065,25 +1187,35 @@ class Saas_model extends App_Model
         } else {
             $cpaneluser_short = substr(ConfigItems('saas_cpanel_username'), 0, 8);
         }
-        $databasename = db_name($company_info->domain) . '_' . (!empty($company_info->companies_id) ? $company_info->companies_id : $company_info->id);
-        $create_db = $xmlapi->api1_query($cpaneluser, "Mysql", "adddb", array($databasename));
+
+        $databasename_short = db_name($company_info->domain) . '_' . (!empty($company_info->companies_id) ? $company_info->companies_id : $company_info->id);
+        $databasename_full  = $cpaneluser_short . '_' . $databasename_short;
+
+        log_message('debug', '[createCPanelDatabase] cpaneluser=' . $cpaneluser . ' cpaneluser_short=' . $cpaneluser_short . ' db_short=' . $databasename_short . ' db_full=' . $databasename_full . ' db_username=' . $db_username . ' output=' . $output);
+
+        $create_db = $xmlapi->api1_query($cpaneluser, "Mysql", "adddb", array($databasename_short));
         if ($output == 'json' && !empty($create_db)) {
             $create_db = json_decode($create_db);
         }
-        $assign_permission = $xmlapi->api1_query($cpaneluser, 'Mysql', 'adduserdb', array('' . $databasename . '', '' . $db_username . '', 'all'));
-        // $assign_permission = $xmlapi->api1_query($cpaneluser, "Mysql", "adduserdb", array($cpaneluser_short . "_" . $databasename, $db_username, 'all'));
-        $databasename = $cpaneluser_short . "_" . $databasename;
+        log_message('debug', '[createCPanelDatabase] adddb response: ' . json_encode($create_db));
+
+        // Use full prefixed name for permission grant — cPanel/CWP stores DB as {prefix}_{name}
+        $assign_permission = $xmlapi->api1_query($cpaneluser, 'Mysql', 'adduserdb', array($databasename_full, $db_username, 'all'));
         if ($output == 'json' && !empty($assign_permission)) {
             $assign_permission = json_decode($assign_permission);
         }
+        log_message('debug', '[createCPanelDatabase] adduserdb response (db=' . $databasename_full . ' user=' . $db_username . '): ' . json_encode($assign_permission));
 
         if (!empty($assign_permission->error)) {
+            log_message('error', '[createCPanelDatabase] adduserdb failed: ' . $assign_permission->error);
             return [
-                'warning' => $create_db->error
+                'warning' => $assign_permission->error
             ];
         }
+
+        log_message('debug', '[createCPanelDatabase] Done db_name=' . $databasename_full);
         return [
-            'db_name' => $databasename
+            'db_name' => $databasename_full
         ];
     }
 
@@ -1165,35 +1297,40 @@ class Saas_model extends App_Model
 
     private function createMysqlDatabase($company_info, $test = null)
     {
-
-        $db_mysql_host = get_option('saas_mysql_host');
-        $db_mysql_username = get_option('saas_mysql_username');
-        $db_mysql_password = decrypt(get_option('saas_mysql_password'));
-        $db_mysql_port = get_option('saas_mysql_port');
+        $db_mysql_host            = get_option('saas_mysql_host');
+        $db_mysql_username        = get_option('saas_mysql_username');
+        $db_mysql_password        = decrypt(get_option('saas_mysql_password'));
+        $db_mysql_port            = get_option('saas_mysql_port');
         $db_mysql_database_prefix = get_option('saas_mysql_database_prefix');
+
+        log_message('debug', '[createMysqlDatabase] host=' . $db_mysql_host . ' port=' . $db_mysql_port . ' user=' . $db_mysql_username . ' password=' . ($db_mysql_password ? 'SET' : 'EMPTY') . ' prefix=' . ($db_mysql_database_prefix ?: 'none') . ' test=' . ($test ? 'yes' : 'no'));
 
         if (!empty($test)) {
             $db_name = 'db_dummy';
             if (!empty($db_mysql_database_prefix)) {
                 $db_name = $db_mysql_database_prefix . $db_name;
             }
-            // create dummy database using mysql connection
+            log_message('debug', '[createMysqlDatabase] TEST mode — dummy_db=' . $db_name);
             try {
-                $conn = new PDO("mysql:host=$db_mysql_host;port=$db_mysql_port", $db_mysql_username, $db_mysql_password);
+                $dsn  = "mysql:host=$db_mysql_host;port=$db_mysql_port";
+                log_message('debug', '[createMysqlDatabase] TEST connecting DSN=' . $dsn);
+                $conn = new PDO($dsn, $db_mysql_username, $db_mysql_password);
                 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
                 $conn->query('CREATE DATABASE IF NOT EXISTS ' . $db_name /*!40100 CHARACTER SET utf8 COLLATE 'utf8_general_ci' */);
                 $conn->query('DROP DATABASE ' . $db_name);
+                log_message('debug', '[createMysqlDatabase] TEST success — dummy DB created and dropped');
                 return [
                     'message' => _l('local_connection_success'),
-                    'type' => 'success'
+                    'type'    => 'success',
                 ];
             } catch (\Exception $e) {
+                log_message('error', '[createMysqlDatabase] TEST connection FAILED error=' . $e->getMessage() . ' host=' . $db_mysql_host . ' port=' . $db_mysql_port . ' user=' . $db_mysql_username);
                 $shortMessage = substr($e->getMessage(), 0, 100);
                 $shortMessage = str_replace("'", "", $shortMessage);
                 $shortMessage = str_replace('"', '', $shortMessage);
                 return [
                     'message' => $shortMessage,
-                    'type' => 'warning'
+                    'type'    => 'warning',
                 ];
             }
         } else {
@@ -1201,24 +1338,31 @@ class Saas_model extends App_Model
             if (!empty($db_mysql_database_prefix)) {
                 $databasename = $db_mysql_database_prefix . $databasename;
             }
+
+            log_message('debug', '[createMysqlDatabase] Creating db=' . $databasename . ' company_id=' . ($company_info->id ?? 'unknown') . ' domain=' . ($company_info->domain ?? 'unknown'));
+
             try {
-                $conn = new PDO("mysql:host=$db_mysql_host;port=$db_mysql_port", $db_mysql_username, $db_mysql_password);
+                $dsn  = "mysql:host=$db_mysql_host;port=$db_mysql_port";
+                log_message('debug', '[createMysqlDatabase] Connecting DSN=' . $dsn . ' user=' . $db_mysql_username);
+                $conn = new PDO($dsn, $db_mysql_username, $db_mysql_password);
                 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                log_message('debug', '[createMysqlDatabase] PDO connected — running CREATE DATABASE IF NOT EXISTS ' . $databasename);
                 $conn->query('CREATE DATABASE IF NOT EXISTS ' . $databasename /*!40100 CHARACTER SET utf8 COLLATE 'utf8_general_ci' */);
+                log_message('debug', '[createMysqlDatabase] DB created successfully db=' . $databasename);
                 return [
-                    'db_name' => $databasename
+                    'db_name' => $databasename,
                 ];
             } catch (\Exception $e) {
+                log_message('error', '[createMysqlDatabase] FAILED db=' . $databasename . ' error=' . $e->getMessage() . ' host=' . $db_mysql_host . ' port=' . $db_mysql_port . ' user=' . $db_mysql_username);
                 $shortMessage = substr($e->getMessage(), 0, 100);
                 $shortMessage = str_replace("'", "", $shortMessage);
                 $shortMessage = str_replace('"', '', $shortMessage);
                 return [
                     'message' => $shortMessage,
-                    'type' => 'warning'
+                    'type'    => 'warning',
                 ];
             }
         }
-
     }
 
 
@@ -1499,10 +1643,16 @@ class Saas_model extends App_Model
             $this->new_db = config_db($db_name);
 
             if (!empty($modules)) {
+                // Strip third-party 'pre_deactivate_module' hooks (e.g. Envato license
+                // deregister in perfex_mobile_companion) — they would revoke the
+                // superadmin license when a tenant package drops the module.
+                hooks()->remove_all_actions('pre_deactivate_module');
                 foreach ($modules as $key => $module) {
                     // set session for new database
                     $this->session->set_userdata('new_db_name', $db_name);
-                    hooks()->add_action('pre_uninstall_module', 'saas_db_activate_module');
+                    // App_modules::deactivate() fires 'pre_deactivate_module'
+                    // (not 'pre_uninstall_module') — hook the DB switch on the right tag
+                    hooks()->add_action('pre_deactivate_module', 'saas_db_activate_module');
                     $this->app_modules->deactivate($module);
                 }
                 // unset session for new database
@@ -1539,28 +1689,38 @@ class Saas_model extends App_Model
 
             $diff = array_diff($new_modules, $all_module);
 
+            log_message('debug', '[active_modules] company=' . $db_name . ' to_activate=' . implode(',', $diff));
 
             $activated = [];
             if (!empty($diff)) {
+                // Third-party modules (Envato license checks like perfex_mobile_companion)
+                // hook 'pre_activate_module' to render an activation page and exit(),
+                // which aborts tenant provisioning mid-payment. Strip them; only the
+                // saas DB-switch handler may run during provisioning.
+                hooks()->remove_all_actions('pre_activate_module');
                 foreach ($diff as $module) {
-                    // set session for new database
                     $this->session->set_userdata('new_db_name', $db_name);
                     hooks()->add_action('pre_activate_module', 'saas_db_activate_module');
-                    $result = $this->app_modules->activate($module);
-                    if (!empty($result)) {
-                        $activated[] = $module;
+                    try {
+                        $result = $this->app_modules->activate($module);
+                        if (!empty($result)) {
+                            $activated[] = $module;
+                            log_message('debug', '[active_modules] activated=' . $module);
+                        } else {
+                            log_message('error', '[active_modules] failed to activate=' . $module);
+                        }
+                    } catch (Exception $e) {
+                        log_message('error', '[active_modules] exception activating=' . $module . ' msg=' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
                     }
                 }
-                // unset session for new database
                 $this->session->unset_userdata('new_db_name');
                 $this->db = config_db(null, true);
             }
 
-            // check different from $diff and activated
-            $not_activated = array_diff($activated, $diff);
-
-            // check if not activated module exist then remove it from $new_modules
+            // modules in diff but not in activated = failed to activate
+            $not_activated = array_diff($diff, $activated);
             if (!empty($not_activated)) {
+                log_message('error', '[active_modules] not_activated=' . implode(',', $not_activated));
                 $new_modules = array_diff($new_modules, $not_activated);
             }
 
@@ -2871,15 +3031,22 @@ class Saas_model extends App_Model
         $companies = get_any_field('tbl_saas_companies', array('db_name !=' => NULL, 'for_seed' => NULL), 'db_name', true);
         if (!empty($companies)) {
             foreach ($companies as $company) {
-                $db = $company['db_name'];
-                $this->update_db = config_db($db);
-                $this->update_db->where('module_name', SaaS_MODULE)->update(db_prefix() . 'modules', ['installed_version' => $module_version]);
-                // close the db
-                $this->update_db->close();
+                try {
+                    $db = $company['db_name'];
+                    $this->update_db = config_db($db);
+                    if ($this->update_db === false) {
+                        log_message('error', '[update_version_in_all_company_database] db not found, skipping: ' . $db);
+                        continue;
+                    }
+                    $this->update_db->where('module_name', SaaS_MODULE)->update(db_prefix() . 'modules', ['installed_version' => $module_version]);
+                    // close the db
+                    $this->update_db->close();
+                } catch (Throwable $e) {
+                    log_message('error', 'Error updating version in all company databases:  ' . $e->getMessage());
+                    //continue;
+                }
             }
         }
-
-
     }
 
     public function updateProduct($product_id, $plan_id, $package, $gateway, $type = 'package')

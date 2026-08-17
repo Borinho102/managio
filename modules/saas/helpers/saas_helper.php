@@ -652,42 +652,57 @@ if (!function_exists('config_db')) {
     {
         $CI = &get_instance();
         // load config.php from module
-        $config_db = $CI->config->config['config_db'];
+        $config_db    = $CI->config->config['config_db'];
+        $database_port = null;
+
         if (!empty($default_database)) {
-            $database_name = APP_DB_NAME;
-            $database_user = APP_DB_USERNAME;
+            $database_name     = APP_DB_NAME;
+            $database_user     = APP_DB_USERNAME;
             $database_password = APP_DB_PASSWORD;
-            $database_host = APP_DB_HOSTNAME;
+            $database_host     = APP_DB_HOSTNAME;
         } else {
-            $database_name = $db_name;
-            $database_user = $config_db['username'];
+            $database_name     = $db_name;
+            $database_user     = $config_db['username'];
             $database_password = $config_db['password'];
-            $database_host = $config_db['hostname'];
+            $database_host     = $config_db['hostname'];
 
             if (get_option('saas_server') == 'mysql') {
-                $db_mysql_host = get_option('saas_mysql_host');
-                $db_mysql_username = get_option('saas_mysql_username');
-                $db_mysql_password = decrypt(get_option('saas_mysql_password'));
-                $db_mysql_port = get_option('saas_mysql_port');
-
-                $database_host = $db_mysql_host . ':' . $db_mysql_port;
-                $database_user = $db_mysql_username;
-                $database_password = $db_mysql_password;
+                $database_host     = get_option('saas_mysql_host');
+                $database_user     = get_option('saas_mysql_username');
+                $database_password = decrypt(get_option('saas_mysql_password'));
+                $database_port     = get_option('saas_mysql_port');
+                // Port set separately below — do NOT concatenate host:port.
+                // CI's mysqli driver resolves 'localhost:port' as TCP 127.0.0.1
+                // which breaks MySQL users granted only on 'localhost' (socket).
             }
         }
-        $config_db['username'] = $database_user; // set database username
-        $config_db['password'] = $database_password; // set database password
-        $config_db['hostname'] = $database_host; // set database host
-        $config_db['database'] = $database_name; // set database name
-        $database_exist = $CI->db->query("SHOW DATABASES WHERE `database` = '" . $database_name . "'")->num_rows();
+
+        $config_db['username'] = $database_user;
+        $config_db['password'] = $database_password;
+        $config_db['hostname'] = $database_host;
+        $config_db['database'] = $database_name;
+        if (!empty($database_port)) {
+            $config_db['port'] = (int) $database_port;
+        }
+
+        // INFORMATION_SCHEMA.SCHEMATA works without global SHOW DATABASES privilege.
+        // SHOW DATABASES only shows DBs the current user has access to — unreliable
+        // immediately after cPanel/CWP API grants before MySQL flushes privileges.
+        $check         = $CI->db->query(
+            "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '" . $CI->db->escape_str($database_name) . "'"
+        );
+        $database_exist = ($check && $check->num_rows() > 0) ? 1 : 0;
+
+        log_message('debug', '[config_db] db=' . $database_name . ' user=' . $database_user . ' host=' . $database_host . ' port=' . ($database_port ?: 'default') . ' found=' . $database_exist);
 
         if (!empty($database_exist)) {
             $CI->new_db = $CI->load->database($config_db, true);
-            // set sql mode for database
             $CI->new_db->query("SET SESSION sql_mode = ''");
             $CI->new_db->query("SET sql_mode = ''");
             return $CI->new_db;
         }
+
+        log_message('error', '[config_db] DB not found in INFORMATION_SCHEMA: ' . $database_name . ' (user=' . $database_user . ' host=' . $database_host . ')');
         return false;
     }
 }

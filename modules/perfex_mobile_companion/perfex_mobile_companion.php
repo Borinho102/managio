@@ -238,50 +238,11 @@ HTACCESS;
  */
 register_language_files(PERFEX_MOBILE_COMPANION, [PERFEX_MOBILE_COMPANION]);
 
-hooks()->add_action('app_init', 'perfex_mobile_companion_actLib');
-function perfex_mobile_companion_actLib()
-{
-    $CI = &get_instance();
-    $CI->load->library(PERFEX_MOBILE_COMPANION . '/Envatoapi');
-    $envato_res = $CI->envatoapi->validatePurchase(PERFEX_MOBILE_COMPANION);
-    if (!$envato_res) {
-        set_alert('danger', "One of your modules failed its verification and got deactivated. Please reactivate or contact support.");
-        redirect(admin_url('modules'));
-    }
-}
-
-hooks()->add_action('pre_activate_module', 'perfex_mobile_companion_sidecheck');
-function perfex_mobile_companion_sidecheck($module_name)
-{
-    if ($module_name['system_name'] == PERFEX_MOBILE_COMPANION) {
-        if (!option_exists(PERFEX_MOBILE_COMPANION . '_verified') && empty(get_option(PERFEX_MOBILE_COMPANION . '_verified')) && !option_exists(PERFEX_MOBILE_COMPANION . '_verification_id') && empty(get_option(PERFEX_MOBILE_COMPANION . '_verification_id'))) {
-            $CI = &get_instance();
-            $data['submit_url'] = $module_name['system_name'] . '/env_ver/activate';
-            $data['original_url'] = admin_url('modules/activate/' . PERFEX_MOBILE_COMPANION);
-            $data['module_name'] = PERFEX_MOBILE_COMPANION;
-            $data['title']       = $module_name['headers']['module_name'] . " module activation";
-            echo $CI->load->view($module_name['system_name'] . '/activate', $data, true);
-            exit();
-        }
-    }
-}
-
-hooks()->add_action('pre_deactivate_module', PERFEX_MOBILE_COMPANION . '_deregister');
-function perfex_mobile_companion_deregister($module_name)
-{
-    if ($module_name['system_name'] == PERFEX_MOBILE_COMPANION) {
-        $CI = &get_instance();
-        $CI->load->library(PERFEX_MOBILE_COMPANION . '/Envatoapi');
-        $CI->envatoapi->deactivateLicense(PERFEX_MOBILE_COMPANION);
-        delete_option(PERFEX_MOBILE_COMPANION . "_verified");
-        delete_option(PERFEX_MOBILE_COMPANION . "_verification_id");
-        delete_option(PERFEX_MOBILE_COMPANION . "_last_verification");
-        delete_option(PERFEX_MOBILE_COMPANION . "_expire_verification");
-        if (file_exists(__DIR__ . "/config/token.php")) {
-            unlink(__DIR__ . "/config/token.php");
-        }
-    }
-}
+/**
+ * Envato purchase-code verification removed — module now always runs as
+ * activated/licensed. No app_init gate, no pre_activate_module block screen,
+ * no pre_deactivate_module license teardown call.
+ */
 
 function perfex_mobile_companion_copy_directory($source, $destination)
 {

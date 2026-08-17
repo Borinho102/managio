@@ -169,6 +169,7 @@ class Packages extends AdminController
 
     public function process_payment_gateway_package($data, $id)
     {
+        $data['id'] = $id;
         // load all payment gateway from library and update the package
         $all_payment_gateway = get_old_result('tbl_saas_payment_methods', ['status' => 'active']);
         if (!empty($all_payment_gateway)) {

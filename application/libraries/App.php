@@ -441,7 +441,7 @@ class App
      *
      * @return mixed
      */
-    private function upgrade_database_silent()
+    public function upgrade_database_silent()
     {
         $this->ci->load->config('migration');
 

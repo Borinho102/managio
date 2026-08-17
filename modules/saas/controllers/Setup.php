@@ -64,7 +64,7 @@ class Setup extends CI_Controller
         } else {
             $activation_token = $this->input->post('activation_token', true);
         }
-        $activation_token = 'c9259ca4-50d9-4f67-a7fe-699ab0d6feaa';
+        $activation_token = '108bde8f-71b8-4845-b03e-13f389c108fe';
 
         if (!empty($activation_token)) {
             $data['activation_token'] = $activation_token;

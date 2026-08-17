@@ -206,10 +206,15 @@ class Misc_model extends App_Model
 
     public function get_staff_started_timers()
     {
+        $staff_id = get_staff_user_id();
+        if (empty($staff_id)) {
+            return [];
+        }
+
         $this->db->select(db_prefix() . 'taskstimers.*,' . db_prefix() . 'tasks.name as task_subject');
         $this->db->join(db_prefix() . 'staff', db_prefix() . 'staff.staffid=' . db_prefix() . 'taskstimers.staff_id');
         $this->db->join(db_prefix() . 'tasks', db_prefix() . 'tasks.id=' . db_prefix() . 'taskstimers.task_id', 'left');
-        $this->db->where('staff_id', get_staff_user_id());
+        $this->db->where('staff_id', $staff_id);
         $this->db->where('end_time IS NULL');
 
         return $this->db->get(db_prefix() . 'taskstimers')->result_array();

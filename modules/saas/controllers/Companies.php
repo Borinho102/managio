@@ -266,11 +266,10 @@ class Companies extends AdminController
 
             $billing_cycle = $this->input->post('billing_cycle', true);
             $mark_paid = $this->input->post('mark_paid', true);
-            // deduct $billing_cycle from price
-            $data['frequency'] = str_replace('_price', '', $billing_cycle);;
+            $data['frequency'] = str_replace('_price', '', $billing_cycle);
             $data['trial_period'] = $package_info->trial_period;
             $data['is_trial'] = 'Yes';
-            $data['expired_date'] = $this->input->post('expired_date', true);;
+            $data['expired_date'] = $this->input->post('expired_date', true);
             $data['currency'] = config_item('default_currency');
             $data['amount'] = $package_info->$billing_cycle;
 
@@ -279,16 +278,19 @@ class Companies extends AdminController
                 $data['is_trial'] = 'No';
             }
 
+            log_message('debug', '[save_companies] Saving company: ' . $data['name'] . ' email=' . ($data['email'] ?? 'edit-mode') . ' status=' . $data['status']);
+
             $this->saas_model->_table_name = 'tbl_saas_companies';
             $this->saas_model->_primary_key = 'id';
             $id = $this->saas_model->save($data, $id);
 
+            log_message('debug', '[save_companies] Company saved ID=' . $id);
+
             $this->saas_model->save_client($id, $data['password']);
 
-            if (!empty($company_info) && $company_info->package_id != $data['package_id'] || empty($company_info)) {
-                // save data into tbl_saas_companies_history
-                // change active status to 0 for all previous data of this company
+            log_message('debug', '[save_companies] Client saved for company ID=' . $id);
 
+            if (!empty($company_info) && $company_info->package_id != $data['package_id'] || empty($company_info)) {
                 $this->saas_model->_table_name = 'tbl_saas_companies_history';
                 $this->saas_model->_primary_key = 'companies_id';
                 $this->saas_model->save(array('active' => 0), $id);
@@ -296,14 +298,26 @@ class Companies extends AdminController
                 $data['companies_id'] = $id;
                 $data['ip'] = $this->input->ip_address();
 
-
                 $companies_history_id = $this->saas_model->update_company_history($data);
+                log_message('debug', '[save_companies] History saved history_id=' . $companies_history_id);
 
-
-                // create database for this company
                 if ($data['status'] == 'running') {
-                    // create database for the company
-                    $this->saas_model->create_database($id);
+                    log_message('debug', '[save_companies] Creating database for company ID=' . $id);
+                    try {
+                        $db_result = $this->saas_model->create_database($id);
+                        if (!empty($db_result['result']) && $db_result['result'] === 'success') {
+                            log_message('debug', '[save_companies] Database created: ' . $db_result['db_name']);
+                        } else {
+                            $db_error = $db_result['error'] ?? 'Unknown error';
+                            log_message('error', '[save_companies] Database creation failed ID=' . $id . ' error=' . $db_error);
+                            set_alert('error', _l('create_database_error') . ': ' . $db_error);
+                            redirect('saas/companies/details/' . $id);
+                        }
+                    } catch (Exception $e) {
+                        log_message('error', '[save_companies] Exception during create_database ID=' . $id . ' msg=' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+                        set_alert('error', _l('create_database_error') . ': ' . $e->getMessage());
+                        redirect('saas/companies/details/' . $id);
+                    }
                 }
 
                 if (!empty($mark_paid)) {
@@ -340,25 +354,25 @@ class Companies extends AdminController
                                 $coupon_data['coupon'] = $coupon_code;
                                 $coupon_data['coupon_id'] = $coupon_info->id;
                                 $coupon_data['user_id'] = $user_id;
-                                $coupon_data['email'] = $data['email'];
+                                $coupon_data['email'] = $data['email'] ?? '';
                                 $coupon_data['applied_date'] = date('Y-m-d H:i:s');
 
-                                // save into tbl_saas_applied_coupon
                                 $this->saas_model->_table_name = 'tbl_saas_applied_coupon';
                                 $this->saas_model->_primary_key = 'id';
                                 $applied_coupon_id = $this->saas_model->save($coupon_data);
+                                log_message('debug', '[save_companies] Coupon applied id=' . $applied_coupon_id . ' code=' . $coupon_code);
                             }
                         }
                     }
 
-                    // save payment info
                     $payment_date = $this->input->post('payment_date', true);
+                    $payment_method_post = $this->input->post('payment_method', true);
                     $pdata = array(
                         'reference_no' => $this->input->post('reference_no', true),
                         'companies_history_id' => $companies_history_id,
                         'companies_id' => $id,
                         'transaction_id' => 'TRN' . date('Ymd') . date('His') . '_' . substr(number_format(time() * rand(), 0, '', ''), 0, 6),
-                        'payment_method' => (!empty($pdata['payment_method'])) ? $pdata['payment_method'] : 'manual',
+                        'payment_method' => !empty($payment_method_post) ? $payment_method_post : 'manual',
                         'currency' => $data['currency'],
                         'subtotal' => $data['amount'],
                         'discount_percent' => $discount_percentage,
@@ -372,10 +386,13 @@ class Companies extends AdminController
 
                     $this->saas_model->_table_name = 'tbl_saas_companies_payment';
                     $this->saas_model->_primary_key = 'id';
-                    $this->saas_model->save($pdata);
+                    $payment_id = $this->saas_model->save($pdata);
+                    log_message('debug', '[save_companies] Payment saved id=' . $payment_id . ' method=' . $pdata['payment_method'] . ' total=' . $pdata['total_amount']);
                 }
             }
-            if (!empty($id)) {
+
+            $is_new = empty($company_info);
+            if (!$is_new) {
                 $msg = _l('update_company');
                 $activity = 'activity_update_company';
             } else {
@@ -384,11 +401,12 @@ class Companies extends AdminController
             }
 
             log_activity($activity . ' - ' . $data['name'] . ' [ID:' . $id . ']');
+            log_message('debug', '[save_companies] Done. Sending welcome email for company ID=' . $id);
             $this->saas_model->send_welcome_email($id);
 
             $type = "success";
         }
-        $message = $msg;
+        $message = $msg ?? _l('save_company');
         set_alert($type, $message);
         redirect('saas/companies');
     }

@@ -96,7 +96,7 @@
                     if (!empty($payment_modes)) {
                         foreach ($payment_modes as $mode) {
                             ?>
-                            <option value="<?= $mode->id ?>"><?= _l($mode->gateway_name) ?></option>
+                            <option value="<?= $mode['id'] ?>"><?= _l($mode['gateway_name']) ?></option>
                             <?php
                         }
                     }

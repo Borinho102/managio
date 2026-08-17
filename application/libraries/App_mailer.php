@@ -53,14 +53,16 @@ class App_mailer extends CI_Email
         'client_secret' => '',
         'tenant_id'     => '',
         'refresh_token' => '',
+
+        'zeptomail_api_key' => '',
     ];
     protected $properties    = [];
     protected $mailer_engine = 'codeigniter';
     protected $CI;
-    protected static $protocols = ['mail', 'sendmail', 'smtp', 'microsoft', 'google'];
+    protected static $protocols = ['mail', 'sendmail', 'smtp', 'microsoft', 'google', 'zeptomail'];
 
     // Codeigniter related
-    protected $_protocols                 = ['mail', 'sendmail', 'smtp', 'microsoft', 'google'];
+    protected $_protocols                 = ['mail', 'sendmail', 'smtp', 'microsoft', 'google', 'zeptomail'];
     protected static $mailtypes           = ['html', 'text'];
     protected static $encodings_ci        = ['8bit', '7bit'];
     protected static $encodings_phpmailer = ['8bit', '7bit', 'binary', 'base64', 'quoted-printable'];
@@ -573,6 +575,7 @@ class App_mailer extends CI_Email
                 case 'smtp':
                 case 'microsoft':
                 case 'google':
+                case 'zeptomail':
                     $this->phpmailer->isSMTP();
 
                     break;
@@ -581,6 +584,15 @@ class App_mailer extends CI_Email
 
         return $this;
     }
+
+    public function set_zeptomail_api_key($value)
+    {
+        $this->properties['zeptomail_api_key'] = (string) $value;
+
+        return $this;
+    }
+
+
 
     public function set_smtp_host($value)
     {

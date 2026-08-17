@@ -401,12 +401,43 @@ class Saas_Stripe extends Saas_payment
         return false;
     }
 
+    /**
+     * Cancel any existing incomplete/draft Stripe subscription for this customer+price
+     * before creating a new one, preventing abandoned incomplete subscription accumulation.
+     */
+    private function cancelIncompleteSubscription(string $customerId, string $priceId): void
+    {
+        try {
+            $existing = $this->provider->subscriptions->all([
+                'customer' => $customerId,
+                'status'   => 'incomplete',
+                'limit'    => 10,
+            ]);
+            foreach ($existing->data as $sub) {
+                foreach ($sub->items->data as $item) {
+                    if ($item->price->id === $priceId) {
+                        $this->provider->subscriptions->cancel($sub->id);
+                        log_message('debug', 'Saas_Stripe: canceled incomplete subscription ' . $sub->id);
+                        break;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Saas_Stripe::cancelIncompleteSubscription: ' . $e->getMessage());
+        }
+    }
+
     private function createdSubscription($stripe_company, $package, $post)
     {
         $this->setProvider();
 
         $this->ci->saas_model->_table_name = 'tbl_saas_gateway_subscriptions';
         $this->ci->saas_model->_primary_key = 'id';
+
+        if ($post['frequency'] !== 'lifetime') {
+            // Cancel any leftover incomplete subscriptions for this customer+price before creating fresh one
+            $this->cancelIncompleteSubscription($stripe_company->customer_id, $post['priceId']);
+        }
 
         if ($post['frequency'] == 'lifetime') {
             // create lifetime subscription
@@ -480,32 +511,46 @@ class Saas_Stripe extends Saas_payment
 
     }
 
-    private function get_client_secret($stripe_company, $package, $newSubscription, $post)
+    private function get_client_secret($stripe_company, $package, $newSubscription, $post): ?string
     {
-        if (!empty($newSubscription->metadata->frequency) && $newSubscription->metadata->frequency === 'lifetime') {
-            $client_secret = $newSubscription->client_secret;
-        } else if ($package->trial_period != 0) {
-            if (!empty($newSubscription->pending_setup_intent)) {
-                $setupIntent = $this->provider->setupIntents->retrieve($newSubscription->pending_setup_intent, []);
-                $client_secret = $setupIntent->client_secret;
-            } else if (!empty($newSubscription->latest_invoice->payment_intent->client_secret)) {
-                $client_secret = $newSubscription->latest_invoice->payment_intent->client_secret;
-            } else {
-                $newSubscription = $this->createdSubscription($stripe_company, $package, $post);
-                $client_secret = $this->get_client_secret($stripe_company, $package, $newSubscription, $post);
-            }
+        $is_lifetime = !empty($newSubscription->metadata->frequency)
+            && $newSubscription->metadata->frequency === 'lifetime';
 
-        } else {
-            if (!empty($newSubscription->latest_invoice->payment_intent->client_secret)) {
-                $client_secret = $newSubscription->latest_invoice->payment_intent->client_secret;
-            } else {
-                $newSubscription = $this->createdSubscription($stripe_company, $package, $post);
-                $client_secret = $this->get_client_secret($stripe_company, $package, $newSubscription, $post);
-            }
-
+        if ($is_lifetime) {
+            return $newSubscription->client_secret ?? null;
         }
-        return $client_secret;
 
+        // Trial: prefer pending_setup_intent (Stripe sets this for trialing subscriptions)
+        if ($package->trial_period != 0 && !empty($newSubscription->pending_setup_intent)) {
+            $siId = is_string($newSubscription->pending_setup_intent)
+                ? $newSubscription->pending_setup_intent
+                : $newSubscription->pending_setup_intent->id;
+            $setupIntent = $this->provider->setupIntents->retrieve($siId);
+            return $setupIntent->client_secret ?? null;
+        }
+
+        // Already expanded payment intent
+        if (!empty($newSubscription->latest_invoice->payment_intent->client_secret)) {
+            return $newSubscription->latest_invoice->payment_intent->client_secret;
+        }
+
+        // Expand was not applied (e.g. subscription retrieved without expand param) —
+        // retrieve invoice directly instead of creating a new subscription.
+        $latestInvoice = $newSubscription->latest_invoice ?? null;
+        if (!empty($latestInvoice)) {
+            $invoiceId = is_string($latestInvoice) ? $latestInvoice : ($latestInvoice->id ?? null);
+            if (!empty($invoiceId)) {
+                try {
+                    $invoice = $this->provider->invoices->retrieve($invoiceId, ['expand' => ['payment_intent']]);
+                    return $invoice->payment_intent->client_secret ?? null;
+                } catch (\Throwable $e) {
+                    log_message('error', 'Saas_Stripe::get_client_secret invoice retrieve failed: ' . $e->getMessage());
+                }
+            }
+        }
+
+        log_message('error', 'Saas_Stripe::get_client_secret returned null. Sub status=' . ($newSubscription->status ?? 'unknown') . ' latest_invoice=' . json_encode($newSubscription->latest_invoice ?? null));
+        return null;
     }
 
     // create subscriptions
@@ -513,32 +558,39 @@ class Saas_Stripe extends Saas_payment
     {
         $this->setProvider();
 
-        $amount = $post['amount'] * 100;
         $stripe_company = $company->stripe_company;
 
         if (empty($stripe_company->subscription_id)) {
             $newSubscription = $this->createdSubscription($stripe_company, $package, $post);
         } else {
-            $newSubscription = $this->provider->subscriptions->retrieve($stripe_company->subscription_id);
+            try {
+                // Always expand latest_invoice.payment_intent so get_client_secret works without a second API call
+                $newSubscription = $this->provider->subscriptions->retrieve(
+                    $stripe_company->subscription_id,
+                    ['expand' => ['latest_invoice.payment_intent']]
+                );
+
+                // If the stored subscription is no longer usable, create a fresh one
+                if (in_array($newSubscription->status, ['canceled', 'unpaid', 'incomplete_expired'], true)) {
+                    $newSubscription = $this->createdSubscription($stripe_company, $package, $post);
+                }
+            } catch (\Throwable $e) {
+                // Subscription not found in Stripe (deleted externally etc.) — create fresh
+                log_message('error', 'Saas_Stripe::createSubscription retrieve failed: ' . $e->getMessage());
+                $newSubscription = $this->createdSubscription($stripe_company, $package, $post);
+            }
         }
 
         $client_secret = $this->get_client_secret($stripe_company, $package, $newSubscription, $post);
 
-        $trial = false;
-        if ($package->trial_period != 0) {
-            $trial = true;
-        }
-
-        $paymentIntent = [
-            'subscription_id' => $newSubscription->id,
+        return [
+            'subscription_id'         => $newSubscription->id,
             'gateway_subscription_id' => $stripe_company->id,
-            'client_secret' => $client_secret,
-            'trial' => $trial,
-            'currency' => $this->currency,
-            'amount' => $amount,
+            'client_secret'           => $client_secret,
+            'trial'                   => $package->trial_period != 0,
+            'currency'                => $this->currency,
+            'amount'                  => $post['amount'] * 100,
         ];
-
-        return $paymentIntent;
     }
 
     public function getPaymentIntent($intent, $payment_intent = false)

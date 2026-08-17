@@ -58,6 +58,11 @@ class Settings extends AdminController
         } else {
             unset($post_data['settings']['saas_smtp_password']);
         }
+        if (!empty($post_data['settings']['zeptomail_api_key'])) {
+            $post_data['settings']['zeptomail_api_key'] = encrypt($post_data['settings']['zeptomail_api_key']);
+        } else {
+            unset($post_data['settings']['zeptomail_api_key']);
+        }
         if (!empty($post_data['settings']['saas_microsoft_mail_client_secret'])) {
             $post_data['settings']['saas_microsoft_mail_client_secret'] = encrypt($tmpData['settings']['saas_microsoft_mail_client_secret']);
         } else {

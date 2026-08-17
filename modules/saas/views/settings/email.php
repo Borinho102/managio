@@ -113,8 +113,35 @@
                 } ?>>
                 <label for="mail">Mail</label>
             </div>
+
+            <div class="radio radio-inline radio-primary">
+                <input type="radio" name="settings[email_protocol]" id="zeptomail"
+                       value="zeptomail" <?php if (get_option('email_protocol') == 'zeptomail') {
+                    echo 'checked';
+                } ?>>
+                <label for="zeptomail">ZeptoMail (SMTP)</label>
+            </div>
         </div>
-        <div class="smtp-fields<?php if (get_option('email_protocol') == 'mail') {
+
+        <div class="tw-my-8 tw-border tw-border-solid tw-rounded-md tw-border-neutral-200 tw-px-3 tw-py-4 zeptomail-fields<?php echo get_option('email_protocol') !== 'zeptomail' ? ' hide' : ''; ?>">
+            <p class="tw-font-semibold">ZeptoMail SMTP</p>
+            <p class="text-muted">Connection pre-configured: <code>smtp.zeptomail.com:587 TLS</code> &mdash; username <code>emailapikey</code>. Only API key required.</p>
+            <div class="form-group">
+                <label for="zeptomail_api_key">ZeptoMail API Key (SMTP Password)</label>
+                <input type="password" class="form-control" id="zeptomail_api_key"
+                       name="settings[zeptomail_api_key]"
+                       autocomplete="off"
+                       value="<?php
+                           $zk = get_option('zeptomail_api_key');
+                           if (!empty($zk)) {
+                               $zk_dec = $this->encryption->decrypt($zk);
+                               echo htmlspecialchars($zk_dec !== false ? $zk_dec : $zk, ENT_QUOTES);
+                           }
+                       ?>"/>
+            </div>
+        </div>
+
+        <div class="smtp-fields<?php if (in_array(get_option('email_protocol'), ['mail', 'zeptomail'])) {
             echo ' hide';
         } ?>">
             <div
@@ -213,7 +240,7 @@
         <?php echo render_input('settings[smtp_email]', 'settings_email', get_option('smtp_email'), 'text', [], [],
             empty(get_option('smtp_email')) && in_array(get_option('email_protocol'), ['microsoft', 'google']) ? 'has-error' : ''
         ); ?>
-        <div class="xoauth-hide smtp-fields<?php if (in_array(get_option('email_protocol'), ['mail', 'microsoft', 'google'])) {
+        <div class="xoauth-hide smtp-fields<?php if (in_array(get_option('email_protocol'), ['mail', 'microsoft', 'google', 'zeptomail'])) {
             echo ' hide';
         } ?>">
             <i class="fa-regular fa-circle-question pull-left tw-mt-0.5 tw-mr-1" data-toggle="tooltip"
@@ -252,15 +279,53 @@
 </div>
 
 <script type="text/javascript">
-    $('.test_email').on('click', function () {
-        var email = $('input[name="test_email"]').val();
-        if (email != '') {
-            $(this).attr('disabled', true);
-            $.post(admin_url + 'emails/sent_smtp_test_email', {
-                test_email: email
-            }).done(function (data) {
-                window.location.reload();
-            });
-        }
+'use strict';
+document.addEventListener('DOMContentLoaded', function () {
+    function onProtocolChange() {
+        var checked = document.querySelector('input[name="settings[email_protocol]"]:checked');
+        var val = checked ? checked.value : '';
+        var isZepto    = val === 'zeptomail';
+        var isMail     = val === 'mail';
+        var isSendmail = val === 'sendmail';
+        var isOAuth    = val === 'microsoft' || val === 'google';
+
+        document.querySelectorAll('.zeptomail-fields').forEach(function (el) {
+            el.classList.toggle('hide', !isZepto);
+        });
+        document.querySelectorAll('.smtp-fields').forEach(function (el) {
+            if (!el.classList.contains('xoauth-hide')) {
+                el.classList.toggle('hide', isZepto || isMail || isSendmail);
+            }
+        });
+        document.querySelectorAll('.xoauth-hide.smtp-fields').forEach(function (el) {
+            el.classList.toggle('hide', isZepto || isMail || isOAuth);
+        });
+        document.querySelectorAll('.xoauth-microsoft-show').forEach(function (el) {
+            el.classList.toggle('hide', val !== 'microsoft');
+        });
+        document.querySelectorAll('.xoauth-google-show').forEach(function (el) {
+            el.classList.toggle('hide', val !== 'google');
+        });
+    }
+
+    document.querySelectorAll('input[name="settings[email_protocol]"]').forEach(function (el) {
+        el.addEventListener('change', onProtocolChange);
     });
+    onProtocolChange();
+
+    var testBtn = document.querySelector('.test_email');
+    if (testBtn) {
+        testBtn.addEventListener('click', function () {
+            var emailInput = document.querySelector('input[name="test_email"]');
+            var email = emailInput ? emailInput.value : '';
+            if (email !== '') {
+                testBtn.disabled = true;
+                var formData = new FormData();
+                formData.append('test_email', email);
+                fetch(admin_url + 'emails/sent_smtp_test_email', { method: 'POST', body: formData })
+                    .then(function () { window.location.reload(); });
+            }
+        });
+    }
+});
 </script>

@@ -504,6 +504,7 @@ function is_payment_mode_allowed_for_invoice($id, $invoiceid)
     $allowed_modes = $invoice->allowed_payment_modes;
     if (!is_null($allowed_modes)) {
         $allowed_modes = unserialize($allowed_modes);
+
         if (count($allowed_modes) == 0) {
             return false;
         }

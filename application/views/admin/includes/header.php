@@ -200,8 +200,8 @@
                         data-placement="bottom" class="">
                         <i class="fa-regular fa-square-check fa-lg tw-shrink-0"></i>
                         <span
-                            class="tw-leading-none tw-px-1 tw-py-0.5 tw-text-xs bg-warning tw-z-10 tw-absolute tw-rounded-full -tw-right-0.5 tw-top-2 tw-min-w-[18px] tw-min-h-[18px] tw-inline-flex tw-items-center tw-justify-center nav-total-todos<?= $current_user->total_unfinished_todos == 0 ? ' hide' : ''; ?>">
-                            <?= e($current_user->total_unfinished_todos); ?>
+                            class="tw-leading-none tw-px-1 tw-py-0.5 tw-text-xs bg-warning tw-z-10 tw-absolute tw-rounded-full -tw-right-0.5 tw-top-2 tw-min-w-[18px] tw-min-h-[18px] tw-inline-flex tw-items-center tw-justify-center nav-total-todos<?= ($current_user->total_unfinished_todos ?? 0) == 0 ? ' hide' : ''; ?>">
+                            <?= (int) ($current_user->total_unfinished_todos ?? 0); ?>
                         </span>
                     </a>
                 </li>

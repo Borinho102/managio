@@ -103,9 +103,34 @@
                     <?= get_option('email_protocol') == 'mail' ? 'checked' : ''; ?>>
                 <label for="mail">Mail</label>
             </div>
+
+            <div class="radio radio-inline radio-primary">
+                <input type="radio" name="settings[email_protocol]" id="zeptomail" value="zeptomail"
+                    <?= get_option('email_protocol') == 'zeptomail' ? 'checked' : ''; ?>>
+                <label for="zeptomail">ZeptoMail (SMTP)</label>
+            </div>
         </div>
+
+        <div class="tw-my-8 tw-border tw-border-solid tw-rounded-md tw-border-neutral-200 tw-px-3 tw-py-4 zeptomail-fields<?= get_option('email_protocol') !== 'zeptomail' ? ' hide' : ''; ?>">
+            <p class="tw-font-semibold">ZeptoMail SMTP</p>
+            <p class="text-muted">Connection is pre-configured: <code>smtp.zeptomail.com:587 TLS</code> &mdash; username <code>emailapikey</code>. Only your API key (password) is required.</p>
+            <div class="form-group">
+                <label for="zeptomail_api_key">ZeptoMail API Key (SMTP Password)</label>
+                <input type="password" class="form-control" id="zeptomail_api_key"
+                    name="settings[zeptomail_api_key]"
+                    autocomplete="off"
+                    value="<?php
+                        $zk = get_option('zeptomail_api_key');
+                        if (!empty($zk)) {
+                            $zk_dec = $this->encryption->decrypt($zk);
+                            echo htmlspecialchars($zk_dec !== false ? $zk_dec : $zk, ENT_QUOTES);
+                        }
+                    ?>" />
+            </div>
+        </div>
+
         <div
-            class="smtp-fields<?= get_option('email_protocol') == 'mail' ? ' hide' : ''; ?>">
+            class="smtp-fields<?= in_array(get_option('email_protocol'), ['mail', 'zeptomail']) ? ' hide' : ''; ?>">
             <div
                 class="tw-my-8 tw-border tw-border-solid tw-rounded-md tw-border-neutral-200 tw-px-3 tw-py-4 xoauth-microsoft-show<?= get_option('email_protocol') !== 'microsoft' ? ' hide' : ''; ?>">
                 <p>
@@ -209,7 +234,7 @@
             [],
             empty(get_option('smtp_email')) && in_array(get_option('email_protocol'), ['microsoft', 'google']) ? 'has-error' : ''
         ); ?>
-        <div class="xoauth-hide smtp-fields<?php if (in_array(get_option('email_protocol'), ['mail', 'microsoft', 'google'])) {
+        <div class="xoauth-hide smtp-fields<?php if (in_array(get_option('email_protocol'), ['mail', 'microsoft', 'google', 'zeptomail'])) {
             echo ' hide';
         } ?>">
             <i class="fa-regular fa-circle-question pull-left tw-mt-0.5 tw-mr-1" data-toggle="tooltip"

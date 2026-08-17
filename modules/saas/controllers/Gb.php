@@ -530,6 +530,140 @@ class Gb extends App_Controller
 
     }
 
+    public function s3p_payment_callback()
+    {
+        $post = $this->input->post();
+        log_message('debug', '[S3P_CALLBACK] Received POST: ' . json_encode(array_merge($post, ['amount' => $post['amount'] ?? null])));
+
+        if (empty($post)) {
+            log_message('error', '[S3P_CALLBACK] Empty POST — aborting');
+            set_alert('danger', 'Invalid request data');
+            redirect('register');
+        }
+
+        $companies_id      = $post['companies_id'] ?? '';
+        $package_id        = $post['package_id'] ?? '';
+        $billing_cycle     = $post['billing_cycle'] ?? 'monthly_price';
+        $amount            = $post['amount'] ?? 0;
+        $package_module_id = $post['package_module_id'] ?? '';
+
+        log_message('debug', '[S3P_CALLBACK] Parsed: company_id=' . $companies_id . ' package_id=' . $package_id . ' billing_cycle=' . $billing_cycle . ' amount=' . $amount . ' module_id=' . $package_module_id);
+
+        $company_info   = !empty($companies_id) ? get_old_result('tbl_saas_companies', ['id' => $companies_id], false) : null;
+        $checkout_url   = !empty($company_info->activation_code) ? 'checkout/' . $company_info->activation_code : 'register';
+
+        log_message('debug', '[S3P_CALLBACK] company lookup: ' . ($company_info ? 'found activation_code=' . $company_info->activation_code : 'NOT FOUND') . ' | checkout_url=' . $checkout_url);
+
+        // Call the real S3P collect + verify APIs (matches Stripe instantiation pattern)
+        $gateway        = new Saas_S3p();
+        $callbackResult = $gateway->processCallback($post);
+
+        log_message('debug', '[S3P_CALLBACK] processCallback result: ' . json_encode($callbackResult));
+
+        if (empty($callbackResult['success'])) {
+            $errorMsg = $callbackResult['message'] ?? 'S3P Payment failed.';
+            log_message('error', '[S3P_CALLBACK] Gateway failure: ' . $errorMsg . ' | company_id=' . $companies_id . ' | redirecting to ' . $checkout_url);
+            set_alert('danger', 'S3P: ' . $errorMsg);
+            redirect($checkout_url);
+        }
+
+        $transaction_id    = $callbackResult['transaction_id'];
+        $subscription_id   = 'S3P_SUB_' . date('YmdHis') . '_' . $callbackResult['trid'];
+
+        log_message('debug', '[S3P_CALLBACK] Payment verified: transaction_id=' . $transaction_id . ' subscription_id=' . $subscription_id);
+
+        $frequency = str_replace('_price', '', $billing_cycle);
+        if (empty($frequency)) {
+            $frequency = 'monthly';
+        }
+
+        $type = (!empty($package_module_id)) ? 'module' : 'package';
+
+        log_message('debug', '[S3P_CALLBACK] type=' . $type . ' frequency=' . $frequency);
+
+        if ($type === 'module') {
+            $data = [
+                'new_module'             => $post['new_module'] ?? '',
+                'company_id'             => $companies_id,
+                'package_name'           => 'Module ' . ($post['module_name'] ?? 'S3P'),
+                'calendar'               => 0,
+                'reports'                => 0,
+                'allowed_payment_modes'  => serialize([]),
+                'modules'                => $post['new_module'] ?? '',
+                'allowed_themes'         => serialize([]),
+                'disabled_modules'       => serialize([]),
+                'amount'                 => $amount,
+                'subscription_id'        => $subscription_id,
+                'transaction_id'         => $transaction_id,
+                'price_id'               => '',
+                'payment_method'         => 's3p',
+                'currency'               => default_currency(),
+                'mark_paid'              => true,
+                'type'                   => 'module',
+            ];
+            log_message('debug', '[S3P_CALLBACK] Calling update_company_modules for company_id=' . $companies_id . ' module=' . ($post['new_module'] ?? ''));
+            $result = $this->saas_model->update_company_modules($data);
+        } else {
+            $package = get_old_result('tbl_saas_packages', array('id' => $package_id), false);
+            $data = [
+                'package_id'     => $package_id,
+                'company_id'     => $companies_id,
+                'package_name'   => !empty($package) ? $package->name : 'S3P Plan',
+                'frequency'      => $frequency,
+                'amount'         => $amount,
+                'subscription_id' => $subscription_id,
+                'transaction_id' => $transaction_id,
+                'price_id'       => '',
+                'payment_method' => 's3p',
+                'currency'       => default_currency(),
+                'mark_paid'      => true,
+            ];
+            log_message('debug', '[S3P_CALLBACK] Calling update_company_packages for company_id=' . $companies_id . ' package_id=' . $package_id . ' package_name=' . ($package->name ?? 'S3P Plan'));
+            $result = $this->saas_model->update_company_packages($data);
+        }
+
+        log_message('debug', '[S3P_CALLBACK] DB update result: ' . ($result ? 'SUCCESS' : 'FAILED'));
+
+        if ($type === 'module') {
+            $subs_company = get_old_result('tbl_saas_gateway_subscriptions', array('company_id' => $companies_id, 'module_id' => $package_module_id, 'type' => $type), false);
+        } else {
+            $subs_company = get_old_result('tbl_saas_gateway_subscriptions', array('company_id' => $companies_id, 'type' => $type, 'gateway_name' => 's3p'), false);
+        }
+
+        $this->saas_model->_table_name = 'tbl_saas_gateway_subscriptions';
+        $this->saas_model->_primary_key = 'id';
+
+        $sub_data = [
+            'customer_id'     => $companies_id,
+            'company_id'      => $companies_id,
+            'subscription_id' => $subscription_id,
+            'type'            => $type,
+            'gateway_name'    => 's3p',
+            'status'          => 'running',
+            'end_date'        => $this->get_expired_date($frequency),
+        ];
+
+        $sub_data['module_id'] = ($type === 'module') ? $package_module_id : null;
+
+        $subs_company_id = !empty($subs_company) ? $subs_company->id : null;
+
+        log_message('debug', '[S3P_CALLBACK] Saving subscription: existing_id=' . ($subs_company_id ?? 'new') . ' end_date=' . $sub_data['end_date']);
+
+        $this->saas_model->save_old($sub_data, $subs_company_id);
+
+        if ($result) {
+            log_message('debug', '[S3P_CALLBACK] SUCCESS — company_id=' . $companies_id . ' transaction_id=' . $transaction_id . ' subscription_id=' . $subscription_id . ' amount=' . $amount);
+            log_activity('S3P Payment Completed [Company:' . $companies_id . ', TxID:' . $transaction_id . ', SubID:' . $subscription_id . ', Amount:' . $amount . ', Type:' . $type . ']');
+            set_alert('success', 'S3P Payment successfully completed');
+            redirect('admin/dashboard');
+        } else {
+            log_message('error', '[S3P_CALLBACK] DB update FAILED after payment collected — company_id=' . $companies_id . ' transaction_id=' . $transaction_id . ' amount=' . $amount);
+            log_activity('S3P Payment DB Failed [Company:' . $companies_id . ', TxID:' . $transaction_id . ', Amount:' . $amount . '] — payment collected but record not saved');
+            set_alert('danger', 'S3P Payment processing failed after collection');
+            redirect($checkout_url);
+        }
+    }
+
     public function stripePayment($data = null)
     {
 
@@ -892,10 +1026,11 @@ class Gb extends App_Controller
             if (!empty(subdomain())) {
                 $front_end = true;
             }
-            if (empty($data['package_id']) && !empty(subdomain())) {
-                $data['package_id'] = $post_data['package_id'];
-                $data['company_id'] = $post_data['companies_id'];
-            }
+
+            // Always ensure package_id and company_id are available for the view
+            $data['package_id'] = $post_data['package_id'];
+            $data['company_id'] = $post_data['companies_id'];
+
             $package_info = get_old_result('tbl_saas_packages', array('id' => $post_data['package_id']), false);
             $data['title'] = _l('checkout') . ' ' . _l('payment') . ' ' . _l('for') . ' ' . $package_info->name;
             $data['package_info'] = $package_info;

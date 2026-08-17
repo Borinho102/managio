@@ -407,5 +407,137 @@ class Gb_client extends ClientsController
         $this->set_layout($data, $view);
     }
 
+    // ------------------------------------------------------------------
+    // Netim: Domain search (AJAX)
+    // ------------------------------------------------------------------
+
+    public function domain_search()
+    {
+        if (!$this->input->is_ajax_request()) {
+            show_404();
+        }
+
+        $this->load->library('Saas_Netim', null, 'netim');
+        $domain = trim($this->input->post('domain', true));
+
+        if (empty($domain)) {
+            echo json_encode(['success' => false, 'error' => 'Please enter a domain name.']);
+            exit();
+        }
+
+        if (!$this->netim->isConfigured()) {
+            echo json_encode(['success' => false, 'error' => 'Domain purchase not available at this time.']);
+            exit();
+        }
+
+        $result = $this->netim->checkDomain($domain);
+        echo json_encode($result);
+        exit();
+    }
+
+    // ------------------------------------------------------------------
+    // Netim: Buy domain (search + WHOIS form + submit request)
+    // ------------------------------------------------------------------
+
+    public function buy_domain($step = null)
+    {
+        $data['title']        = 'Buy a Domain';
+        $data['company_info'] = get_company_subscription_by_id();
+        $this->load->library('Saas_Netim', null, 'netim');
+        $data['netim_configured'] = $this->netim->isConfigured();
+
+        if ($step === 'contact' && $this->input->post()) {
+            $company_id = $data['company_info']->companies_id;
+
+            // Save contact to DB
+            $contactData = [
+                'company_id'   => $company_id,
+                'netim_handle' => '',
+                'first_name'   => $this->input->post('first_name', true),
+                'last_name'    => $this->input->post('last_name', true),
+                'email'        => $this->input->post('email', true),
+                'phone'        => $this->input->post('phone', true),
+                'address'      => $this->input->post('address', true),
+                'city'         => $this->input->post('city', true),
+                'state'        => $this->input->post('state', true),
+                'zipcode'      => $this->input->post('zipcode', true),
+                'country'      => $this->input->post('country', true),
+                'legal_type'   => $this->input->post('legal_type', true) ?? 'INDIVIDUAL',
+                'company_name' => $this->input->post('company_name', true),
+            ];
+            $domain_name = $this->input->post('domain_name', true);
+            $price       = $this->input->post('price', true);
+            $currency    = $this->input->post('currency', true) ?? 'USD';
+
+            // Upsert contact for company
+            $existing = get_old_result('tbl_saas_netim_contacts', ['company_id' => $company_id], false);
+            $this->saas_model->_table_name  = 'tbl_saas_netim_contacts';
+            $this->saas_model->_primary_key = 'contact_id';
+            if ($existing) {
+                $this->saas_model->save_old($contactData, $existing->contact_id);
+                $contact_id = $existing->contact_id;
+            } else {
+                $this->saas_model->save_old($contactData);
+                $contact_id = $this->db->insert_id();
+            }
+
+            // Create domain purchase request
+            $this->db->insert('tbl_saas_netim_requests', [
+                'company_id'  => $company_id,
+                'domain_name' => $domain_name,
+                'contact_id'  => $contact_id,
+                'status'      => 'pending',
+                'price'       => $price,
+                'currency'    => $currency,
+            ]);
+
+            // If auto-register enabled, trigger directly (requires funded Netim account)
+            if (get_option('netim_auto_register') == '1') {
+                $this->load->library('Saas_Netim', null, 'netim2');
+                // Contact creation handled by admin register flow
+                log_message('debug', '[Gb_client::buy_domain] Auto-register is ON — admin still required to confirm.');
+            }
+
+            // Notify super admins
+            $superadmins = get_old_result(db_prefix() . 'staff', ['admin' => 1, 'role' => 4]);
+            $uids = [];
+            foreach ($superadmins as $sa) {
+                add_notification([
+                    'description' => 'New domain purchase request: ' . $domain_name . ' from ' . $data['company_info']->name,
+                    'touserid'    => $sa->staffid,
+                    'fromcompany' => true,
+                    'link'        => 'saas/netim_domains/requests',
+                ]);
+                $uids[] = $sa->staffid;
+            }
+            if (!empty($uids)) {
+                pusher_trigger_notification(array_unique($uids));
+            }
+
+            log_activity('Domain Purchase Request Submitted [Domain: ' . $domain_name . ']');
+            set_alert('success', 'Domain purchase request submitted! Our team will register ' . $domain_name . ' shortly.');
+            redirect('clients/my-domains');
+        }
+
+        $data['existing_contact'] = get_old_result('tbl_saas_netim_contacts', ['company_id' => $data['company_info']->companies_id], false);
+        $data['step'] = $step;
+        $this->set_layout($data, 'domain/netim_buy');
+    }
+
+    // ------------------------------------------------------------------
+    // Netim: My purchased domains list
+    // ------------------------------------------------------------------
+
+    public function my_domains()
+    {
+        $data['title']        = 'My Domains';
+        $data['company_info'] = get_company_subscription_by_id();
+        $company_id           = $data['company_info']->companies_id;
+
+        $data['domains']   = get_old_result('tbl_saas_netim_domains', ['company_id' => $company_id]);
+        $data['requests']  = get_old_result('tbl_saas_netim_requests', ['company_id' => $company_id]);
+
+        $this->set_layout($data, 'domain/netim_my_domains');
+    }
 
 }

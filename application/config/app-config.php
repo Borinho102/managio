@@ -43,12 +43,12 @@ define('APP_DB_HOSTNAME', 'localhost');
 /**
  * The username used to connect to the database
  */
-define('APP_DB_USERNAME', 'crm_root');
+define('APP_DB_USERNAME', 'root');
 
 /**
  * The password used to connect to the database
  */
-define('APP_DB_PASSWORD', 'Invest@CRM.2025');
+define('APP_DB_PASSWORD', 'Invest@2025@');
 
 /**
  * The name of the database you want to connect to

@@ -56,6 +56,15 @@ $route['admin/paymentSuccess'] = 'saas/gb_admin/paymentSuccess';
 $route['companyHistoryList/(:any)'] = 'saas/gb/companyHistoryList/$1';
 $route['companyPaymentList/(:any)'] = 'saas/gb/companyPaymentList/$1';
 $route['saas/payments'] = 'saas/companies/invoices';
+// Netim super-admin explicit routes (saas/ prefix — bypasses HMVC auto-routing ambiguity)
+$route['saas/netim_domains/settings']    = 'saas/netim_domains/settings';
+$route['saas/netim_domains/requests']    = 'saas/netim_domains/requests';
+$route['saas/netim_domains/domain_list'] = 'saas/netim_domains/domain_list';
+$route['saas/netim_domains/register/(:any)']      = 'saas/netim_domains/register/$1';
+$route['saas/netim_domains/reject/(:any)']        = 'saas/netim_domains/reject/$1';
+$route['saas/netim_domains/configure_dns/(:any)'] = 'saas/netim_domains/configure_dns/$1';
+$route['saas/netim_domains/test_connection']      = 'saas/netim_domains/test_connection';
+$route['saas/netim_domains/check_availability']   = 'saas/netim_domains/check_availability';
 $route['webhooks/(:any)'] = 'saas/webhooks/$1';
 $route['checkout/(:any)'] = 'saas/gb/checkout/$1';
 $route['checkout'] = 'saas/gb/checkout';
@@ -71,6 +80,11 @@ $route['clients/dashboard'] = 'saas/gb_client/billings';
 $route['clients/custom_domain'] = 'saas/gb_client/custom_domain';
 $route['clients/custom_domain/(:any)'] = 'saas/gb_client/custom_domain/$1';
 $route['clients/custom_domain/(:any)'] = 'saas/gb_client/custom_domain/$1';
+// Netim domain routes (client)
+$route['clients/buy-domain'] = 'saas/gb_client/buy_domain';
+$route['clients/buy-domain/(:any)'] = 'saas/gb_client/buy_domain/$1';
+$route['clients/domain-search'] = 'saas/gb_client/domain_search';
+$route['clients/my-domains'] = 'saas/gb_client/my_domains';
 $route['clients/get_modules'] = 'saas/gb_client/get_modules';
 $route['clients/get_modules/(:any)'] = 'saas/gb_client/get_modules/$1';
 $route['clients/module_details/(:any)'] = 'saas/gb_client/module_details/$1';
@@ -90,6 +104,15 @@ $route['admin/updatePackage'] = 'saas/gb_admin/assignPackage';
 $route['admin/billings'] = 'saas/gb_admin/billings';
 $route['admin/custom_domain'] = 'saas/gb_admin/custom_domain';
 $route['admin/custom_domain/(:any)'] = 'saas/gb_admin/custom_domain/$1';
+// Netim domain routes (admin company context)
+$route['admin/buy-domain'] = 'saas/gb_admin/buy_domain';
+$route['admin/buy-domain/(:any)'] = 'saas/gb_admin/buy_domain/$1';
+$route['admin/domain-search'] = 'saas/gb_admin/domain_search';
+$route['admin/my-domains'] = 'saas/gb_admin/my_domains';
+// Netim super-admin routes
+$route['admin/netim-domains'] = 'saas/netim_domains/domain_list';
+$route['admin/netim-requests'] = 'saas/netim_domains/requests';
+$route['admin/netim-settings'] = 'saas/netim_domains/settings';
 $route['admin/get_modules'] = 'saas/gb_admin/get_modules';
 $route['admin/get_modules/(:any)'] = 'saas/gb_admin/get_modules/$1';
 $route['admin/module_details/(:any)'] = 'saas/gb_admin/module_details/$1';

@@ -55,6 +55,10 @@ class Settings extends AdminController
                 $post_data['settings']['smtp_password'] = $tmpData['settings']['smtp_password'];
             }
 
+            if (isset($post_data['settings']['zeptomail_api_key']) && $post_data['settings']['zeptomail_api_key'] !== '') {
+                $post_data['settings']['zeptomail_api_key'] = $this->encryption->encrypt($post_data['settings']['zeptomail_api_key']);
+            }
+
             $success = $this->settings_model->update($post_data);
 
             if ($success > 0) {

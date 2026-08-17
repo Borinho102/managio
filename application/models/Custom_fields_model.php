@@ -84,7 +84,7 @@ class Custom_fields_model extends App_Model
         } else {
             $data['show_on_client_portal'] = 0;
         }
-        if ($data['field_order'] == '') {
+        if (($data['field_order'] ?? '') == '') {
             $data['field_order'] = 0;
         }
 
@@ -164,7 +164,7 @@ class Custom_fields_model extends App_Model
         } else {
             $data['show_on_pdf'] = 0;
         }
-        if ($data['field_order'] == '') {
+        if (($data['field_order'] ?? '') == '') {
             $data['field_order'] = 0;
         }
         if (isset($data['show_on_client_portal'])) {

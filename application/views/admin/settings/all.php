@@ -183,12 +183,14 @@ echo form_open_multipart($actionUrl, $formAttributes);
                 $('.smtp-fields').addClass('hide');
                 $('.xoauth-microsoft-show').addClass('hide');
                 $('.xoauth-google-show').addClass('hide');
+                $('.zeptomail-fields').addClass('hide');
                 resetFields();
             } else if ($(this).val() === 'microsoft' || $(this).val() === 'google') {
                 $('.smtp-fields').removeClass('hide');
                 $('.xoauth-hide').addClass('hide');
                 $('.xoauth-microsoft-show').addClass('hide');
                 $('.xoauth-google-show').addClass('hide');
+                $('.zeptomail-fields').addClass('hide');
 
                 if ($(this).val() === 'microsoft') {
                     $('.xoauth-microsoft-show').removeClass('hide');
@@ -214,11 +216,19 @@ echo form_open_multipart($actionUrl, $formAttributes);
                         $selectEnc.addClass('_modified');
                     }
                 }
+            } else if ($(this).val() === 'zeptomail') {
+                $('.smtp-fields').addClass('hide');
+                $('.xoauth-hide').addClass('hide');
+                $('.xoauth-microsoft-show').addClass('hide');
+                $('.xoauth-google-show').addClass('hide');
+                $('.zeptomail-fields').removeClass('hide');
+                resetFields();
             } else {
                 $('.smtp-fields').removeClass('hide');
                 $('.xoauth-hide').removeClass('hide');
                 $('.xoauth-microsoft-show').addClass('hide');
                 $('.xoauth-google-show').addClass('hide');
+                $('.zeptomail-fields').addClass('hide');
                 resetFields();
             }
         });

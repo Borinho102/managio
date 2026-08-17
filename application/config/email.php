@@ -24,20 +24,33 @@ if (!empty($googleClientId) && !empty($googleClientSecret) && get_option('email_
     $config['refresh_token'] = get_option('google_mail_refresh_token');
 }
 
-$config['protocol']  = get_option('email_protocol');
-$config['mailpath']  = '/usr/bin/sendmail'; // or "/usr/sbin/sendmail"
-$config['smtp_host'] = trim(get_option('smtp_host'));
+$config['protocol'] = get_option('email_protocol') === 'zeptomail' ? 'smtp' : get_option('email_protocol');
 
-if (get_option('smtp_username') == '') {
-    $config['smtp_user'] = trim(get_option('smtp_email'));
+$config['mailpath'] = '/usr/bin/sendmail'; // or "/usr/sbin/sendmail"
+
+if (get_option('email_protocol') === 'zeptomail') {
+    $config['smtp_host']   = 'smtp.zeptomail.com';
+    $config['smtp_port']   = 587;
+    $config['smtp_user']   = 'emailapikey';
+    $config['smtp_crypto'] = 'tls';
+    $_zk_raw               = get_option('zeptomail_api_key');
+    $_zk_dec               = !empty($_zk_raw) ? get_instance()->encryption->decrypt($_zk_raw) : '';
+    $config['smtp_pass']         = ($_zk_dec !== false && $_zk_dec !== '') ? $_zk_dec : $_zk_raw;
+    $config['zeptomail_api_key'] = $config['smtp_pass'];
 } else {
-    $config['smtp_user'] = trim(get_option('smtp_username'));
+    $config['zeptomail_api_key'] = get_instance()->encryption->decrypt(get_option('zeptomail_api_key'));
+    $config['smtp_host']         = trim(get_option('smtp_host'));
+    if (get_option('smtp_username') == '') {
+        $config['smtp_user'] = trim(get_option('smtp_email'));
+    } else {
+        $config['smtp_user'] = trim(get_option('smtp_username'));
+    }
+    $config['smtp_pass']   = get_instance()->encryption->decrypt(get_option('smtp_password'));
+    $config['smtp_port']   = trim(get_option('smtp_port'));
+    $config['smtp_crypto'] = get_option('smtp_encryption');
 }
 
-$config['smtp_pass']    = get_instance()->encryption->decrypt(get_option('smtp_password'));
-$config['smtp_port']    = trim(get_option('smtp_port'));
 $config['smtp_timeout'] = 30;
-$config['smtp_crypto']  = get_option('smtp_encryption');
 $config['smtp_debug']   = 0;                        // PHPMailer's SMTP debug info level: 0 = off, 1 = commands, 2 = commands and data, 3 = s 2 plus connection status, 4 = low level data output.
 
 $config['debug_output'] = 'html';                       // PHPMailer's SMTP debug output: 'html', 'echo', 'error_log' or user defined unction with parameter $str and $level. NULL or '' means 'echo' on CLI, 'html' otherwise.

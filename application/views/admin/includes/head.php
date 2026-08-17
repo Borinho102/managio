@@ -18,7 +18,7 @@
     <?php render_admin_js_variables(); ?>
 
     <script>
-        var totalUnreadNotifications = <?= e($current_user->total_unread_notifications); ?> ,
+        var totalUnreadNotifications = <?= (int) ($current_user->total_unread_notifications ?? 0); ?> ,
             proposalsTemplates = <?= json_encode(get_proposal_templates()); ?> ,
             contractsTemplates = <?= json_encode(get_contract_templates()); ?> ,
             billingAndShippingFields = ['billing_street', 'billing_city', 'billing_state', 'billing_zip',

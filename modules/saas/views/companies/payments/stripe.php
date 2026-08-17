@@ -137,6 +137,7 @@ defined('BASEPATH') or exit('No direct script access allowed'); ?>
         }
     }
 </style>
+
 <form id="payment-form" action="<?php echo site_url('stripePayment'); ?>"
       method="post">
     <input type="hidden" name="plan" id="plan" value="<?php echo $priceId; ?>">
@@ -211,6 +212,12 @@ defined('BASEPATH') or exit('No direct script access allowed'); ?>
 
             const clientSecret = "<?php echo $client_secret; ?>";
 
+            if (!clientSecret || !clientSecret.includes('_secret_')) {
+                showMessage('Payment initialization failed. Please go back and try again.');
+                setLoading(false);
+                return;
+            }
+
             // check if is dark mode or not
             let appearance;
             if (localStorage.getItem('color-theme') === 'dark') {
@@ -258,7 +265,7 @@ defined('BASEPATH') or exit('No direct script access allowed'); ?>
             const paymentElement = elements.create("payment", paymentElementOptions);
             paymentElement.mount("#payment-element");
 
-            // show #button-text and hide #spinner
+            // show #button-text and hide #spinner dfdfgf
             setLoading(false);
 
 

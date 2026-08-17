@@ -24,10 +24,9 @@
     'use strict';
     // check package_id is empty or not by name
     $(document).ready(function () {
-        var package_id = '<?= $package_id ?>';
-        // if package_id is not empty then trigger onchange event
+        var package_id = '<?= $package_id ?? '' ?>';
         if (package_id != '') {
-            get_package_info(package_id, '<?= $frequency?>_price', '<?= $company_id?>');
+            get_package_info(package_id, '<?= isset($frequency) ? $frequency : 'monthly' ?>_price', '<?= $company_id ?? '' ?>');
         }
     });
 
