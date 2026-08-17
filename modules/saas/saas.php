@@ -341,17 +341,24 @@ hooks()->add_action('clients_authentication_constructor', 'saas_clients_authenti
 function saas_clients_authentication_constructor($data)
 {
     if ($data->router->fetch_method() == 'login' && !empty($data->session->client_logged_in)) {
-        return redirect('clients');
+        $client_home = (function_exists('is_subdomain') && empty(is_subdomain()))
+            ? 'clients/dashboard'
+            : 'clients';
+        return redirect($client_home);
     }
 }
 
 // ensure the user is redirected to client portal after logging in and not landing page
 hooks()->add_action('after_contact_login', function () {
     $CI = &get_instance();
-    if (!$CI->session->has_userdata('red_url'))
+    if (!$CI->session->has_userdata('red_url')) {
+        $landing = (function_exists('is_subdomain') && empty(is_subdomain()))
+            ? site_url('clients/dashboard')
+            : site_url('clients/');
         $CI->session->set_userdata([
-            'red_url' => site_url('clients/'),
+            'red_url' => $landing,
         ]);
+    }
     redirect($CI->session->userdata('red_url'));
 });
 

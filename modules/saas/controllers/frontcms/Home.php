@@ -58,6 +58,10 @@ class Home extends App_Controller
 
             $this->saas_model->force_upload_theme($this->themePath, $this->baseDir, $this->themes);
 
+            if (!file_exists($landingFile)) {
+                show_404();
+            }
+
             // reload the current url
             redirect($this->uri->uri_string());
 
@@ -128,7 +132,10 @@ class Home extends App_Controller
         $force_frontend = get_option('saas_force_redirect_to_dashboard');
         if ($force_frontend == "1" || $force_frontend == 1) {
             if (is_client_logged_in()) {
-                return redirect('clients');
+                $client_home = (function_exists('is_subdomain') && empty(is_subdomain()))
+                    ? 'clients/dashboard'
+                    : 'clients';
+                return redirect($client_home);
             }
 
             if (is_staff_logged_in()) {

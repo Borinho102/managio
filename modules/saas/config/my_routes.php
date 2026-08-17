@@ -97,6 +97,20 @@ $route['clients/customizePackages/(:any)'] = 'saas/gb_client/customizePackages/$
 $route['clients/referrals'] = 'saas/gb_client/referrals';
 $route['clients/proceedPayment'] = 'saas/gb_client/proceedPayment';
 
+// Core client-area controllers must stay ahead of the frontend catch-all.
+// Without these, /verification and /authentication are swallowed by $route['(:any)']
+// and bounce with /clients until the browser crashes.
+$route['verification'] = 'verification/index';
+$route['verification/(:any)'] = 'verification/$1';
+$route['verification/(:any)/(:any)'] = 'verification/$1/$2';
+$route['verification/(:any)/(:any)/(:any)'] = 'verification/$1/$2/$3';
+$route['authentication'] = 'authentication/index';
+$route['authentication/(:any)'] = 'authentication/$1';
+$route['authentication/(:any)/(:any)'] = 'authentication/$1/$2';
+$route['authentication/(:any)/(:any)/(:any)'] = 'authentication/$1/$2/$3';
+$route['authentication/(:any)/(:any)/(:any)/(:any)'] = 'authentication/$1/$2/$3/$4';
+$route['authentication/(:any)/(:any)/(:any)/(:any)/(:any)'] = 'authentication/$1/$2/$3/$4/$5';
+
 $route['admin/themebuilder'] = 'saas/builder';
 $route['admin/themebuilder/(:any)'] = 'saas/builder/$1';
 $route['admin/themebuilder/(:any)/(:any)'] = 'saas/builder/$1/$2';
@@ -139,19 +153,69 @@ $route["login_as_companies/(:any)"] = 'saas/gb_admin/login_as_companies/$1';
 $route["login_as_companies"] = 'saas/gb_admin/login_as_companies';
 $route["saas-data/(:any)"] = 'saas/frontcms/home/saas_data/$1';
 
+if (!function_exists('saas_uri_first_segment')) {
+    function saas_uri_first_segment()
+    {
+        $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+        $path = $path ?: '/';
+        $script_dir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/'));
+        $script_dir = rtrim($script_dir, '/');
+        if ($script_dir !== '' && $script_dir !== '/' && strpos($path, $script_dir) === 0) {
+            $path = substr($path, strlen($script_dir));
+        }
+        $path = trim($path, '/');
+        if ($path === '') {
+            return '';
+        }
+        $segments = explode('/', $path);
+        if (($segments[0] ?? '') === 'index.php') {
+            array_shift($segments);
+        }
+        return $segments[0] ?? '';
+    }
+}
+
+if (!function_exists('saas_is_reserved_first_segment')) {
+    function saas_is_reserved_first_segment($segment, $routes)
+    {
+        if ($segment === '') {
+            return false;
+        }
+
+        $reserved = [
+            'admin', 'authentication', 'clients', 'verification', 'login', 'logout',
+            'register', 'forgot_password', 'reset_password', 'invoice', 'estimate',
+            'proposal', 'contract', 'subscription', 'knowledge-base', 'knowledge_base',
+            'forms', 'download', 'consent', 'cron', 'contacts', 'privacy-policy',
+            'terms-and-conditions', 'check_emails', 'migration', 'gateways',
+        ];
+        if (in_array($segment, $reserved, true)) {
+            return true;
+        }
+        if (isset($routes[$segment])) {
+            return true;
+        }
+        foreach ([ucfirst($segment), $segment] as $name) {
+            if (file_exists(APPPATH . 'controllers/' . $name . '.php')) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+$saas_first_segment = saas_uri_first_segment();
+$saas_keep_app_routes = saas_is_reserved_first_segment($saas_first_segment, $route);
+
 if (function_exists('is_subdomain') && empty(is_subdomain())) {
-    // if url is  start with /clients then redirect to /clients
-    $url = $_SERVER['REQUEST_URI'];
-    if (strpos($url, '/clients') === 0 || strpos($url, '/login') === 0) {
+    if ($saas_keep_app_routes) {
         $route['default_controller'] = 'clients';
     } else {
         $route['default_controller'] = 'saas/frontcms/home/index';
         $route['(:any)'] = 'saas/frontcms/home/index/$1';
     }
 } else if (function_exists('is_subdomain') && !empty(is_subdomain())) {
-    // if url is  start with /clients then redirect to /clients
-    $url = $_SERVER['REQUEST_URI'];
-    if (strpos($url, '/clients') === 0 || strpos($url, '/login') === 0) {
+    if ($saas_keep_app_routes) {
         $route['default_controller'] = 'clients';
     } else {
         $route['default_controller'] = 'saas/frontcms/home/client';
