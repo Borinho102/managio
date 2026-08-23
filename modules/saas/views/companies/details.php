@@ -20,7 +20,7 @@
                         } else {
                             $frequency = _l('yr');
                         }
-                        $plan_name = '<a data-toggle="modal" data-target="#myModal" href="' . base_url('saas/gb/package_details/' . $company_info->company_history_id . '/1') . '">' . $company_info->package_name . ' ' . display_money($company_info->amount, default_currency()) . ' /' . $frequency . ' ' . '</a>';
+                        $plan_name = '<a data-toggle="modal" data-target="#myModal" href="' . base_url('saas/gb/package_details/' . $company_info->company_history_id . '/1') . '">' . $company_info->package_name . ' ' . display_money($company_info->amount, $company_info) . ' /' . $frequency . ' ' . '</a>';
                     } else {
                         $plan_name = '-';
                     }

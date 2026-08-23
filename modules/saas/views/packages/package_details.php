@@ -35,7 +35,7 @@
                         <div class="package_position <?= !empty($package_info->frequency) ? 'jcenter' : '' ?>">
                             <?php
                             if (!empty($package_info->frequency)) { ?>
-                                <h3 class="packaging-title text-center"> <?= display_money($package_info->amount, default_currency()) . ' / ' . _l($package_info->frequency) ?></h3>
+                                <h3 class="packaging-title text-center"> <?= display_money($package_info->amount, $package_info) . ' / ' . _l($package_info->frequency) ?></h3>
                             <?php } else {
                                 echo package_price($package_info);
                             }

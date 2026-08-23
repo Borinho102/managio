@@ -16,9 +16,9 @@
 
             <?php
             if (!empty($package_info->$other)) {
-                echo '<del>', display_money($package_info->$type, default_currency()), '</del>' . ' ' . display_money($package_info->$other);
+                echo '<del>', display_money($package_info->$type, $package_info), '</del>' . ' ' . display_money($package_info->$other, $package_info);
             } else {
-                echo display_money($package_info->$type, default_currency());
+                echo display_money($package_info->$type, $package_info);
             }
             ?>
             /<?= _l($type_title) ?></small>

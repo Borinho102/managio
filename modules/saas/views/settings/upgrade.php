@@ -60,7 +60,7 @@ echo form_open(BaseUrl('proceedPayment'), array('id' => 'checkoutPayment', 'enct
                                         <div class="package_position <?= !empty($sub_info->frequency) ? 'jcenter' : '' ?>">
                                             <?php
                                             if (!empty($sub_info->frequency)) { ?>
-                                                <h3 class="packaging-title text-center"> <?= display_money($sub_info->amount, default_currency()) . ' / ' . _l($sub_info->frequency) ?></h3>
+                                                <h3 class="packaging-title text-center"> <?= display_money($sub_info->amount, $sub_info) . ' / ' . _l($sub_info->frequency) ?></h3>
                                             <?php } else {
                                                 echo package_price($sub_info);
                                             }

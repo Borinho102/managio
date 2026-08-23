@@ -83,18 +83,18 @@ $billing_cycle = get_active_frequency();
                                                 if (!empty($package->monthly_offer)) {
                                                     ?>
                                                     <div class="d-flex monthly_price">
-                                                        <span class="price h1 mb-0"><?= display_money($package->monthly_offer) ?></span>
+                                                        <span class="price h1 mb-0"><?= display_money($package->monthly_offer, $package) ?></span>
                                                         <span class="h4 align-self-end mb-1">/mo</span>
                                                     </div>
                                                     <del class="d-flex monthly_price  mb-4">
-                                                        <span class="price mb-0"><?= display_money($package->monthly_price) ?></span>
+                                                        <span class="price mb-0"><?= display_money($package->monthly_price, $package) ?></span>
                                                         <span class="align-self-end mb-1">/mo</span>
                                                     </del>
                                                     <?php
                                                 } else {
                                                     ?>
                                                     <div class="d-flex mb-4 monthly_price">
-                                                        <span class="price h1 mb-0"><?= display_money(display_money($package->monthly_price)) ?></span>
+                                                        <span class="price h1 mb-0"><?= display_money($package->monthly_price, $package) ?></span>
                                                         <span class="h4 align-self-end mb-1">/mo</span>
                                                     </div>
                                                     <?php
@@ -105,11 +105,11 @@ $billing_cycle = get_active_frequency();
                                                 if (!empty($package->yearly_offer)) {
                                                     ?>
                                                     <del class="d-flex yearly_price d-none">
-                                                        <span class="price mb-0"><?= display_money($package->yearly_price) ?></span>
+                                                        <span class="price mb-0"><?= display_money($package->yearly_price, $package) ?></span>
                                                         <span class="align-self-end mb-1">/yr</span>
                                                     </del>
                                                     <div class="d-flex mb-4 yearly_price d-none">
-                                                        <span class="price h1 mb-0"><?= display_money($package->yearly_offer) ?></span>
+                                                        <span class="price h1 mb-0"><?= display_money($package->yearly_offer, $package) ?></span>
                                                         <span class="h4 align-self-end mb-1">/yr</span>
                                                     </div>
 
@@ -117,14 +117,14 @@ $billing_cycle = get_active_frequency();
                                                 } else {
                                                     ?>
                                                     <div class="d-flex mb-4 yearly_price d-none">
-                                                        <span class="price h1 mb-0"><?= display_money($package->yearly_price) ?></span>
+                                                        <span class="price h1 mb-0"><?= display_money($package->yearly_price, $package) ?></span>
                                                         <span class="h4 align-self-end mb-1">/yr</span>
                                                     </div>
                                                     <?php
                                                 }
                                                 ?>
                                                 <div class="d-flex mb-4 lifetime_price d-none">
-                                                    <span class="price h1 mb-0"><?= display_money($package->lifetime_price) ?></span>
+                                                    <span class="price h1 mb-0"><?= display_money($package->lifetime_price, $package) ?></span>
                                                     <span class="h4 align-self-end mb-1">/lt</span>
                                                 </div>
 

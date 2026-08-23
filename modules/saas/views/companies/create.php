@@ -72,7 +72,7 @@ if (empty($done_server_settings)) {
                                         $sub_text = '';
                                         if (!empty($active_frequency)) {
                                             foreach ($active_frequency as $name => $v_frequency) {
-                                                $sub_text .= $v_frequency . ': ' . display_money($v_package->$name) . ' ';
+                                                $sub_text .= $v_frequency . ': ' . display_money($v_package->$name, $v_package) . ' ';
                                             }
                                         }
                                         $sub_text .= strip_tags(mb_substr(!empty($v_package->description) ? $v_package->description : '', 0, 200)) . '...';

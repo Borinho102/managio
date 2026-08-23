@@ -200,7 +200,7 @@ class Gb_admin extends AdminController
                 $name .= '</div>';
             }
             $sub_array[] = $name;
-            $sub_array[] = display_money($v_history->amount, default_currency()) . ' /' . $frequency;
+            $sub_array[] = display_money($v_history->amount, $v_history) . ' /' . $frequency;
             $sub_array[] = _dt($v_history->created_at);
             $sub_array[] = (!empty($v_history->validity) ? $v_history->validity : '-');
             $sub_array[] = $v_history->payment_method;
@@ -254,7 +254,7 @@ class Gb_admin extends AdminController
             }
             $sub_array[] = '<a href="' . base_url('subs_package_details/' . $v_history->companies_history_id . '/1') . '"  data-toggle="modal" data-target="#myModal" >' . $v_history->package_name . '</a>';
             $sub_array[] = $v_history->transaction_id;
-            $sub_array[] = display_money($v_history->total_amount, default_currency());
+            $sub_array[] = display_money($v_history->total_amount, $v_history);
             $sub_array[] = _dt($v_history->payment_date);
             $sub_array[] = $v_history->payment_method;
             $data[] = $sub_array;

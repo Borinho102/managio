@@ -129,9 +129,10 @@ class Gb extends App_Controller
                         $discount_amount = $percentage;
                         $discount_percentage = $percentage;
                     }
-                    $result['sub_total_text'] = display_money($sub_total, default_currency());
+                    $packageCurrency = saas_package_currency($package_info);
+                    $result['sub_total_text'] = display_money($sub_total, $packageCurrency);
                     $result['sub_total_input'] = $sub_total;
-                    $result['total_text'] = display_money($sub_total - $discount_amount, default_currency());
+                    $result['total_text'] = display_money($sub_total - $discount_amount, $packageCurrency);
                     $result['total_input'] = $sub_total - $discount_amount;
                     $result['discount_percentage'] = $discount_percentage;
                     $result['coupon_code_input'] = $coupon_code;
@@ -144,7 +145,7 @@ class Gb extends App_Controller
 
                     $thtml = '';
                     $thtml .= '<div class="form-group mt-2 mb-2"><label class="col-sm-3 control-label">' . _l('total_amount') . '</label>';
-                    $thtml .= '<div class="col-sm-5"><div class="input-group"><span class="input-group-text">' . default_currency() . '</span>';
+                    $thtml .= '<div class="col-sm-5"><div class="input-group"><span class="input-group-text">' . $packageCurrency . '</span>';
                     $thtml .= '<input type="text" class="form-control" name="total_amount" value="' . $result['total_input'] . '" readonly >';
                     $thtml .= '</div></div></div>';
 
@@ -152,13 +153,13 @@ class Gb extends App_Controller
                         $result['success'] = true;
                         $result['applied_discount'] = $html;
                         $result['total_amount'] = $thtml;
-                        $result['discount_amount_text'] = display_money($discount_amount, default_currency());
+                        $result['discount_amount_text'] = display_money($discount_amount, $packageCurrency);
                         $result['discount_amount_input'] = $discount_amount;
                     } elseif ($coupon_info->package_id == $package_id) {
                         $result['success'] = true;
                         $result['html'] = $html;
                         $result['message'] = '';
-                        $result['discount_amount_text'] = display_money($discount_amount, default_currency());
+                        $result['discount_amount_text'] = display_money($discount_amount, $packageCurrency);
                         $result['discount_amount_input'] = $discount_amount;
                     } else {
                         $result['error'] = true;
@@ -1282,7 +1283,7 @@ class Gb extends App_Controller
                 $name .= '</div>';
             }
             $sub_array[] = $name;
-            $sub_array[] = display_money($v_history->amount, default_currency()) . ' /' . $frequency;
+            $sub_array[] = display_money($v_history->amount, $v_history) . ' /' . $frequency;
             $sub_array[] = _dt($v_history->created_at);
             $sub_array[] = (!empty($v_history->validity) ? $v_history->validity : '-');
             if (!empty($access)) {
@@ -1336,7 +1337,7 @@ class Gb extends App_Controller
             }
             $sub_array[] = '<a href="' . base_url('subs_package_details/' . $v_history->companies_history_id . '/1') . '"  data-toggle="modal" data-target="#myModal" >' . $v_history->package_name . '</a>';
             $sub_array[] = $v_history->transaction_id;
-            $sub_array[] = display_money($v_history->total_amount, default_currency());
+            $sub_array[] = display_money($v_history->total_amount, $v_history);
             $sub_array[] = _dt($v_history->payment_date);
             $sub_array[] = $v_history->payment_method;
             $data[] = $sub_array;

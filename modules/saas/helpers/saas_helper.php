@@ -562,13 +562,29 @@ function saas_package_currency($package = null)
 
 function saas_currency_object($code = null)
 {
-    $code = $code ? strtoupper($code) : saas_default_currency();
+    if (is_object($code) && isset($code->symbol) && !empty($code->name)
+        && (isset($code->placement) || isset($code->decimal_separator))) {
+        return $code;
+    }
+    if (is_object($code) || is_array($code)) {
+        $code = saas_package_currency($code);
+    }
+
+    $code = (is_string($code) && $code !== '') ? strtoupper(trim($code)) : saas_default_currency();
     $currency = function_exists('get_currency') ? get_currency($code) : null;
-    if (!empty($currency)) {
+    if (!empty($currency) && (is_object($currency) ? !empty($currency->name) : !empty($currency['name']))) {
         return $currency;
     }
 
-    return get_base_currency();
+    // Keep the requested ISO code even if it is not in tblcurrencies.
+    // Falling back to Perfex base currency would always show "$" for tenants.
+    return (object) [
+        'symbol'             => $code,
+        'name'               => $code,
+        'placement'          => 'before',
+        'decimal_separator'  => function_exists('get_option') ? (get_option('decimal_separator') ?: '.') : '.',
+        'thousand_separator' => function_exists('get_option') ? (get_option('thousand_separator') ?: ',') : ',',
+    ];
 }
 
 function saas_gateway_mode_aliases()

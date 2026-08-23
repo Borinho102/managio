@@ -33,9 +33,9 @@ echo '<link href="' . module_dir_url(SaaS_MODULE, 'assets/css/style_media.css') 
                         <h3 class="packaging-title">
                             <?php
                             if (!empty($package_info->$other)) {
-                                echo '<del class="pricing_times">' . display_money($package_info->$type) . '</del> ' . display_money($package_info->$other);
+                                echo '<del class="pricing_times">' . display_money($package_info->$type, $package_info) . '</del> ' . display_money($package_info->$other, $package_info);
                             } else {
-                                echo display_money($package_info->$type);
+                                echo display_money($package_info->$type, $package_info);
                             }
                             echo ' /' . $type_title
                             ?>

@@ -277,9 +277,10 @@ class Setup extends CI_Controller
                         $discount_amount = $percentage;
                         $discount_percentage = $percentage;
                     }
-                    $result['sub_total_text'] = display_money($sub_total, default_currency());
+                    $packageCurrency = saas_package_currency($package_info);
+                    $result['sub_total_text'] = display_money($sub_total, $packageCurrency);
                     $result['sub_total_input'] = $sub_total;
-                    $result['total_text'] = display_money($sub_total - $discount_amount, default_currency());
+                    $result['total_text'] = display_money($sub_total - $discount_amount, $packageCurrency);
                     $result['total_input'] = $sub_total - $discount_amount;
                     $result['discount_percentage'] = $discount_percentage;
                     $result['coupon_code_input'] = $coupon_code;
@@ -292,7 +293,7 @@ class Setup extends CI_Controller
 
                     $thtml = '';
                     $thtml .= '<div class="form-group mt-2 mb-2"><label class="col-sm-3 control-label">' . _l('total_amount') . '</label>';
-                    $thtml .= '<div class="col-sm-5"><div class="input-group"><span class="input-group-text">' . default_currency() . '</span>';
+                    $thtml .= '<div class="col-sm-5"><div class="input-group"><span class="input-group-text">' . $packageCurrency . '</span>';
                     $thtml .= '<input type="text" class="form-control" name="total_amount" value="' . $result['total_input'] . '" readonly >';
                     $thtml .= '</div></div></div>';
 
@@ -300,13 +301,13 @@ class Setup extends CI_Controller
                         $result['success'] = true;
                         $result['applied_discount'] = $html;
                         $result['total_amount'] = $thtml;
-                        $result['discount_amount_text'] = display_money($discount_amount, default_currency());
+                        $result['discount_amount_text'] = display_money($discount_amount, $packageCurrency);
                         $result['discount_amount_input'] = $discount_amount;
                     } elseif ($coupon_info->package_id == $package_id) {
                         $result['success'] = true;
                         $result['html'] = $html;
                         $result['message'] = '';
-                        $result['discount_amount_text'] = display_money($discount_amount, default_currency());
+                        $result['discount_amount_text'] = display_money($discount_amount, $packageCurrency);
                         $result['discount_amount_input'] = $discount_amount;
                     } else {
                         $result['error'] = true;

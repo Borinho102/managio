@@ -45,7 +45,7 @@ echo form_open($url, array('id' => 'checkoutPayment', 'enctype' => 'multipart/fo
                                                 echo 'selected';
                                             }
                                         } ?> value="<?php echo $v_package->id; ?>"
-                                             data-subtext="<?php echo lang('monthly') . ': ' . display_money($v_package->monthly_price) . ' ' . _l('quarterly') . ': ' . display_money($v_package->lifetime_price) . ' ' . _l('yearly') . ': ' . display_money($v_package->yearly_price) . ' ' . strip_tags(mb_substr(!empty($c_pricing->description) ? $c_pricing->description : '', 0, 200)) . '...'; ?>"><?php echo $v_package->name; ?></option>
+                                             data-subtext="<?php echo lang('monthly') . ': ' . display_money($v_package->monthly_price, $v_package) . ' ' . _l('quarterly') . ': ' . display_money($v_package->lifetime_price, $v_package) . ' ' . _l('yearly') . ': ' . display_money($v_package->yearly_price, $v_package) . ' ' . strip_tags(mb_substr(!empty($c_pricing->description) ? $c_pricing->description : '', 0, 200)) . '...'; ?>"><?php echo $v_package->name; ?></option>
                                     <?php } ?>
                                     <?php
                                 }

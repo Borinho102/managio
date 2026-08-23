@@ -35,7 +35,7 @@ $company_subs = get_old_result('tbl_saas_gateway_subscriptions', ['type' => 'pac
                             } else {
                                 $frequency = _l('yr');
                             }
-                            $plan_name = '<a data-toggle="modal" data-target="#myModal" href="' . base_url('subs_package_details/' . $company_info->company_history_id . '/1') . '">' . $company_info->package_name . ' ' . display_money($company_info->amount, default_currency()) . ' /' . $frequency . ' ' . '</a>';
+                            $plan_name = '<a data-toggle="modal" data-target="#myModal" href="' . base_url('subs_package_details/' . $company_info->company_history_id . '/1') . '">' . $company_info->package_name . ' ' . display_money($company_info->amount, $company_info) . ' /' . $frequency . ' ' . '</a>';
                         } else {
                             $plan_name = '-';
                         }
@@ -392,7 +392,7 @@ foreach ($module_subscription as $module) {
                                         <td>
                                             <?= $name ?>
                                         </td>
-                                        <td><?= display_money($subscription->amount, default_currency()) ?></td>
+                                        <td><?= display_money($subscription->amount, $subscription) ?></td>
                                         <td><?= _dt($subscription->created_at) ?></td>
                                         <td><?= $subscription->validity . ' ' . $frequency ?></td>
                                         <td><?= $subscription->payment_method ?></td>
@@ -440,7 +440,7 @@ foreach ($module_subscription as $module) {
                                 <tr>
                                     <td><?= $payment->package_name ?></td>
                                     <td><?= $payment->transaction_id ?></td>
-                                    <td><?= display_money($payment->total_amount, default_currency()) ?></td>
+                                    <td><?= display_money($payment->total_amount, $payment) ?></td>
                                     <td><?= _dt($payment->payment_date) ?></td>
                                     <td><?= $payment->payment_method ?></td>
                                 </tr>
