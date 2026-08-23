@@ -148,6 +148,21 @@
                             <span class="pull-right"><?= $db_name ?></span>
                         </div>
                         <div class="bb pb-sm pt-sm">
+                            <label class="control-label"><?= _l('payin_wallet') ?></label>
+                            <span class="pull-right">
+                                <?php if (!empty($company_info->payin_user_id)) { ?>
+                                    <span class="text-success"><?= _l('payin_wallet_connected') ?></span>
+                                    <small class="tw-block">ID <?= html_escape($company_info->payin_user_id) ?></small>
+                                <?php } else { ?>
+                                    <span class="text-muted"><?= _l('payin_wallet_not_connected') ?></span>
+                                <?php } ?>
+                                <a class="tw-ml-2"
+                                   href="<?= base_url('saas/companies/provision_payin_wallet/' . $company_info->id) ?>">
+                                    <?= !empty($company_info->payin_user_id) ? _l('payin_wallet_sync') : _l('payin_wallet_provision') ?>
+                                </a>
+                            </span>
+                        </div>
+                        <div class="bb pb-sm pt-sm">
                             <label class="control-label"><?= _l('restore') ?></label>
                             <span class="pull-right">
                         <a class="mr-lg"

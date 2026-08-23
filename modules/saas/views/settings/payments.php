@@ -67,6 +67,10 @@
                 }
 
             }
+            if ($gateway->gateway_name === 'payin') {
+                echo render_input('settings[payin_sso_key]', 'payin_sso_key', get_option('payin_sso_key') ?: 'managio');
+                echo render_input('settings[payin_sso_secret]', 'payin_sso_secret', get_option('payin_sso_secret'), 'password');
+            }
             $gateway_name_status = 'payments_' . (strtolower($gateway->gateway_name)) . '_status';
             echo render_yes_no_option(($gateway_name_status), _l('status'));
             ?>

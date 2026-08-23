@@ -536,5 +536,36 @@ class Companies extends AdminController
         redirect($_SERVER['HTTP_REFERER']);
     }
 
+    public function provision_payin_wallet($id)
+    {
+        $company_info = $this->saas_model->company_info($id, true);
+        if (empty($company_info)) {
+            set_alert('warning', _l('company_not_found'));
+            redirect('saas/companies');
+        }
+        if (is_numeric($id)) {
+            $company_info->id = $id;
+        }
+        try {
+            $path = APP_MODULES_PATH . 'payin/libraries/Payin_client.php';
+            if (!is_file($path)) {
+                throw new RuntimeException('PayIn module is not installed.');
+            }
+            if (!class_exists('Payin_client', false)) {
+                require_once $path;
+            }
+            $client = Payin_client::fromSsoConfig();
+            if (!$client->isSsoConfigured()) {
+                throw new RuntimeException('PayIn SSO is not configured. Set the SSO secret under SaaS → Settings → Payments.');
+            }
+            $client->provisionCompany($company_info);
+            set_alert('success', _l('payin_wallet_provisioned'));
+        } catch (Throwable $e) {
+            log_message('error', 'PayIn provision failed for company ' . $id . ': ' . $e->getMessage());
+            set_alert('danger', 'PayIn: ' . $e->getMessage());
+        }
+        redirect('saas/companies/details/' . $id);
+    }
+
 }
 

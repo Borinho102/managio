@@ -839,6 +839,17 @@ class Saas_model extends App_Model
                 $result['result'] = 'success';
                 $result['db_name'] = $server_result['db_name'];
                 log_message('debug', '[create_database] Completed successfully db=' . $server_result['db_name']);
+
+                if ($id !== 'sample' && empty($company_info->for_seed)) {
+                    if (is_numeric($id)) {
+                        $company_info->id = $id;
+                    }
+                    try {
+                        hooks()->do_action('saas_after_company_database_created', $company_info);
+                    } catch (Throwable $e) {
+                        log_message('error', '[create_database] saas_after_company_database_created failed: ' . $e->getMessage());
+                    }
+                }
             } else if (!empty($server_result['error'])) {
                 log_message('error', '[create_database] Server error: ' . $server_result['error']);
                 $result['error'] = $server_result['error'];

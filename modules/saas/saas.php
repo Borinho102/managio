@@ -2,12 +2,12 @@
 /*
 Module Name: Perfect SaaS - Powerful Multi-Tenancy Module for Perfex CRM
 Description: this is a module for Perfex CRM that allows you to create a SaaS or multi-company enabled setup.
-Version: 1.2.6
+Version: 1.2.7
 Requires at least: 2.3.*
 */
 
 define('SaaS_MODULE', 'saas');
-define('SAAS_VERSION', '1.2.6');
+define('SAAS_VERSION', '1.2.7');
 
 
 $CI = &get_instance();
@@ -94,6 +94,7 @@ hooks()->add_action('before_payment_recorded', 'saas_payment_recorded');
 hooks()->add_action('before_admin_login_form_close', 'saas_admin_login_form_close');
 hooks()->add_action('before_login', 'saas_before_staff_login');
 hooks()->add_action('sidebar_menu_items', 'saas_sidebar_menu_items');
+hooks()->add_action('saas_after_company_database_created', 'saas_after_company_database_created_payin');
 hooks()->add_action('pre_activate_module', 'saas_pre_activate_module');
 hooks()->add_action('pre_deactivate_module', 'saas_pre_deactivate_module');
 hooks()->add_action('pre_uninstall_module', 'saas_pre_uninstall_module');
@@ -468,6 +469,31 @@ function saas_pre_activate_module($module)
         }
     }
 
+}
+
+function saas_after_company_database_created_payin($companyInfo)
+{
+    if (empty($companyInfo) || empty($companyInfo->domain) || !empty($companyInfo->for_seed)) {
+        return;
+    }
+
+    try {
+        $path = APP_MODULES_PATH . 'payin/libraries/Payin_client.php';
+        if (!is_file($path)) {
+            return;
+        }
+        if (!class_exists('Payin_client', false)) {
+            require_once $path;
+        }
+        $client = Payin_client::fromSsoConfig();
+        if (!$client->isSsoConfigured()) {
+            log_message('error', 'PayIn SSO is not configured; skipping wallet provision for company ' . ($companyInfo->domain ?? ''));
+            return;
+        }
+        $client->provisionCompany($companyInfo);
+    } catch (Throwable $e) {
+        log_message('error', 'PayIn wallet provisioning failed for company ' . ($companyInfo->domain ?? '') . ': ' . $e->getMessage());
+    }
 }
 
 function saas_register_other_merge_fields($for)

@@ -18,7 +18,13 @@ if (defined('APP_DB_ENCRYPT')) {
 } elseif (!is_null($app_db_encrypt)) {
     $db_encrypt = $app_db_encrypt;
 }
-$app_csrf_exclude_uris = ['saas-data\/.+'];
+$app_csrf_exclude_uris = [
+    'saas-data\/.+',
+    'saas/gb/payin_payment_callback.*',
+    'saas/gb/payin_payment_cancel.*',
+    'index.php/saas/gb/payin_payment_callback.*',
+    'index.php/saas/gb/payin_payment_cancel.*',
+];
 
 $config['config_db'] = array(
     'hostname' => $config['database_hostname'], 'username' => $config['database_username'], 'password' => $config['database_password'],
