@@ -46,6 +46,9 @@ register_cron_task('saas_cron');
 
 function saas_cron()
 {
+    if (function_exists('saas_ensure_payin_schema')) {
+        saas_ensure_payin_schema();
+    }
     $CI = &get_instance();
     $CI->load->model('saas/saas_cron_model');
     $CI->saas_cron_model->init();
@@ -58,6 +61,10 @@ function saas_cron()
  */
 function module_saas_action_links($actions)
 {
+    $CI = &get_instance();
+    if (!empty($CI->app_modules) && $CI->app_modules->is_database_upgrade_required('saas')) {
+        array_unshift($actions, '<a href="' . admin_url('modules/upgrade_database/saas') . '" class="text-success">' . _l('module_upgrade_database') . '</a>');
+    }
     $actions[] = '<a href="' . saas_url('settings/index/server_settings') . '">' . _l('settings') . '</a>';
     $actions[] = '<a href="https://docs.coderitems.com/perfectsaas/" target="_blank">' . _l('help') . '</a>';
     return $actions;
@@ -80,6 +87,7 @@ function saas_activation_hook()
 
 register_language_files(SaaS_MODULE, [SaaS_MODULE]);
 
+hooks()->add_action('admin_init', 'saas_maybe_upgrade_database', 1);
 hooks()->add_action('admin_init', 'saas_init_menu_items');
 //hooks()->add_action('clients_init', 'saas_init_client_items');
 hooks()->add_action('app_init', 'saas_init');
@@ -678,6 +686,14 @@ function saas_init_menu_items()
             'position' => 0,
             'icon' => 'fa-solid fa-receipt menu-icon text-danger',
             'href' => saas_url('dashboard'),
+        ]);
+        // Wekonex (and similar) turn Setup → Modules into a submenu, which hides
+        // the installed-module list and its "Upgrade Database" action.
+        $CI->app_menu->add_setup_children_item('modules', [
+            'slug'     => 'installed-modules',
+            'name'     => _l('modules'),
+            'href'     => admin_url('modules'),
+            'position' => 1,
         ]);
     }
     $db_name = $CI->session->userdata('db_name');

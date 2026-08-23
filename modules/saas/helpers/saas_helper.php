@@ -85,9 +85,157 @@ function init_saas_head($aside = true)
     }
 }
 
+/**
+ * PayIn columns/options live on the master database only.
+ */
+function saas_is_master_instance()
+{
+    return function_exists('subdomain') && empty(subdomain());
+}
+
+/**
+ * Idempotent PayIn schema for SaaS 1.2.7.
+ * Safe to call on every master admin request so the upgrade no longer depends
+ * on the SaaS interstitial or Setup → Modules → Upgrade Database.
+ */
+function saas_ensure_payin_schema()
+{
+    if (!saas_is_master_instance()) {
+        return false;
+    }
+
+    $CI = &get_instance();
+    if (empty($CI->db) || !$CI->db->table_exists('tbl_saas_companies')) {
+        return false;
+    }
+
+    if (!$CI->db->field_exists('payin_user_id', 'tbl_saas_companies')) {
+        $CI->db->query('ALTER TABLE `tbl_saas_companies` ADD `payin_user_id` INT NULL DEFAULT NULL');
+    }
+    if (!$CI->db->field_exists('payin_merchant_id', 'tbl_saas_companies')) {
+        $CI->db->query('ALTER TABLE `tbl_saas_companies` ADD `payin_merchant_id` INT NULL DEFAULT NULL');
+    }
+    if (!$CI->db->field_exists('payin_provisioned_at', 'tbl_saas_companies')) {
+        $CI->db->query('ALTER TABLE `tbl_saas_companies` ADD `payin_provisioned_at` DATETIME NULL DEFAULT NULL');
+    }
+
+    if ($CI->db->table_exists('tbl_saas_payment_methods')) {
+        $exists = $CI->db->get_where('tbl_saas_payment_methods', ['gateway_name' => 'payin'])->row();
+        if (empty($exists)) {
+            $CI->db->query("INSERT INTO `tbl_saas_payment_methods`
+                (`gateway_name`, `icon`, `field_1`, `field_2`, `field_3`, `field_4`, `field_5`,
+                 `link`, `fixed_fee`, `percentage_fee`, `modal`, `status`, `created_at`, `updated_at`)
+            VALUES (
+                'payin',
+                '<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\" width=\"60px\" height=\"60px\">
+                    <rect width=\"48\" height=\"48\" rx=\"8\" fill=\"#0F766E\"/>
+                    <text x=\"50%\" y=\"55%\" dominant-baseline=\"middle\" text-anchor=\"middle\"
+                          font-family=\"Arial,sans-serif\" font-weight=\"bold\" font-size=\"11\"
+                          fill=\"#fff\">PayIn</text>
+                </svg>',
+                'payin_api_base_url',
+                'payin_client_id',
+                'payin_client_secret|password',
+                'payin_enable_wallet|checkbox',
+                'payin_enable_pawapay|checkbox',
+                NULL,
+                NULL,
+                NULL,
+                'No',
+                'active',
+                NOW(),
+                NOW()
+            );");
+        }
+    }
+
+    $options = [
+        'payin_api_base_url'   => '',
+        'payin_client_id'      => '',
+        'payin_client_secret'  => '',
+        'payin_enable_wallet'  => '1',
+        'payin_enable_pawapay' => '1',
+        'payin_sso_key'        => 'managio',
+        'payin_sso_secret'     => '',
+    ];
+
+    foreach ($options as $name => $value) {
+        if (function_exists('add_option')) {
+            add_option($name, $value);
+            continue;
+        }
+        $existing = $CI->db->get_where(db_prefix() . 'options', ['name' => $name])->row();
+        if (empty($existing)) {
+            $CI->db->insert(db_prefix() . 'options', [
+                'name'     => $name,
+                'value'    => $value,
+                'autoload' => 1,
+            ]);
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Apply PayIn schema and, when the module header is ahead of the DB, run the
+ * official SaaS migrations without requiring the upgrade prompt.
+ */
+function saas_maybe_upgrade_database()
+{
+    if (!saas_is_master_instance()) {
+        return;
+    }
+    if (!function_exists('is_staff_logged_in') || !is_staff_logged_in()) {
+        return;
+    }
+
+    static $ran = false;
+    if ($ran) {
+        return;
+    }
+    $ran = true;
+
+    saas_ensure_payin_schema();
+
+    $CI = &get_instance();
+    if (empty($CI->app_modules) || !$CI->app_modules->is_database_upgrade_required('saas')) {
+        return;
+    }
+    if (!function_exists('is_admin') || !is_admin()) {
+        return;
+    }
+    if (method_exists($CI->input, 'is_ajax_request') && $CI->input->is_ajax_request()) {
+        return;
+    }
+
+    try {
+        $CI->load->model('saas/saas_model');
+        $CI->saas_model->update_version_in_all_company_database();
+        $result = $CI->app_modules->upgrade_database(SaaS_MODULE);
+        if (is_string($result)) {
+            log_message('error', 'SaaS auto-upgrade failed: ' . $result);
+            if (function_exists('set_alert')) {
+                set_alert('danger', 'SaaS database upgrade failed: ' . $result);
+            }
+            return;
+        }
+        if (function_exists('set_alert')) {
+            $version = defined('SAAS_VERSION') ? SAAS_VERSION : '1.2.7';
+            set_alert('success', 'SaaS database upgraded to ' . $version . ' (PayIn).');
+        }
+    } catch (Throwable $e) {
+        log_message('error', 'SaaS auto-upgrade exception: ' . $e->getMessage());
+        if (function_exists('set_alert')) {
+            set_alert('danger', 'SaaS database upgrade failed: ' . $e->getMessage());
+        }
+    }
+}
+
 function saas_access()
 {
     $CI = &get_instance();
+    saas_ensure_payin_schema();
     if ($CI->app_modules->is_database_upgrade_required('saas') && !empty(is_super_admin()) && empty(subdomain())) {
 
         if ($CI->input->post('upgrade_database')) {
