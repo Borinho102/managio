@@ -3302,6 +3302,95 @@ function saas_client_billing_prefix(): string
     return 'admin/';
 }
 
+/**
+ * Explains why get_company_info() could not resolve a subscription.
+ * Every step of the lookup chain is reported so the failing link is visible.
+ */
+function saas_billing_diagnostics(): array
+{
+    $CI = &get_instance();
+    $db = saas_master_db();
+
+    try {
+        $detectedSubdomain = function_exists('is_subdomain') ? (is_subdomain() ?: '(none)') : '(n/a)';
+    } catch (Throwable $e) {
+        $detectedSubdomain = 'error: ' . $e->getMessage();
+    }
+
+    $info = [
+        'host' => $_SERVER['HTTP_HOST'] ?? '',
+        'is_subdomain' => $detectedSubdomain,
+        'session_domain' => $CI->session->userdata('domain') ?: '(none)',
+        'session_db_name' => $CI->session->userdata('db_name') ?: '(none)',
+        'client_user_id' => function_exists('get_client_user_id') ? (get_client_user_id() ?: '(none)') : '(n/a)',
+        'contact_user_id' => function_exists('get_contact_user_id') ? (get_contact_user_id() ?: '(none)') : '(n/a)',
+        'contact_email' => '(none)',
+        'client_saas_company_id' => '(null)',
+        'company_matched_by_email' => '(none)',
+        'resolved_company_id' => '(none)',
+        'company_status' => '(no company row)',
+        'history_rows' => 0,
+        'history_active_rows' => 0,
+    ];
+
+    if (empty($db) || !is_object($db)) {
+        $info['fatal'] = 'master database connection unavailable';
+        return $info;
+    }
+
+    if (is_numeric($info['contact_user_id'])) {
+        $contact = $db->select('email')
+            ->from(db_prefix() . 'contacts')
+            ->where('id', $info['contact_user_id'])
+            ->get()
+            ->row();
+        if (!empty($contact->email)) {
+            $info['contact_email'] = $contact->email;
+
+            $byEmail = $db->select('id')
+                ->from('tbl_saas_companies')
+                ->where('LOWER(email) = ' . $db->escape(strtolower(trim($contact->email))), null, false)
+                ->order_by('id', 'desc')
+                ->get()
+                ->row();
+            $info['company_matched_by_email'] = !empty($byEmail->id) ? $byEmail->id : '(no company with this email)';
+        }
+    }
+
+    if (is_numeric($info['client_user_id'])) {
+        $client = $db->select('saas_company_id')
+            ->from(db_prefix() . 'clients')
+            ->where('userid', $info['client_user_id'])
+            ->get()
+            ->row();
+        if (!empty($client->saas_company_id)) {
+            $info['client_saas_company_id'] = $client->saas_company_id;
+        }
+    }
+
+    $companyId = get_company_id();
+    if (!empty($companyId)) {
+        $info['resolved_company_id'] = $companyId;
+
+        $company = $db->select('status,domain,email')
+            ->from('tbl_saas_companies')
+            ->where('id', $companyId)
+            ->get()
+            ->row();
+        if (!empty($company)) {
+            $info['company_status'] = $company->status . ' / ' . $company->domain . ' / ' . $company->email;
+        }
+
+        $info['history_rows'] = (int) $db->where('companies_id', $companyId)
+            ->count_all_results('tbl_saas_companies_history');
+        $info['history_active_rows'] = (int) $db->where('companies_id', $companyId)
+            ->where('active', 1)
+            ->count_all_results('tbl_saas_companies_history');
+    }
+
+    return $info;
+}
+
 function saas_can_manage_subscription($company_id): bool
 {
     if (empty($company_id)) {

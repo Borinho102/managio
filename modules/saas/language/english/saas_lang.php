@@ -660,6 +660,7 @@ $lang["module_deleted"] = "Module deleted successfully";
 $lang["add_to_cart"] = "Cart";
 $lang["video"] = "Video";
 $lang["404_error"] = "404 Error";
+$lang["no_subscription_found_for_this_account"] = "No subscription is linked to this account yet.";
 $lang["video_preview_description"] = "If iframe is not working then click here to preview video";
 $lang["reset_password"] = "Reset Password";
 $lang["password_does_not_match"] = "Password does not match";

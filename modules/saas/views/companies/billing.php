@@ -5,7 +5,23 @@ echo '<link href="' . module_dir_url(SaaS_MODULE, 'assets/css/style_media.css') 
 $billing_prefix = saas_client_billing_prefix();
 $company_info = get_company_info();
 if (empty($company_info)) {
-    echo '<div class="alert alert-warning">' . _l('404_error') . '</div>';
+    $saas_diag = function_exists('saas_billing_diagnostics') ? saas_billing_diagnostics() : [];
+    log_message('error', '[saas_billing] no subscription resolved: ' . json_encode($saas_diag));
+
+    echo '<div class="alert alert-warning">';
+    echo _l('no_subscription_found_for_this_account');
+    echo ' <a href="' . site_url('pricing') . '">' . _l('packages') . '</a>';
+    echo '</div>';
+
+    // ?debug=1 renders the lookup chain so the broken link can be identified
+    // without shell access to the server logs.
+    if (!empty($_GET['debug']) && !empty($saas_diag)) {
+        echo '<table class="table table-bordered"><tbody>';
+        foreach ($saas_diag as $saas_diag_key => $saas_diag_value) {
+            echo '<tr><td><strong>' . e($saas_diag_key) . '</strong></td><td>' . e((string) $saas_diag_value) . '</td></tr>';
+        }
+        echo '</tbody></table>';
+    }
     return;
 }
 
