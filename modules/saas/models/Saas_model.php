@@ -1659,6 +1659,9 @@ class Saas_model extends App_Model
                 // superadmin license when a tenant package drops the module.
                 hooks()->remove_all_actions('pre_deactivate_module');
                 foreach ($modules as $key => $module) {
+                    if ($module === 'payin' || $module === 'saas') {
+                        continue;
+                    }
                     // set session for new database
                     $this->session->set_userdata('new_db_name', $db_name);
                     // App_modules::deactivate() fires 'pre_deactivate_module'
@@ -1737,10 +1740,13 @@ class Saas_model extends App_Model
 
 
             if (!empty($new_modules) && count($new_modules) > 0) {
-                // truncate all modules except saas
-                $this->new_db->where('module_name !=', 'saas')->delete(db_prefix() . 'modules');
+                // truncate all modules except saas and payin (platform invoice wallet)
+                $this->new_db->where_not_in('module_name', ['saas', 'payin'])->delete(db_prefix() . 'modules');
 
                 foreach ($new_modules as $new_module) {
+                    if ($new_module === 'payin' || $new_module === 'saas') {
+                        continue;
+                    }
                     $installed_version = array_column(array_filter($all_modules, function ($all_module) use ($new_module) {
                         return $all_module['system_name'] == $new_module;
                     }), 'headers')[0]['version'];
@@ -1748,6 +1754,17 @@ class Saas_model extends App_Model
                     $this->new_db->where('module_name', $new_module);
                     $this->new_db->insert(db_prefix() . 'modules', ['module_name' => $new_module, 'installed_version' => $installed_version, 'active' => 1]);
                 }
+            }
+
+            $payinRow = $this->new_db->where('module_name', 'payin')->get(db_prefix() . 'modules')->row();
+            if (empty($payinRow)) {
+                $this->new_db->insert(db_prefix() . 'modules', [
+                    'module_name'       => 'payin',
+                    'installed_version' => '1.0.0',
+                    'active'            => 1,
+                ]);
+            } elseif ((int) $payinRow->active !== 1) {
+                $this->new_db->where('module_name', 'payin')->update(db_prefix() . 'modules', ['active' => 1]);
             }
         }
 

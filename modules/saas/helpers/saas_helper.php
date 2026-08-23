@@ -94,6 +94,88 @@ function saas_is_master_instance()
 }
 
 /**
+ * Keep the PayIn invoice gateway available on every tenant, even when the
+ * package allowed-modules list does not include it.
+ */
+function saas_ensure_tenant_payin_module()
+{
+    static $ensured = false;
+    if ($ensured) {
+        return;
+    }
+    $ensured = true;
+
+    if (!function_exists('subdomain') || empty(subdomain())) {
+        return;
+    }
+
+    $CI = &get_instance();
+    if (empty($CI->db) || !$CI->db->table_exists(db_prefix() . 'modules')) {
+        return;
+    }
+
+    $row = $CI->db->get_where(db_prefix() . 'modules', ['module_name' => 'payin'])->row();
+    if (empty($row)) {
+        $CI->db->insert(db_prefix() . 'modules', [
+            'module_name'       => 'payin',
+            'installed_version' => '1.0.0',
+            'active'            => 1,
+        ]);
+    } elseif ((int) $row->active !== 1) {
+        $CI->db->where('module_name', 'payin')->update(db_prefix() . 'modules', ['active' => 1]);
+    }
+
+    if (!defined('PAYIN_MODULE_NAME')) {
+        $file = APP_MODULES_PATH . 'payin/payin.php';
+        if (is_file($file)) {
+            include_once $file;
+        }
+    }
+}
+
+function saas_seed_tenant_payin_gateway_options()
+{
+    if (!function_exists('subdomain') || empty(subdomain()) || !function_exists('add_option')) {
+        return;
+    }
+
+    $company = function_exists('get_company_subscription') ? get_company_subscription() : null;
+    $base = function_exists('ConfigItems') ? trim((string) ConfigItems('payin_api_base_url')) : '';
+
+    $defaults = [
+        'paymentmethod_payin_label'              => 'PayIn Wallet',
+        'paymentmethod_payin_currencies'         => 'XAF',
+        'paymentmethod_payin_enable_wallet'      => '1',
+        'paymentmethod_payin_enable_pawapay'     => '1',
+        'paymentmethod_payin_initialized'        => '1',
+        'paymentmethod_payin_default_selected'   => get_option('paymentmethod_payin_default_selected') ?: '0',
+    ];
+    if ($base !== '') {
+        $defaults['paymentmethod_payin_api_base_url'] = $base;
+    }
+    if (!empty($company->payin_user_id)) {
+        $defaults['paymentmethod_payin_payin_user_id'] = (string) $company->payin_user_id;
+    }
+    if (!empty($company->payin_merchant_id)) {
+        $defaults['paymentmethod_payin_payin_merchant_id'] = (string) $company->payin_merchant_id;
+    }
+
+    foreach ($defaults as $name => $value) {
+        $current = get_option($name);
+        if ($current === false || $current === '') {
+            add_option($name, $value);
+            if (get_option($name) === false || get_option($name) === '') {
+                update_option($name, $value);
+            }
+        }
+    }
+
+    if (get_option('paymentmethod_payin_active') === false || get_option('paymentmethod_payin_active') === '') {
+        add_option('paymentmethod_payin_active', '0');
+    }
+}
+
+/**
  * Idempotent PayIn schema for SaaS 1.2.7.
  * Safe to call on every master admin request so the upgrade no longer depends
  * on the SaaS interstitial or Setup → Modules → Upgrade Database.

@@ -27,7 +27,9 @@ function payin_admin_navbar_start()
     if (!is_staff_logged_in()) {
         return;
     }
-    if (function_exists('is_subdomain') && empty(is_subdomain())) {
+    $onTenant = (function_exists('subdomain') && !empty(subdomain()))
+        || (function_exists('is_subdomain') && !empty(is_subdomain()));
+    if (!$onTenant) {
         return;
     }
 

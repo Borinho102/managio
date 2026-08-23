@@ -15,6 +15,9 @@ $CI = &get_instance();
  * Load the module helper
  */
 $CI->load->helper(SaaS_MODULE . '/saas');
+if (function_exists('saas_ensure_tenant_payin_module')) {
+    saas_ensure_tenant_payin_module();
+}
 
 // load libraries for saas
 $CI->load->library(SaaS_MODULE . '/mails/saas_mail_template');
@@ -88,6 +91,7 @@ function saas_activation_hook()
 register_language_files(SaaS_MODULE, [SaaS_MODULE]);
 
 hooks()->add_action('admin_init', 'saas_maybe_upgrade_database', 1);
+hooks()->add_action('admin_init', 'saas_seed_tenant_payin_gateway_options', 2);
 hooks()->add_action('admin_init', 'saas_init_menu_items');
 //hooks()->add_action('clients_init', 'saas_init_client_items');
 hooks()->add_action('app_init', 'saas_init');
@@ -439,7 +443,7 @@ function saas_pre_deactivate_module($module)
     $moduleName = $module['system_name'];
 
     if (!empty(subdomain())) {
-        if ($moduleName == 'saas') {
+        if ($moduleName == 'saas' || $moduleName == 'payin') {
             access_denied();
         }
         $subs = get_company_subscription(null, 'running');
@@ -463,6 +467,9 @@ function saas_pre_activate_module($module)
     if (function_exists('subdomain') && function_exists('is_subdomain') && !empty(subdomain())) {
         if ($moduleName == 'saas') {
             access_denied();
+        }
+        if ($moduleName == 'payin') {
+            return true;
         }
         $subs = get_company_subscription(null, 'running');
         if (!empty($subs) && !empty($subs->modules)) {

@@ -8,7 +8,7 @@ class Payin_gateway extends App_gateway
     {
         parent::__construct();
         $this->setId(PAYIN_MODULE_GATEWAY_ID);
-        $this->setName('PayIn');
+        $this->setName('PayIn Wallet');
         $this->setSettings([
             [
                 'name'  => 'api_base_url',
