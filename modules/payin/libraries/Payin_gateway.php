@@ -9,23 +9,27 @@ class Payin_gateway extends App_gateway
         parent::__construct();
         $this->setId(PAYIN_MODULE_GATEWAY_ID);
         $this->setName('PayIn Wallet');
+        hooks()->add_action('before_render_payment_gateway_settings', [$this, 'settingsNotice']);
         $this->setSettings([
             [
-                'name'  => 'api_base_url',
-                'label' => 'PayIn API Base URL',
-                'type'  => 'input',
+                'name'             => 'api_base_url',
+                'label'            => 'PayIn API Base URL',
+                'type'             => 'input',
+                'field_attributes' => ['readonly' => true],
             ],
             [
-                'name'  => 'client_id',
-                'label' => 'PayIn Client ID',
-                'type'  => 'input',
+                'name'             => 'client_id',
+                'label'            => 'PayIn Client ID',
+                'type'             => 'input',
+                'field_attributes' => ['readonly' => true],
             ],
             [
-                'name'      => 'client_secret',
-                'label'     => 'PayIn Client Secret',
-                'encrypted' => true,
-                'type'      => 'input',
-                'input_type'=> 'password',
+                'name'             => 'client_secret',
+                'label'            => 'PayIn Client Secret',
+                'encrypted'        => true,
+                'type'             => 'input',
+                'input_type'       => 'password',
+                'field_attributes' => ['readonly' => true],
             ],
             [
                 'name'          => 'enable_wallet',
@@ -124,6 +128,39 @@ class Payin_gateway extends App_gateway
             . '<a href="' . html_escape($connect) . '" class="btn btn-primary tw-mr-2"><i class="fa fa-link"></i> Connect PayIn</a>'
             . '<a href="' . html_escape($open) . '" class="btn btn-default tw-mr-2" target="_blank"><i class="fa fa-wallet"></i> Open wallet</a>'
             . '<a href="' . html_escape($sync) . '" class="btn btn-default"><i class="fa fa-refresh"></i> Sync</a>'
+            . '</div>'
+            . '<p class="text-muted tw-mt-3">'
+            . 'Label and API credentials are filled by Connect / Sync. PayIn SSO is configured by super-admin only.'
+            . '</p>';
+    }
+
+    public function settingsNotice($gateway): void
+    {
+        if (($gateway['id'] ?? '') !== $this->getId()) {
+            return;
+        }
+
+        echo '<div class="alert alert-info">'
+            . 'Use <strong>Connect PayIn</strong> or <strong>Sync</strong> to set the wallet label, client ID, client secret, user ID, and merchant ID. '
+            . 'Tenants cannot type these values. Super-admin configures the PayIn API URL and SSO keys under SaaS settings.'
             . '</div>';
+        echo '<script>
+            document.addEventListener("DOMContentLoaded", function() {
+                var names = [
+                    "settings[paymentmethod_payin_label]",
+                    "settings[paymentmethod_payin_api_base_url]",
+                    "settings[paymentmethod_payin_client_id]",
+                    "settings[paymentmethod_payin_client_secret]",
+                    "settings[paymentmethod_payin_payin_user_id]",
+                    "settings[paymentmethod_payin_payin_merchant_id]"
+                ];
+                names.forEach(function(name) {
+                    var el = document.querySelector("[name=\'" + name + "\']");
+                    if (el) {
+                        el.setAttribute("readonly", "readonly");
+                    }
+                });
+            });
+        </script>';
     }
 }

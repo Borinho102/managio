@@ -16,10 +16,42 @@ register_payment_gateway('Payin_gateway', PAYIN_MODULE_NAME);
 register_activation_hook(PAYIN_MODULE_NAME, 'payin_module_activation');
 
 hooks()->add_action('admin_navbar_start', 'payin_admin_navbar_start');
+hooks()->add_filter('before_single_setting_updated_in_loop', 'payin_preserve_gateway_credentials');
 
 function payin_module_activation()
 {
     add_option('payin_module_initialized', 1);
+}
+
+function payin_preserve_gateway_credentials($data)
+{
+    $locked = [
+        'paymentmethod_payin_label',
+        'paymentmethod_payin_api_base_url',
+        'paymentmethod_payin_client_id',
+        'paymentmethod_payin_client_secret',
+        'paymentmethod_payin_payin_user_id',
+        'paymentmethod_payin_payin_merchant_id',
+    ];
+    if (!in_array($data['name'], $locked, true)) {
+        return $data;
+    }
+    if (!function_exists('subdomain') || empty(subdomain())) {
+        return $data;
+    }
+
+    $current = get_option($data['name']);
+    if ($data['name'] === 'paymentmethod_payin_client_secret') {
+        $CI = &get_instance();
+        $plain = $current !== '' && $current !== false
+            ? $CI->encryption->decrypt($current)
+            : '';
+        $data['value'] = ($plain !== false && $plain !== null) ? $plain : '';
+        return $data;
+    }
+
+    $data['value'] = $current;
+    return $data;
 }
 
 function payin_admin_navbar_start()

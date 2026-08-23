@@ -101,6 +101,10 @@ class Payin_client
         $this->storeTenantGatewayOptions($companyInfo, $data);
         $this->activateTenantModule($companyInfo);
 
+        if (empty($data['client_id']) || empty($data['client_secret'])) {
+            throw new RuntimeException('PayIn did not return merchant API credentials. Re-run Connect after checking PayIn merchant app keys.');
+        }
+
         return $data;
     }
 
@@ -356,98 +360,184 @@ class Payin_client
 
     private function storeCompanyMapping($companyInfo, array $data): void
     {
-        $companyId = $companyInfo->companies_id ?? $companyInfo->id;
-        if (empty($companyId) || !is_numeric($companyId)) {
+        $companyId = $this->resolveCompanyId($companyInfo);
+        if ($companyId < 1) {
+            log_message('error', 'PayIn: cannot store company mapping; company id is missing.');
             return;
         }
 
-        $master = function_exists('config_db') ? config_db(null, true) : $this->ci->db;
+        $master = function_exists('config_db') ? config_db(null, true) : null;
+        if (empty($master) && !empty($this->ci->old_db)) {
+            $master = $this->ci->old_db;
+        }
+        if (empty($master)) {
+            log_message('error', 'PayIn: master database is not available to store company mapping.');
+            return;
+        }
+
         $master->where('id', $companyId)->update('tbl_saas_companies', [
             'payin_user_id'        => $data['payin_user_id'] ?? null,
             'payin_merchant_id'    => $data['merchant_id'] ?? null,
             'payin_provisioned_at' => date('Y-m-d H:i:s'),
         ]);
 
+        $companyInfo->id = $companyId;
+        $companyInfo->companies_id = $companyId;
         $companyInfo->payin_user_id = $data['payin_user_id'] ?? ($companyInfo->payin_user_id ?? null);
         $companyInfo->payin_merchant_id = $data['merchant_id'] ?? ($companyInfo->payin_merchant_id ?? null);
     }
 
     private function storeTenantGatewayOptions($companyInfo, array $data): void
     {
-        if (empty($companyInfo->db_name)) {
+        $dbName = $this->resolveTenantDbName($companyInfo);
+        $onTenant = $this->onTenant();
+        if (!$onTenant && $dbName === '') {
+            log_message('error', 'PayIn: cannot store gateway options; tenant database name is missing.');
             return;
         }
 
         $clientId = (string) ($data['client_id'] ?? '');
         $clientSecret = (string) ($data['client_secret'] ?? '');
-        $existingId = $this->readTenantOption($companyInfo->db_name, 'paymentmethod_payin_client_id');
-        $existingSecret = $this->readTenantOption($companyInfo->db_name, 'paymentmethod_payin_client_secret');
-        $writeSecrets = $clientId !== '' && $clientSecret !== '' && (empty($existingId) || empty($existingSecret));
 
         $options = [
-            'paymentmethod_payin_api_base_url'     => $this->baseUrl,
-            'paymentmethod_payin_payin_user_id'    => (string) ($data['payin_user_id'] ?? ''),
-            'paymentmethod_payin_payin_merchant_id'=> (string) ($data['merchant_id'] ?? ''),
-            'paymentmethod_payin_enable_wallet'    => '1',
-            'paymentmethod_payin_enable_pawapay'   => '1',
-            'paymentmethod_payin_currencies'       => 'XAF',
-            'paymentmethod_payin_active'           => '1',
-            'paymentmethod_payin_label'            => 'PayIn',
-            'paymentmethod_payin_default_selected' => '1',
-            'paymentmethod_payin_initialized'      => '1',
+            'paymentmethod_payin_label'             => 'PayIn Wallet',
+            'paymentmethod_payin_api_base_url'      => $this->baseUrl,
+            'paymentmethod_payin_payin_user_id'     => (string) ($data['payin_user_id'] ?? ''),
+            'paymentmethod_payin_payin_merchant_id' => (string) ($data['merchant_id'] ?? ''),
+            'paymentmethod_payin_enable_wallet'     => '1',
+            'paymentmethod_payin_enable_pawapay'    => '1',
+            'paymentmethod_payin_currencies'        => 'XAF',
+            'paymentmethod_payin_active'            => '1',
+            'paymentmethod_payin_default_selected'  => '0',
+            'paymentmethod_payin_initialized'       => '1',
         ];
 
-        if ($writeSecrets) {
+        if ($clientId !== '') {
             $options['paymentmethod_payin_client_id'] = $clientId;
+        }
+        if ($clientSecret !== '') {
             $options['paymentmethod_payin_client_secret'] = $this->ci->encryption->encrypt($clientSecret);
         }
 
         foreach ($options as $name => $value) {
-            $this->writeTenantOption($companyInfo->db_name, $name, $value);
+            $this->writeGatewayOption($dbName, $name, $value);
         }
     }
 
     private function activateTenantModule($companyInfo): void
     {
-        if (empty($companyInfo->db_name)) {
+        $db = $this->tenantDb($this->resolveTenantDbName($companyInfo));
+        if (empty($db)) {
             return;
         }
 
-        $table = $companyInfo->db_name . '.' . db_prefix() . 'modules';
-        $existing = $this->ci->db->where('module_name', 'payin')->get($table)->row();
+        $table = db_prefix() . 'modules';
+        $existing = $db->where('module_name', 'payin')->get($table)->row();
         if (!empty($existing)) {
-            $this->ci->db->where('module_name', 'payin')->update($table, ['active' => 1]);
+            $db->where('module_name', 'payin')->update($table, ['active' => 1]);
             return;
         }
 
-        $this->ci->db->insert($table, [
+        $db->insert($table, [
             'module_name'       => 'payin',
             'installed_version' => '1.0.0',
             'active'            => 1,
         ]);
     }
 
-    private function readTenantOption(string $dbName, string $name): string
+    private function onTenant(): bool
     {
-        $table = $dbName . '.' . db_prefix() . 'options';
-        $row = $this->ci->db->where('name', $name)->get($table)->row();
-
-        return $row->value ?? '';
+        return function_exists('subdomain') && subdomain() !== '' && subdomain() !== false;
     }
 
-    private function writeTenantOption(string $dbName, string $name, string $value): void
+    private function resolveCompanyId($companyInfo): int
     {
-        $table = $dbName . '.' . db_prefix() . 'options';
-        $exists = $this->ci->db->where('name', $name)->get($table)->row();
-        if (!empty($exists)) {
-            $this->ci->db->where('name', $name)->update($table, ['value' => $value]);
+        foreach (['companies_id', 'company_id'] as $key) {
+            if (!empty($companyInfo->{$key}) && is_numeric($companyInfo->{$key})) {
+                return (int) $companyInfo->{$key};
+            }
+        }
+
+        $domain = (string) ($companyInfo->domain ?? '');
+        if ($domain !== '' && function_exists('get_old_result')) {
+            $row = get_old_result('tbl_saas_companies', ['domain' => $domain], false);
+            if (!empty($row->id)) {
+                return (int) $row->id;
+            }
+        }
+
+        return 0;
+    }
+
+    private function resolveTenantDbName($companyInfo): string
+    {
+        if (!empty($companyInfo->db_name)) {
+            return (string) $companyInfo->db_name;
+        }
+
+        $domain = (string) ($companyInfo->domain ?? '');
+        if ($domain !== '' && function_exists('company_db_name')) {
+            $name = company_db_name($domain);
+            if (!empty($name)) {
+                return (string) $name;
+            }
+        }
+
+        $sessionName = $this->ci->session->userdata('db_name');
+        if (!empty($sessionName)) {
+            return (string) $sessionName;
+        }
+
+        if ($this->onTenant() && !empty($this->ci->db->database)) {
+            return (string) $this->ci->db->database;
+        }
+
+        return '';
+    }
+
+    private function tenantDb(string $dbName)
+    {
+        if ($this->onTenant()) {
+            return $this->ci->db;
+        }
+
+        if ($dbName !== '' && function_exists('config_db')) {
+            $db = config_db($dbName);
+            if (!empty($db)) {
+                return $db;
+            }
+        }
+
+        return $this->ci->db;
+    }
+
+    private function writeGatewayOption(string $dbName, string $name, string $value): void
+    {
+        if ($this->onTenant()) {
+            update_option($name, $value);
             return;
         }
 
-        $this->ci->db->insert($table, [
-            'name'     => $name,
-            'value'    => $value,
-            'autoload' => 1,
-        ]);
+        $db = $this->tenantDb($dbName);
+        if (empty($db)) {
+            log_message('error', 'PayIn: cannot write option ' . $name . '; tenant database connection failed.');
+            return;
+        }
+
+        $table = db_prefix() . 'options';
+        $exists = $db->where('name', $name)->get($table)->row();
+        if (!empty($exists)) {
+            $db->where('name', $name)->update($table, ['value' => $value]);
+            return;
+        }
+
+        $row = [
+            'name'  => $name,
+            'value' => $value,
+        ];
+        if ($db->field_exists('autoload', $table)) {
+            $row['autoload'] = 1;
+        }
+        $db->insert($table, $row);
     }
 }

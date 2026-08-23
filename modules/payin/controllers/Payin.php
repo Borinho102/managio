@@ -140,15 +140,31 @@ class Payin extends App_Controller
         if (!function_exists('get_company_subscription')) {
             throw new RuntimeException('SaaS company context is not available.');
         }
+
         $company = get_company_subscription();
         if (empty($company) || empty($company->domain)) {
             throw new RuntimeException('Company not found.');
         }
-        if (empty($company->db_name) && !empty($company->id)) {
-            $full = get_old_result('tbl_saas_companies', ['id' => $company->id], false);
-            if (!empty($full)) {
-                $company = $full;
-            }
+
+        $row = function_exists('get_old_result')
+            ? get_old_result('tbl_saas_companies', ['domain' => $company->domain], false)
+            : null;
+        if (!empty($row)) {
+            $company->id = $row->id;
+            $company->companies_id = $row->id;
+            $company->db_name = $row->db_name ?? ($company->db_name ?? null);
+            $company->email = $company->email ?: ($row->email ?? '');
+            $company->name = $company->name ?: ($row->name ?? '');
+            $company->mobile = $company->mobile ?? ($row->mobile ?? null);
+            $company->payin_user_id = $row->payin_user_id ?? ($company->payin_user_id ?? null);
+            $company->payin_merchant_id = $row->payin_merchant_id ?? ($company->payin_merchant_id ?? null);
+        }
+
+        if (empty($company->db_name) && function_exists('company_db_name')) {
+            $company->db_name = company_db_name($company->domain) ?: null;
+        }
+        if (empty($company->db_name)) {
+            $company->db_name = $this->session->userdata('db_name') ?: ($this->db->database ?? null);
         }
 
         return $company;
