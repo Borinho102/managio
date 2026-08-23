@@ -19,11 +19,8 @@ class Gb_client extends ClientsController
         $data['title'] = _l('assign_package');
         isClientLogin($company_id);
         $subs = get_company_subscription_by_id();
-        if (empty($subs)) {
-            set_alert('warning', _l('404_error'));
-            redirect('clients/billings');
-        }
-        $data['current_package'] = $subs->package_id;
+        // Always show packages on this page — even when no subscription is linked yet.
+        $data['current_package'] = !empty($subs->package_id) ? $subs->package_id : null;
         $data['all_packages'] = get_old_result('tbl_saas_packages', array('status' => 'published'));
         $this->set_layout($data, 'packages/assign_package');
     }
@@ -106,6 +103,9 @@ class Gb_client extends ClientsController
             saas_clear_tenant_session();
         }
         $data['title'] = _l('billing');
+        $subs = get_company_subscription_by_id();
+        $data['current_package'] = !empty($subs->package_id) ? $subs->package_id : null;
+        $data['all_packages'] = get_old_result('tbl_saas_packages', ['status' => 'published']);
         $this->set_layout($data, 'companies/billing');
     }
 

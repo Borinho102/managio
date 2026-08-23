@@ -8,13 +8,19 @@ if (empty($company_info)) {
     $saas_diag = function_exists('saas_billing_diagnostics') ? saas_billing_diagnostics() : [];
     log_message('error', '[saas_billing] no subscription resolved: ' . json_encode($saas_diag));
 
-    echo '<div class="alert alert-warning">';
-    echo _l('no_subscription_found_for_this_account');
-    echo ' <a href="' . site_url('pricing') . '">' . _l('packages') . '</a>';
-    echo '</div>';
+    echo '<div class="alert alert-info tw-mb-4">' . _l('no_subscription_found_for_this_account') . '</div>';
+    echo '<div class="panel panel-custom"><div class="panel-heading"><div class="panel-title"><strong>' . _l('choose_a_package') . '</strong></div></div><div class="panel-body">';
 
-    // ?debug=1 renders the lookup chain so the broken link can be identified
-    // without shell access to the server logs.
+    if (empty($all_packages)) {
+        $all_packages = get_old_result('tbl_saas_packages', ['status' => 'published']);
+    }
+    if (empty($current_package)) {
+        $current_package = null;
+    }
+    include module_views_path('saas') . 'packages/assign_package.php';
+
+    echo '</div></div>';
+
     if (!empty($_GET['debug']) && !empty($saas_diag)) {
         echo '<table class="table table-bordered"><tbody>';
         foreach ($saas_diag as $saas_diag_key => $saas_diag_value) {
@@ -197,7 +203,7 @@ $company_subs = get_old_result('tbl_saas_gateway_subscriptions', ['type' => 'pac
                             }
                             ?>
 
-                            <a href="<?= site_url($billing_prefix . 'updatePackage/' . $company_info->companies_id) ?>"
+                            <a href="#saas-available-packages"
                                class="btn btn-sm btn-info  pull-right"><?= _l('upgrade') . ' ' . _l('package') ?></a>
                         </div>
                     </div>
@@ -471,6 +477,30 @@ foreach ($module_subscription as $module) {
         </div><!--************ Payment History End***********-->
     </div>
 </div>
+
+<div id="saas-available-packages" class="row tw-mt-4">
+    <div class="col-md-12">
+        <div class="panel panel-custom">
+            <div class="panel-heading">
+                <div class="panel-title">
+                    <strong><?= _l('choose_a_package') ?></strong>
+                </div>
+            </div>
+            <div class="panel-body">
+                <?php
+                if (empty($all_packages)) {
+                    $all_packages = get_old_result('tbl_saas_packages', ['status' => 'published']);
+                }
+                if (empty($current_package)) {
+                    $current_package = !empty($company_info->package_id) ? $company_info->package_id : null;
+                }
+                include module_views_path('saas') . 'packages/assign_package.php';
+                ?>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php
 if (empty(subdomain())) {
     ?>
