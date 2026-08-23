@@ -1095,3 +1095,21 @@ pre .com {
     margin-top: -3px;
 }
 
+/* Subscription details action buttons — wrap inside the card */
+.saas-sub-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.saas-sub-actions .btn {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    text-align: center;
+    float: none !important;
+    margin: 0;
+}
+
+

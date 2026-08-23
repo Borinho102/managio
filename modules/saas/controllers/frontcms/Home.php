@@ -533,7 +533,7 @@ class Home extends App_Controller
                 $data['trial_period'] = $package_info->trial_period;
                 $data['is_trial'] = 'Yes';
                 $data['expired_date'] = $_POST['expired_date'];
-                $data['currency'] = get_base_currency()->name;
+                $data['currency'] = saas_package_currency($package_info);
                 $offer_price = $data['frequency'] . '_offer';
                 if (!empty($package_info->$offer_price)) {
                     $data['amount'] = $package_info->$offer_price;

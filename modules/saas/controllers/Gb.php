@@ -323,7 +323,7 @@ class Gb extends App_Controller
             $data['is_trial'] = 'Yes';
             $data['expired_date'] = $this->input->post('expired_date', true);;
             $data['package_id'] = $package_id;
-            $data['currency'] = get_base_currency()->name;
+            $data['currency'] = saas_package_currency($package_info);
             $data['amount'] = $package_info->$billing_cycle;
             $data['payment_method'] = $this->input->post('payment_method', true) ?: (!empty($mark_paid) ? 'manual' : 'pending');
 
@@ -1072,7 +1072,7 @@ class Gb extends App_Controller
                 $data['trial_period'] = $package_info->trial_period;
                 $data['is_trial'] = 'Yes';
                 $data['expired_date'] = $this->input->post('expired_date', true);;
-                $data['currency'] = get_base_currency()->name;
+                $data['currency'] = saas_package_currency($package_info);
                 $offer_price = $data['frequency'] . '_offer';
                 if (!empty($package_info->$offer_price)) {
                     $data['amount'] = $package_info->$offer_price;
@@ -1300,7 +1300,7 @@ class Gb extends App_Controller
                 $name .= '</div>';
             }
             $sub_array[] = $name;
-            $sub_array[] = display_money($v_history->amount, $v_history) . ' /' . $frequency;
+            $sub_array[] = display_money($v_history->amount, saas_apply_package_currency($v_history)) . ' /' . $frequency;
             $sub_array[] = _dt($v_history->created_at);
             $sub_array[] = (!empty($v_history->validity) ? $v_history->validity : '-');
             if (!empty($access)) {

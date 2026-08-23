@@ -642,6 +642,43 @@ function saas_package_currency($package = null)
     return saas_default_currency();
 }
 
+/**
+ * Prefer the package (or SaaS default) currency over Perfex base currency,
+ * so subscriptions never render as "$" when the package is XAF/FCFA/etc.
+ */
+function saas_apply_package_currency($row)
+{
+    if (empty($row) || is_array($row)) {
+        return $row;
+    }
+
+    $packageId = $row->package_id ?? null;
+    if (empty($packageId) && !empty($row->companies_id)) {
+        $company = get_old_result('tbl_saas_companies', ['id' => $row->companies_id], false);
+        if (!empty($company->package_id)) {
+            $packageId = $company->package_id;
+        } elseif (!empty($company->currency)) {
+            $row->currency = strtoupper($company->currency);
+        }
+    }
+
+    if (!empty($packageId)) {
+        $package = get_old_result('tbl_saas_packages', ['id' => $packageId], false);
+        if (!empty($package)) {
+            $row->currency = saas_package_currency($package);
+            return $row;
+        }
+    }
+
+    if (empty($row->currency)) {
+        $row->currency = saas_default_currency();
+    } else {
+        $row->currency = strtoupper((string) $row->currency);
+    }
+
+    return $row;
+}
+
 function saas_currency_object($code = null)
 {
     if (is_object($code) && isset($code->symbol) && !empty($code->name)
@@ -1433,6 +1470,7 @@ function saas_ensure_company_for_logged_in_client($package_id, $billing_cycle = 
             $package = apply_coupon($package);
             $offer = $frequency . '_offer';
             $amount = !empty($package->$offer) ? $package->$offer : ($package->$billing_cycle ?? 0);
+            $currency = saas_package_currency($package);
 
             $history = [
                 'companies_id' => $companyId,
@@ -1440,7 +1478,7 @@ function saas_ensure_company_for_logged_in_client($package_id, $billing_cycle = 
                 'frequency' => $frequency,
                 'expired_date' => $expired,
                 'amount' => $amount,
-                'currency' => get_base_currency()->name,
+                'currency' => $currency,
                 'trial_period' => $package->trial_period ?? 0,
                 'is_trial' => !empty($package->trial_period) ? 'Yes' : 'No',
                 'ip' => $CI->input->ip_address(),
@@ -1453,6 +1491,7 @@ function saas_ensure_company_for_logged_in_client($package_id, $billing_cycle = 
                 'frequency' => $frequency,
                 'expired_date' => $expired,
                 'amount' => $amount,
+                'currency' => $currency,
             ]);
         }
         return (int) $companyId;
@@ -1522,7 +1561,7 @@ function saas_ensure_company_for_logged_in_client($package_id, $billing_cycle = 
         'trial_period' => $package->trial_period ?? 0,
         'is_trial' => !empty($package->trial_period) ? 'Yes' : 'No',
         'expired_date' => $expired,
-        'currency' => get_base_currency()->name,
+        'currency' => saas_package_currency($package),
         'amount' => $amount,
         'activation_code' => $CI->uuid->v4(),
     ];
@@ -1627,6 +1666,14 @@ function get_company_subscription($domain = null, $status = null, $order_by = nu
         $CI->old_db->order_by('tbl_saas_companies_history.id', 'desc');
         $CI->old_db->limit(1);
         $result = $CI->old_db->get()->row();
+    }
+    if ($type === 'row') {
+        return saas_apply_package_currency($result);
+    }
+    if (is_array($result)) {
+        foreach ($result as $i => $row) {
+            $result[$i] = saas_apply_package_currency($row);
+        }
     }
     return $result;
 }
@@ -1818,6 +1865,14 @@ function get_company_subscription_by_id($company_id = null, $status = null, $ord
         $CI->old_db->order_by('tbl_saas_companies_history.id', 'desc');
         $CI->old_db->limit(1);
         $result = $CI->old_db->get()->row();
+    }
+    if ($type === 'row') {
+        return saas_apply_package_currency($result);
+    }
+    if (is_array($result)) {
+        foreach ($result as $i => $row) {
+            $result[$i] = saas_apply_package_currency($row);
+        }
     }
     return $result;
 }
@@ -2998,7 +3053,8 @@ function saas_payment_recorded($payment)
                 $data['is_coupon'] = null;
             }
             $data['payment_method'] = $payment['paymentmode'];
-            $data['currency'] = get_base_currency()->name;
+            $packageForCurrency = get_old_result('tbl_saas_packages', ['id' => $data['package_id'] ?? 0], false);
+            $data['currency'] = saas_package_currency($packageForCurrency);
             $data['amount'] = $payment['amount'];
 
             $r = $CI->saas_model->update_package($companies_id, $data);

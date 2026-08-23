@@ -231,7 +231,7 @@ class Gb_client extends ClientsController
                 $name .= '</div>';
             }
             $sub_array[] = $name;
-            $sub_array[] = display_money($v_history->amount, $v_history) . ' /' . $frequency;
+            $sub_array[] = display_money($v_history->amount, saas_apply_package_currency($v_history)) . ' /' . $frequency;
             $sub_array[] = _dt($v_history->created_at);
             $sub_array[] = (!empty($v_history->validity) ? $v_history->validity : '-');
             $sub_array[] = $v_history->payment_method;

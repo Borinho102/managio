@@ -182,9 +182,10 @@ $company_subs = get_old_result('tbl_saas_gateway_subscriptions', ['type' => 'pac
                             <span class="pull-right"><?= _dt($company_info->created_date) ?></span>
                         </div>
 
-                        <div class="pb-sm pt-sm tw-flex tw-justify-between">
+                        <div class="pb-sm pt-sm saas-sub-actions">
                             <a href="<?= site_url($billing_prefix . 'customizePackages/' . $company_info->companies_id) ?>"
-                               class="btn btn-sm btn-primary"><?= _l('customize') . ' ' . _l('package') ?>
+                               class="btn btn-sm btn-primary">
+                                <?= _l('customize') . ' ' . _l('package') ?>
                             </a>
 
                             <?php
@@ -192,19 +193,23 @@ $company_subs = get_old_result('tbl_saas_gateway_subscriptions', ['type' => 'pac
                                 if ($company_subs->status == 'running') {
                                     ?>
                                     <a href="<?= site_url('cancel_subscription/' . $company_subs->id) ?>"
-                                       class="btn btn-sm btn-warning pull-right"><?= _l('cancel_subscription') ?>
+                                       class="btn btn-sm btn-warning">
+                                        <?= _l('cancel_subscription') ?>
                                     </a>
                                 <?php } else {
                                     ?>
                                     <a href="<?= site_url('resume_subscription/' . $company_subs->id) ?>"
-                                       class="btn btn-sm btn-info pull-right"><?= _l('resume_subscription') ?>
+                                       class="btn btn-sm btn-info">
+                                        <?= _l('resume_subscription') ?>
                                     </a>
                                 <?php }
                             }
                             ?>
 
                             <a href="#saas-available-packages"
-                               class="btn btn-sm btn-info  pull-right"><?= _l('upgrade') . ' ' . _l('package') ?></a>
+                               class="btn btn-sm btn-info">
+                                <?= _l('upgrade') . ' ' . _l('package') ?>
+                            </a>
                         </div>
                     </div>
                 </div>
