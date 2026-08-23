@@ -73,6 +73,7 @@ $route['clients/themebuilder'] = 'saas/builder';
 $route['clients/themebuilder/(:any)'] = 'saas/builder/$1';
 $route['clients/themebuilder/(:any)/(:any)'] = 'saas/builder/$1/$2';
 $route['proceedPackage/(:any)/(:any)'] = 'saas/gb_client/proceedPackage/$1/$2';
+$route['clients/subscribe/(:any)'] = 'saas/gb_client/subscribe/$1';
 $route['clients/updatePackage'] = 'saas/gb_client/assignPackage';
 $route['clients/updatePackage/(:any)'] = 'saas/gb_client/assignPackage/$1';
 $route['clients/checkoutPayment'] = 'saas/gb_client/checkoutPayment';

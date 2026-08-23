@@ -1363,6 +1363,192 @@ function saas_clear_tenant_session()
     $CI->session->unset_userdata('db_name');
 }
 
+/**
+ * Build a unique tenant domain slug from a company/client name or email.
+ */
+function saas_unique_domain_from_profile($name, $email = '')
+{
+    $base = domainUrl($name);
+    if ($base === '' || $base === '-') {
+        $local = strstr((string) $email, '@', true);
+        $base = domainUrl($local ?: 'company');
+    }
+    if ($base === '' || $base === '-') {
+        $base = 'company';
+    }
+
+    $candidate = $base;
+    $i = 1;
+    while (
+        !empty(get_old_result('tbl_saas_companies', ['domain' => $candidate], false))
+        || check_reserved_tenant($candidate)
+    ) {
+        $i++;
+        $candidate = $base . '-' . $i;
+        if ($i > 50) {
+            $candidate = $base . '-' . substr(md5(uniqid((string) mt_rand(), true)), 0, 6);
+            break;
+        }
+    }
+
+    return $candidate;
+}
+
+/**
+ * Ensure the logged-in Perfex client has a SaaS company + history for $package_id.
+ * Creates them from the client/contact profile when missing — no re-registration.
+ *
+ * @return int|false company id
+ */
+function saas_ensure_company_for_logged_in_client($package_id, $billing_cycle = 'monthly_price')
+{
+    if (!function_exists('is_client_logged_in') || !is_client_logged_in()) {
+        return false;
+    }
+
+    $CI = &get_instance();
+    $CI->load->model('saas/saas_model');
+    $db = saas_master_db();
+
+    $package = get_old_result('tbl_saas_packages', ['id' => $package_id], false);
+    if (empty($package)) {
+        return false;
+    }
+
+    $companyId = get_company_id();
+    if (!empty($companyId)) {
+        $subs = get_company_subscription_by_id($companyId);
+        if (empty($subs) || (int) ($subs->package_id ?? 0) !== (int) $package_id) {
+            $frequency = str_replace('_price', '', $billing_cycle);
+            if ($frequency === 'lifetime') {
+                $expired = date('Y-m-d', strtotime('+100 year'));
+            } elseif ($frequency === 'yearly') {
+                $expired = date('Y-m-d', strtotime('+1 year'));
+            } else {
+                $expired = date('Y-m-d', strtotime('+1 month'));
+                $frequency = 'monthly';
+                $billing_cycle = 'monthly_price';
+            }
+
+            $package = apply_coupon($package);
+            $offer = $frequency . '_offer';
+            $amount = !empty($package->$offer) ? $package->$offer : ($package->$billing_cycle ?? 0);
+
+            $history = [
+                'companies_id' => $companyId,
+                'package_id' => $package_id,
+                'frequency' => $frequency,
+                'expired_date' => $expired,
+                'amount' => $amount,
+                'currency' => get_base_currency()->name,
+                'trial_period' => $package->trial_period ?? 0,
+                'is_trial' => !empty($package->trial_period) ? 'Yes' : 'No',
+                'ip' => $CI->input->ip_address(),
+            ];
+            $history_id = $CI->saas_model->update_company_history($history);
+            saas_deactivate_other_company_histories($companyId, $history_id);
+
+            $db->where('id', $companyId)->update('tbl_saas_companies', [
+                'package_id' => $package_id,
+                'frequency' => $frequency,
+                'expired_date' => $expired,
+                'amount' => $amount,
+            ]);
+        }
+        return (int) $companyId;
+    }
+
+    $clientId = get_client_user_id();
+    $contactId = get_contact_user_id();
+    if (empty($clientId) || empty($contactId)) {
+        return false;
+    }
+
+    $client = $db->where('userid', $clientId)->get(db_prefix() . 'clients')->row();
+    $contact = $db->where('id', $contactId)->get(db_prefix() . 'contacts')->row();
+    if (empty($client) || empty($contact) || empty($contact->email)) {
+        return false;
+    }
+
+    // Prefer an existing company already tied to this email.
+    $existing = $db->select('id')
+        ->from('tbl_saas_companies')
+        ->where('LOWER(email) = ' . $db->escape(strtolower(trim($contact->email))), null, false)
+        ->order_by('id', 'desc')
+        ->get()
+        ->row();
+    if (!empty($existing->id)) {
+        $db->where('userid', $clientId)->update(db_prefix() . 'clients', [
+            'saas_company_id' => $existing->id,
+        ]);
+        return saas_ensure_company_for_logged_in_client($package_id, $billing_cycle);
+    }
+
+    $frequency = str_replace('_price', '', $billing_cycle);
+    if ($frequency === 'lifetime') {
+        $expired = date('Y-m-d', strtotime('+100 year'));
+    } elseif ($frequency === 'yearly') {
+        $expired = date('Y-m-d', strtotime('+1 year'));
+    } else {
+        $expired = date('Y-m-d', strtotime('+1 month'));
+        $frequency = 'monthly';
+        $billing_cycle = 'monthly_price';
+    }
+
+    $package = apply_coupon($package);
+    $offer = $frequency . '_offer';
+    $amount = !empty($package->$offer) ? $package->$offer : ($package->$billing_cycle ?? 0);
+
+    $name = trim((string) ($client->company ?: trim(($contact->firstname ?? '') . ' ' . ($contact->lastname ?? ''))));
+    if ($name === '') {
+        $name = $contact->email;
+    }
+
+    $CI->load->library('uuid');
+    $data = [
+        'name' => $name,
+        'email' => $contact->email,
+        'package_id' => $package_id,
+        'domain' => saas_unique_domain_from_profile($name, $contact->email),
+        'mobile' => $client->phonenumber ?? ($contact->phonenumber ?? null),
+        'address' => $client->address ?? null,
+        'country' => $client->country ?? 0,
+        'timezone' => ConfigItems('saas_default_timezone'),
+        'language' => ConfigItems('saas_active_language'),
+        'created_date' => date('Y-m-d H:i:s'),
+        'created_by' => null,
+        'status' => 'pending',
+        'frequency' => $frequency,
+        'trial_period' => $package->trial_period ?? 0,
+        'is_trial' => !empty($package->trial_period) ? 'Yes' : 'No',
+        'expired_date' => $expired,
+        'currency' => get_base_currency()->name,
+        'amount' => $amount,
+        'activation_code' => $CI->uuid->v4(),
+    ];
+
+    $CI->saas_model->_table_name = 'tbl_saas_companies';
+    $CI->saas_model->_primary_key = 'id';
+    $companyId = $CI->saas_model->save($data);
+    if (empty($companyId)) {
+        return false;
+    }
+
+    $db->where('userid', $clientId)->update(db_prefix() . 'clients', [
+        'saas_company_id' => $companyId,
+    ]);
+
+    $data['companies_id'] = $companyId;
+    $data['ip'] = $CI->input->ip_address();
+    $history_id = $CI->saas_model->update_company_history($data);
+    saas_deactivate_other_company_histories($companyId, $history_id);
+
+    saas_clear_tenant_session();
+    log_activity('SaaS company created from logged-in client [CompanyID:' . $companyId . ', ClientID:' . $clientId . ']');
+
+    return (int) $companyId;
+}
+
 function saas_login_client_for_company($company_id)
 {
     if (empty($company_id) || (function_exists('is_subdomain') && !empty(is_subdomain()))) {

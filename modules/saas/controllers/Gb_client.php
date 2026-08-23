@@ -37,8 +37,15 @@ class Gb_client extends ClientsController
 
         $subs_info = get_company_subscription_by_id();
         if (empty($subs_info)) {
-            set_alert('warning', _l('404_error'));
-            redirect('clients/billings');
+            // Create/link company from the logged-in profile, then retry.
+            if (!empty($package_id) && function_exists('saas_ensure_company_for_logged_in_client')) {
+                $companyId = saas_ensure_company_for_logged_in_client($package_id);
+                if (!empty($companyId)) {
+                    redirect('proceedPackage/' . $package_id . '/' . url_encode($companyId));
+                }
+            }
+            set_alert('warning', _l('no_subscription_found_for_this_account'));
+            redirect('clients/dashboard');
         }
 
         $post_data = $this->input->post();
@@ -107,6 +114,40 @@ class Gb_client extends ClientsController
         $data['current_package'] = !empty($subs->package_id) ? $subs->package_id : null;
         $data['all_packages'] = get_old_result('tbl_saas_packages', ['status' => 'published']);
         $this->set_layout($data, 'companies/billing');
+    }
+
+    /**
+     * Logged-in client picks a package: reuse their profile (no re-register),
+     * ensure a SaaS company exists, then open checkout.
+     */
+    public function subscribe($package_id = null)
+    {
+        if (!is_client_logged_in()) {
+            redirect('authentication/login');
+        }
+        if (function_exists('saas_clear_tenant_session')) {
+            saas_clear_tenant_session();
+        }
+
+        $package_id = (int) $package_id;
+        $package = get_old_result('tbl_saas_packages', ['id' => $package_id, 'status' => 'published'], false);
+        if (empty($package)) {
+            // allow unpublished only if id exists and was passed explicitly
+            $package = get_old_result('tbl_saas_packages', ['id' => $package_id], false);
+        }
+        if (empty($package)) {
+            set_alert('warning', _l('package_not_found'));
+            redirect('clients/dashboard');
+        }
+
+        $billing_cycle = $this->input->get('billing_cycle', true) ?: 'monthly_price';
+        $companyId = saas_ensure_company_for_logged_in_client($package_id, $billing_cycle);
+        if (empty($companyId)) {
+            set_alert('danger', _l('something_went_wrong'));
+            redirect('clients/dashboard');
+        }
+
+        redirect('proceedPackage/' . $package_id . '/' . url_encode($companyId));
     }
 
     public function referrals()
@@ -440,6 +481,16 @@ class Gb_client extends ClientsController
         $subview = 'checkoutPayment';
         if (!empty(is_client_logged_in())) {
             $data['subs_info'] = get_company_subscription_by_id();
+            if (empty($data['subs_info']) && !empty($company_id)) {
+                $decoded = url_decode($company_id);
+                $data['subs_info'] = $this->saas_model->company_info($decoded);
+                if (!empty($data['subs_info'])) {
+                    $data['subs_info']->companies_id = $decoded;
+                }
+            }
+            if (empty($data['subs_info'])) {
+                redirect('clients/subscribe/' . $data['package_id']);
+            }
             $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
             $data['url'] = site_url('clients/checkoutPayment/' . $data['package_id']);
             $subview = 'checkoutPaymentOpen';

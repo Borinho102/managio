@@ -662,6 +662,7 @@ $lang["video"] = "Video";
 $lang["404_error"] = "404 Error";
 $lang["no_subscription_found_for_this_account"] = "No subscription is linked to this account yet. Choose a package below to get started.";
 $lang["choose_a_package"] = "Choose a package";
+$lang["package_not_found"] = "Package not found";
 $lang["video_preview_description"] = "If iframe is not working then click here to preview video";
 $lang["reset_password"] = "Reset Password";
 $lang["password_does_not_match"] = "Password does not match";

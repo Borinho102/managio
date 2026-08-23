@@ -56,17 +56,11 @@ echo '<link href="' . module_dir_url(SaaS_MODULE, 'assets/css/style_media.css') 
                                href="<?= base_url('package_details/' . $package->id) ?>"><?= _l('see_details') ?></a>
 
                             <?php
-                            $url = 'register/' . $package->id;
+                            // Logged-in clients always subscribe from their profile (no re-register).
                             if (!empty(is_client_logged_in())) {
-                                $subsInfo = get_company_subscription_by_id();
-                                if (!empty($subsInfo) && !empty($subsInfo->companies_id)) {
-                                    $url = 'proceedPackage/' . $package->id . '/' . url_encode($subsInfo->companies_id);
-                                } else {
-                                    $companyId = function_exists('get_company_id') ? get_company_id() : false;
-                                    if (!empty($companyId)) {
-                                        $url = 'proceedPackage/' . $package->id . '/' . url_encode($companyId);
-                                    }
-                                }
+                                $url = 'clients/subscribe/' . $package->id;
+                            } else {
+                                $url = 'register/' . $package->id;
                             }
                             ?>
 
