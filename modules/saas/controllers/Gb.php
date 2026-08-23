@@ -1103,15 +1103,11 @@ class Gb extends App_Controller
                     $this->session->unset_userdata('referer');
                 }
 
-                // change active status to 0 for all previous data of this company
-                $this->saas_model->_table_name = 'tbl_saas_companies_history';
-                $this->saas_model->_primary_key = 'companies_id';
-                $this->saas_model->save(array('active' => 0), $id);
-
                 $data['companies_id'] = $id;
                 $data['ip'] = $this->input->ip_address();
 
-                $this->saas_model->update_company_history($data);
+                $history_id = $this->saas_model->update_company_history($data);
+                saas_deactivate_other_company_histories($id, $history_id);
 
                 // send activation email
                 if (empty($disable_email_verification) && $disable_email_verification !== 1) {

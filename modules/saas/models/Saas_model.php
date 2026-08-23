@@ -2767,6 +2767,14 @@ class Saas_model extends App_Model
 
             if (!empty($contact)) {
                 $contact_id = $this->save($data, $contact->id);
+                if (!empty($client_id) && function_exists('config_db')) {
+                    $master = config_db(null, true);
+                    if (!empty($master)) {
+                        $master->where('userid', $client_id)->update(db_prefix() . 'clients', [
+                            'saas_company_id' => $companyInfo->id ?? null,
+                        ]);
+                    }
+                }
             } else {
                 $contact_id = $this->save($data);
             }

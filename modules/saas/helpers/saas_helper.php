@@ -1385,14 +1385,89 @@ function get_company_id($clientid = null)
         // create field saas_company_id in database
         $CI->old_db->query('ALTER TABLE `' . db_prefix() . 'clients` ADD `saas_company_id` INT(11) NULL DEFAULT NULL AFTER `userid`');
     }
-    $CI->old_db->select('saas_company_id');
-    $CI->old_db->from(db_prefix() . 'clients');
-    $CI->old_db->where('userid', $clientid);
-    $client = $CI->old_db->get()->row();
-    if (!empty($client)) {
-        return $client->saas_company_id;
+    if (is_numeric($clientid)) {
+        $CI->old_db->select('saas_company_id');
+        $CI->old_db->from(db_prefix() . 'clients');
+        $CI->old_db->where('userid', $clientid);
+        $client = $CI->old_db->get()->row();
+        if (!empty($client->saas_company_id)) {
+            return $client->saas_company_id;
+        }
     }
-    return false;
+
+    $companyId = saas_resolve_company_id_for_logged_in_client($clientid);
+    if (!empty($companyId) && is_numeric($clientid)) {
+        $CI->old_db->where('userid', $clientid)->update(db_prefix() . 'clients', [
+            'saas_company_id' => $companyId,
+        ]);
+    }
+
+    return $companyId ?: false;
+}
+
+function saas_resolve_company_id_for_logged_in_client($clientid = null)
+{
+    $CI = &get_instance();
+    $CI->old_db = config_db(NULL, true);
+
+    $email = '';
+    if (function_exists('is_client_logged_in') && is_client_logged_in() && function_exists('get_contact_user_id')) {
+        $contact = $CI->old_db->select('email,userid')
+            ->from(db_prefix() . 'contacts')
+            ->where('id', get_contact_user_id())
+            ->get()
+            ->row();
+        if (!empty($contact->email)) {
+            $email = $contact->email;
+            if (!is_numeric($clientid) && !empty($contact->userid)) {
+                $clientid = $contact->userid;
+            }
+        }
+    }
+
+    if ($email === '' && is_numeric($clientid)) {
+        $contact = $CI->old_db->select('email')
+            ->from(db_prefix() . 'contacts')
+            ->where('userid', $clientid)
+            ->where('is_primary', 1)
+            ->get()
+            ->row();
+        if (!empty($contact->email)) {
+            $email = $contact->email;
+        }
+    }
+
+    if ($email === '') {
+        return false;
+    }
+
+    $company = $CI->old_db->select('id')
+        ->from('tbl_saas_companies')
+        ->where('email', $email)
+        ->order_by('id', 'desc')
+        ->get()
+        ->row();
+
+    return !empty($company->id) ? $company->id : false;
+}
+
+function saas_deactivate_other_company_histories($company_id, $keep_history_id = null)
+{
+    if (empty($company_id)) {
+        return;
+    }
+
+    $CI = &get_instance();
+    $db = function_exists('config_db') ? config_db(null, true) : $CI->db;
+    if (empty($db)) {
+        return;
+    }
+
+    $db->where('companies_id', $company_id);
+    if (!empty($keep_history_id)) {
+        $db->where('id !=', $keep_history_id);
+    }
+    $db->update('tbl_saas_companies_history', ['active' => 0]);
 }
 
 function get_saas_client_id($saas_company_id = null)
@@ -1461,6 +1536,18 @@ function get_company_subscription_by_id($company_id = null, $status = null, $ord
 
     $query = $CI->old_db->get();
     $result = $query->$type();
+    if ($type === 'row' && empty($result) && !empty($company_id)) {
+        $CI->old_db->select('tbl_saas_companies.*,tbl_saas_companies_history.id as company_history_id,tbl_saas_companies_history.*');
+        $CI->old_db->from('tbl_saas_companies');
+        $CI->old_db->join('tbl_saas_companies_history', 'tbl_saas_companies.id = tbl_saas_companies_history.companies_id', 'left');
+        if (!empty($status)) {
+            $CI->old_db->where('tbl_saas_companies.status', $status);
+        }
+        $CI->old_db->where('tbl_saas_companies.id', $company_id);
+        $CI->old_db->order_by('tbl_saas_companies_history.id', 'desc');
+        $CI->old_db->limit(1);
+        $result = $CI->old_db->get()->row();
+    }
     return $result;
 }
 
