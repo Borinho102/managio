@@ -664,6 +664,160 @@ class Gb extends App_Controller
         }
     }
 
+    public function payin_payment_callback($companies_id = '', $package_id = '', $token = '')
+    {
+        $post = $this->input->post();
+        $gateway = new Saas_Payin();
+        $pending = [];
+
+        if (!empty($token)) {
+            $pending = $this->session->userdata($gateway->pendingKey($token)) ?: [];
+        }
+        if (empty($pending) && !empty($post)) {
+            $pending = $post;
+            $token = $pending['token'] ?? $token;
+        }
+        if (empty($pending) && !empty($token)) {
+            $subs = get_old_result('tbl_saas_gateway_subscriptions', [
+                'subscription_id' => 'PAYIN_PENDING_' . $token,
+                'gateway_name'    => 'payin',
+            ], false);
+            if (!empty($subs->temp)) {
+                $decoded = json_decode($subs->temp, true);
+                if (is_array($decoded)) {
+                    $pending = $decoded;
+                }
+            }
+        }
+
+        $companies_id = $pending['companies_id'] ?? $companies_id;
+        $package_id = $pending['package_id'] ?? $package_id;
+        $billing_cycle = $pending['billing_cycle'] ?? 'monthly_price';
+        $amount = $pending['amount'] ?? 0;
+        $package_module_id = $pending['package_module_id'] ?? '';
+        $type = (!empty($package_module_id) || ($pending['type'] ?? '') === 'module') ? 'module' : 'package';
+
+        $company_info = !empty($companies_id) ? get_old_result('tbl_saas_companies', ['id' => $companies_id], false) : null;
+        $checkout_url = !empty($company_info->activation_code) ? 'checkout/' . $company_info->activation_code : 'register';
+
+        try {
+            $payload = [];
+            if (empty($pending['zero_price']) && (float) $amount > 0) {
+                $client = Payin_client::fromSaasMerchant();
+                $payload = $client->decodeCallbackPayload();
+            }
+            $callbackResult = $gateway->processCallback($pending, $payload);
+        } catch (Throwable $e) {
+            log_message('error', '[PAYIN_CALLBACK] ' . $e->getMessage());
+            set_alert('danger', 'PayIn: ' . $e->getMessage());
+            redirect($checkout_url);
+            return;
+        }
+
+        if (empty($callbackResult['success'])) {
+            set_alert('danger', 'PayIn: ' . ($callbackResult['message'] ?? 'Payment failed.'));
+            redirect($checkout_url);
+            return;
+        }
+
+        $transaction_id = $callbackResult['transaction_id'];
+        $subscription_id = 'PAYIN_SUB_' . date('YmdHis') . '_' . $token;
+        $frequency = str_replace('_price', '', $billing_cycle) ?: 'monthly';
+
+        if ($type === 'module') {
+            $data = [
+                'new_module'            => $pending['new_module'] ?? '',
+                'company_id'            => $companies_id,
+                'package_name'          => 'Module ' . ($pending['module_name'] ?? 'PayIn'),
+                'calendar'              => 0,
+                'reports'               => 0,
+                'allowed_payment_modes' => serialize([]),
+                'modules'               => $pending['new_module'] ?? '',
+                'allowed_themes'        => serialize([]),
+                'disabled_modules'      => serialize([]),
+                'amount'                => $amount,
+                'subscription_id'       => $subscription_id,
+                'transaction_id'        => $transaction_id,
+                'price_id'              => '',
+                'payment_method'        => 'payin',
+                'currency'              => default_currency(),
+                'mark_paid'             => true,
+                'type'                  => 'module',
+            ];
+            $result = $this->saas_model->update_company_modules($data);
+        } else {
+            $package = get_old_result('tbl_saas_packages', ['id' => $package_id], false);
+            $data = [
+                'package_id'      => $package_id,
+                'company_id'      => $companies_id,
+                'package_name'    => !empty($package) ? $package->name : 'PayIn Plan',
+                'frequency'       => $frequency,
+                'amount'          => $amount,
+                'subscription_id' => $subscription_id,
+                'transaction_id'  => $transaction_id,
+                'price_id'        => '',
+                'payment_method'  => 'payin',
+                'currency'        => default_currency(),
+                'mark_paid'       => true,
+            ];
+            $result = $this->saas_model->update_company_packages($data);
+        }
+
+        if ($type === 'module') {
+            $subs_company = get_old_result('tbl_saas_gateway_subscriptions', [
+                'company_id'   => $companies_id,
+                'module_id'    => $package_module_id,
+                'type'         => $type,
+                'gateway_name' => 'payin',
+            ], false);
+        } else {
+            $subs_company = get_old_result('tbl_saas_gateway_subscriptions', [
+                'company_id'   => $companies_id,
+                'type'         => $type,
+                'gateway_name' => 'payin',
+            ], false);
+        }
+
+        $this->saas_model->_table_name = 'tbl_saas_gateway_subscriptions';
+        $this->saas_model->_primary_key = 'id';
+        $sub_data = [
+            'customer_id'     => $companies_id,
+            'company_id'      => $companies_id,
+            'subscription_id' => $subscription_id,
+            'type'            => $type,
+            'gateway_name'    => 'payin',
+            'status'          => 'running',
+            'end_date'        => $this->get_expired_date($frequency),
+            'module_id'       => ($type === 'module') ? $package_module_id : null,
+            'temp'            => null,
+        ];
+        $this->saas_model->save_old($sub_data, !empty($subs_company) ? $subs_company->id : null);
+
+        if (!empty($token)) {
+            $this->session->unset_userdata($gateway->pendingKey($token));
+        }
+
+        if ($result) {
+            log_activity('PayIn Payment Completed [Company:' . $companies_id . ', TxID:' . $transaction_id . ']');
+            set_alert('success', 'PayIn payment successfully completed');
+            redirect('admin/dashboard');
+        }
+
+        set_alert('danger', 'PayIn payment processing failed after collection');
+        redirect($checkout_url);
+    }
+
+    public function payin_payment_cancel($companies_id = '', $token = '')
+    {
+        if (!empty($token)) {
+            $this->session->unset_userdata((new Saas_Payin())->pendingKey($token));
+        }
+        $company_info = !empty($companies_id) ? get_old_result('tbl_saas_companies', ['id' => $companies_id], false) : null;
+        $checkout_url = !empty($company_info->activation_code) ? 'checkout/' . $company_info->activation_code : 'register';
+        set_alert('warning', _l('payment_cancelled') ?: 'Payment cancelled.');
+        redirect($checkout_url);
+    }
+
     public function stripePayment($data = null)
     {
 
