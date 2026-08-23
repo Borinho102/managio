@@ -21,6 +21,9 @@ class Gb_client extends ClientsController
         $subs = get_company_subscription_by_id();
         // Always show packages on this page — even when no subscription is linked yet.
         $data['current_package'] = !empty($subs->package_id) ? $subs->package_id : null;
+        $data['current_package_paid'] = function_exists('saas_subscription_is_paid')
+            ? saas_subscription_is_paid($subs)
+            : (!empty($subs) && ($subs->status ?? '') === 'running');
         $data['all_packages'] = get_old_result('tbl_saas_packages', array('status' => 'published'));
         $this->set_layout($data, 'packages/assign_package');
     }
@@ -112,6 +115,9 @@ class Gb_client extends ClientsController
         $data['title'] = _l('billing');
         $subs = get_company_subscription_by_id();
         $data['current_package'] = !empty($subs->package_id) ? $subs->package_id : null;
+        $data['current_package_paid'] = function_exists('saas_subscription_is_paid')
+            ? saas_subscription_is_paid($subs)
+            : (!empty($subs) && ($subs->status ?? '') === 'running');
         $data['all_packages'] = get_old_result('tbl_saas_packages', ['status' => 'published']);
         $this->set_layout($data, 'companies/billing');
     }

@@ -890,6 +890,36 @@ function saas_package_requires_payment($package, $billing_cycle = 'monthly_price
     return $price > 0;
 }
 
+/**
+ * True only when the tenant subscription is paid/activated (running).
+ * Pending / unpaid packages must still allow Buy Now / checkout.
+ */
+function saas_subscription_is_paid($subs): bool
+{
+    if (empty($subs) || !is_object($subs)) {
+        return false;
+    }
+
+    $status = strtolower((string) ($subs->status ?? ''));
+    if ($status === 'running') {
+        return true;
+    }
+
+    // Gateway subscription still active also counts as paid.
+    if (!empty($subs->companies_id) && function_exists('get_old_result')) {
+        $gateway = get_old_result('tbl_saas_gateway_subscriptions', [
+            'type' => 'package',
+            'company_id' => $subs->companies_id,
+            'status' => 'running',
+        ], false);
+        if (!empty($gateway)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function saas_should_activate_paid_package($mark_paid, $package, $billing_cycle = 'monthly_price', $amount = null)
 {
     if (!empty($mark_paid)) {

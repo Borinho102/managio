@@ -111,6 +111,7 @@ $lang['fresh_db'] = 'Fresh';
 $lang['with_sample_db'] = 'With Sample Data';
 $lang['account_not_found'] = 'Account not found.Please signup from here ' . anchor('pricing', 'Signup', 'target="_blank"');
 $lang['buy_now'] = 'Buy Now';
+$lang['pay_now'] = 'Pay Now';
 $lang['enter_placeholder'] = 'Enter your %s here.';
 $lang['we_did_not_found_your_token'] = 'Activation token does not match our record.please enter properly';
 $lang['skip_all_and_finish'] = 'Skip All & Finish';

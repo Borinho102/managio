@@ -17,6 +17,9 @@ if (empty($company_info)) {
     if (empty($current_package)) {
         $current_package = null;
     }
+    if (!isset($current_package_paid)) {
+        $current_package_paid = false;
+    }
     include module_views_path('saas') . 'packages/assign_package.php';
 
     echo '</div></div>';
@@ -498,6 +501,11 @@ foreach ($module_subscription as $module) {
                 }
                 if (empty($current_package)) {
                     $current_package = !empty($company_info->package_id) ? $company_info->package_id : null;
+                }
+                if (!isset($current_package_paid)) {
+                    $current_package_paid = function_exists('saas_subscription_is_paid')
+                        ? saas_subscription_is_paid($company_info)
+                        : (($company_info->status ?? '') === 'running');
                 }
                 include module_views_path('saas') . 'packages/assign_package.php';
                 ?>

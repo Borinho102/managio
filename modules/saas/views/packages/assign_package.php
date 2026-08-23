@@ -62,13 +62,33 @@ echo '<link href="' . module_dir_url(SaaS_MODULE, 'assets/css/style_media.css') 
                             } else {
                                 $url = 'register/' . $package->id;
                             }
+
+                            $isCurrent = !empty($current_package) && (int) $package->id === (int) $current_package;
+                            // Lock Buy Now only after the subscription is paid/running.
+                            $currentPaid = !empty($current_package_paid);
+                            if (!isset($current_package_paid) && function_exists('saas_subscription_is_paid')) {
+                                $subsForLock = function_exists('get_company_subscription_by_id')
+                                    ? get_company_subscription_by_id()
+                                    : null;
+                                $currentPaid = saas_subscription_is_paid($subsForLock);
+                            }
+                            $lockBuy = $isCurrent && $currentPaid;
+                            $buyLabel = ($isCurrent && !$currentPaid)
+                                ? _l('pay_now')
+                                : _l('buy_now');
                             ?>
 
                             <div class="pricing-btn text-center tw-mt-3 tw-mb-2">
-                                <a class="btn btn-primary <?= (!empty($current_package) && ($package->id == $current_package) ? 'disabled' : '') ?>"
-                                   href="<?= base_url($url) ?>">
-                                    <?= _l('buy_now') ?>
-                                </a>
+                                <?php if ($lockBuy) { ?>
+                                    <button type="button" class="btn btn-primary disabled" disabled>
+                                        <?= _l('buy_now') ?>
+                                    </button>
+                                <?php } else { ?>
+                                    <a class="btn btn-primary"
+                                       href="<?= base_url($url) ?>">
+                                        <?= $buyLabel ?>
+                                    </a>
+                                <?php } ?>
                             </div>
                         </div>
 
