@@ -108,18 +108,19 @@ class Gb_admin extends AdminController
             $data['title'] = _l('checkout') . ' ' . _l('payment') . ' ' . _l('for') . ' ' . $package_info->name;
             $data['package_info'] = $package_info;
             $data['all_packages'] = get_old_result('tbl_saas_packages', array('status' => 'published'));
-            $subview = 'checkoutPayment';
-            if (!empty(subdomain())) {
-                $front_end = true;
-                $data['subs_info'] = get_company_subscription();
-                $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
-                $subview = 'checkoutPaymentOpen';
-            } else if (!empty($company_id)) {
-                $company_id = url_decode($company_id);
-                $data['company_info'] = $this->saas_model->company_info($company_id);
-                $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
-                $subview = 'checkoutPaymentOpen';
-
+            $isSuperAdminAssign = empty(subdomain()) && function_exists('super_admin_access') && super_admin_access();
+            $subview = $isSuperAdminAssign ? 'checkoutPayment' : 'checkoutPaymentOpen';
+            if ($subview === 'checkoutPaymentOpen') {
+                $front_end = !empty(subdomain());
+                $data['subs_info'] = !empty(subdomain()) ? get_company_subscription() : ($data['subs_info'] ?? null);
+                if (!empty($company_id) && empty($data['company_info'])) {
+                    $company_id = url_decode($company_id);
+                    $data['company_info'] = $this->saas_model->company_info($company_id);
+                    $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
+                } elseif (empty($data['payment_modes'])) {
+                    $data['subs_info'] = $data['subs_info'] ?? get_company_subscription();
+                    $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
+                }
             }
         }
 

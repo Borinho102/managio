@@ -292,6 +292,12 @@ class Gb extends App_Controller
             redirect('saas/companies');
         }
 
+        if (!empty(subdomain()) || !super_admin_access()) {
+            set_alert('warning', _l('payment_required') ?: 'Payment is required to activate this package.');
+            redirect($_SERVER['HTTP_REFERER'] ?? saas_billing_redirect($companies_id));
+            return;
+        }
+
 
         $company_info = get_row('tbl_saas_companies', array('id' => $companies_id));
         if (empty($package_id)) {
@@ -319,6 +325,15 @@ class Gb extends App_Controller
             $data['package_id'] = $package_id;
             $data['currency'] = get_base_currency()->name;
             $data['amount'] = $package_info->$billing_cycle;
+            $data['payment_method'] = $this->input->post('payment_method', true) ?: (!empty($mark_paid) ? 'manual' : 'pending');
+
+            if (!function_exists('saas_should_activate_paid_package')
+                || !saas_should_activate_paid_package($mark_paid, $package_info, $billing_cycle, $data['amount'])) {
+                set_alert('warning', _l('payment_required') ?: 'Payment is required to activate this package.');
+                redirect($_SERVER['HTTP_REFERER'] ?? 'admin/billings');
+                return;
+            }
+
             if (!empty($mark_paid)) {
                 $data['status'] = 'running';
                 $data['is_trial'] = 'No';
@@ -968,18 +983,20 @@ class Gb extends App_Controller
         $data['all_packages'] = get_old_result('tbl_saas_packages', array('status' => 'published'));
         $subview = 'checkoutPayment';
 
-        if (!empty(is_client_logged_in())) {
-            $data['subs_info'] = get_company_subscription_by_id();
+        if (!empty(is_client_logged_in()) || !empty(subdomain()) || !empty($company_id)) {
+            if (!empty(is_client_logged_in())) {
+                $data['subs_info'] = get_company_subscription_by_id();
+            } else if (!empty($company_id)) {
+                $company_id = url_decode($company_id);
+                $data['subs_info'] = $this->saas_model->company_info($company_id);
+                $data['subs_info']->companies_id = $company_id;
+                $data['company_id'] = $company_id;
+                $data['front'] = true;
+            } else {
+                $data['subs_info'] = get_company_subscription();
+            }
             $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
             $subview = 'checkoutPaymentOpen';
-        } else if (!empty($company_id)) {
-            $company_id = url_decode($company_id);
-            $data['subs_info'] = $this->saas_model->company_info($company_id);
-            $data['subs_info']->companies_id = $company_id;
-            $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
-            $subview = 'checkoutPaymentOpen';
-            $data['company_id'] = $company_id;
-            $data['front'] = true;
         }
         $view = 'saas/packages/' . $subview;
         $data['subview'] = $this->load->view($view, $data, TRUE);
@@ -1209,10 +1226,8 @@ class Gb extends App_Controller
             $data['all_packages'] = get_old_result('tbl_saas_packages', array('status' => 'published'));
 
             $subview = 'checkoutPayment';
-            if (!empty(subdomain())) {
-                $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
-                $subview = 'checkoutPaymentOpen';
-            } else if (!empty($company_id)) {
+            $isSuperAdminAssign = empty(subdomain()) && function_exists('super_admin_access') && super_admin_access();
+            if (!$isSuperAdminAssign) {
                 $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
                 $subview = 'checkoutPaymentOpen';
             }

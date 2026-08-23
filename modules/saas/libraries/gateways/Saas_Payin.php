@@ -185,18 +185,28 @@ class Saas_Payin extends Saas_payment
             ], false);
         }
 
+        $billingCycle = $package['billing_cycle'] ?? 'monthly_price';
+        $catalogPackage = !empty($package['package_id'])
+            ? get_old_result('tbl_saas_packages', ['id' => $package['package_id']], false)
+            : null;
+        $catalogAmount = function_exists('saas_package_cycle_price')
+            ? saas_package_cycle_price($catalogPackage, $billingCycle)
+            : 0.0;
         $amount = (float) ($package['amount'] ?? 0);
+        if ($amount <= 0) {
+            $amount = (float) $catalogAmount;
+        }
         $hidden = [
             'package_id'        => $package['package_id'] ?? '',
             'companies_id'      => $package['companies_id'] ?? '',
-            'billing_cycle'     => $package['billing_cycle'] ?? 'monthly_price',
+            'billing_cycle'     => $billingCycle,
             'amount'            => $amount,
             'currency'          => $this->resolveCurrency($package),
             'package_module_id' => $package['package_module_id'] ?? '',
             'type'              => 'package',
         ];
 
-        if ($amount == 0) {
+        if ($amount <= 0) {
             $hidden['zero_price'] = '1';
             $hidden['token'] = 'FREE_' . bin2hex(random_bytes(8));
             return ['paymentForm' => $this->buildZeroPriceForm($hidden)];
@@ -271,7 +281,19 @@ class Saas_Payin extends Saas_payment
 
     public function processCallback(array $pending, array $payload = []): array
     {
-        if (!empty($pending['zero_price']) || (float) ($pending['amount'] ?? 1) == 0) {
+        $billingCycle = $pending['billing_cycle'] ?? 'monthly_price';
+        $catalogPackage = !empty($pending['package_id'])
+            ? get_old_result('tbl_saas_packages', ['id' => $pending['package_id']], false)
+            : null;
+        $catalogAmount = function_exists('saas_package_cycle_price')
+            ? saas_package_cycle_price($catalogPackage, $billingCycle)
+            : 0.0;
+        $amount = (float) ($pending['amount'] ?? 0);
+        if ($amount <= 0) {
+            $amount = (float) $catalogAmount;
+        }
+
+        if (!empty($pending['zero_price']) && $amount <= 0) {
             $token = $pending['token'] ?? ('FREE_' . time());
             return [
                 'success'        => true,
@@ -279,12 +301,12 @@ class Saas_Payin extends Saas_payment
             ];
         }
 
-        if (empty($payload)) {
+        if (empty($payload) || $amount > 0 && empty($payload)) {
             return ['success' => false, 'message' => 'PayIn callback payload is missing.'];
         }
 
         $client = Payin_client::fromSaasMerchant();
-        $client->assertSuccessful($payload, (float) $pending['amount']);
+        $client->assertSuccessful($payload, $amount);
 
         return [
             'success'        => true,

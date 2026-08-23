@@ -752,6 +752,34 @@ function display_money($amount, $currency = null)
     return app_format_money($amount, saas_currency_object($currency));
 }
 
+function saas_package_cycle_price($package, $billing_cycle = 'monthly_price')
+{
+    if (empty($package) || empty($billing_cycle)) {
+        return 0.0;
+    }
+    if (is_array($package)) {
+        return (float) ($package[$billing_cycle] ?? 0);
+    }
+
+    return (float) ($package->{$billing_cycle} ?? 0);
+}
+
+function saas_package_requires_payment($package, $billing_cycle = 'monthly_price', $amount = null)
+{
+    $price = $amount !== null && $amount !== '' ? (float) $amount : saas_package_cycle_price($package, $billing_cycle);
+
+    return $price > 0;
+}
+
+function saas_should_activate_paid_package($mark_paid, $package, $billing_cycle = 'monthly_price', $amount = null)
+{
+    if (!empty($mark_paid)) {
+        return true;
+    }
+
+    return !saas_package_requires_payment($package, $billing_cycle, $amount);
+}
+
 function package_price($package_info, $style = null)
 {
     $html = '';

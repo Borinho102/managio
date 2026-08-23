@@ -1784,6 +1784,14 @@ class Saas_model extends App_Model
         $data['package_id'] = $package_id;
         $data['currency'] = $post_data['currency'] ?? saas_package_currency($package_info);
         $data['amount'] = $package_info->$billing_cycle;
+        $data['payment_method'] = !empty($post_data['payment_method']) ? $post_data['payment_method'] : (!empty($mark_paid) ? 'manual' : 'pending');
+
+        if (!function_exists('saas_should_activate_paid_package')
+            || !saas_should_activate_paid_package($mark_paid, $package_info, $billing_cycle, $data['amount'])) {
+            log_message('error', '[update_package] Refusing unpaid activation company_id=' . $company_id . ' package_id=' . $package_id);
+            return false;
+        }
+
         if (!empty($mark_paid)) {
             $data['status'] = 'running';
             $data['is_trial'] = 'No';
@@ -1925,6 +1933,14 @@ class Saas_model extends App_Model
         $data['currency'] = $post_data['currency'] ?? saas_package_currency($package_info);
 
         $data['amount'] = $package_info->$billing_cycle;
+        $data['payment_method'] = !empty($post_data['payment_method']) ? $post_data['payment_method'] : (!empty($mark_paid) ? 'manual' : 'pending');
+
+        if (!function_exists('saas_should_activate_paid_package')
+            || !saas_should_activate_paid_package($mark_paid, $package_info, $billing_cycle, $data['amount'])) {
+            log_message('error', '[update_company_packages] Refusing unpaid activation company_id=' . $company_id . ' package_id=' . $package_id);
+            return false;
+        }
+
         if (!empty($mark_paid)) {
             $data['status'] = 'running';
             $data['is_trial'] = 'No';
