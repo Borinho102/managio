@@ -558,6 +558,9 @@ class Home extends App_Controller
                 $id = $this->saas_model->save($data);
 
                 $this->saas_model->save_client($id, $data['password']);
+                if (function_exists('saas_login_client_for_company')) {
+                    saas_login_client_for_company($id);
+                }
 
                 if (!empty($data['referral_by'])) {
                     $this->saas_model->add_affiliate($id, $data, true);

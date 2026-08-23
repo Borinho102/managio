@@ -1096,6 +1096,9 @@ class Gb extends App_Controller
                 $id = $this->saas_model->save($data);
 
                 $this->saas_model->save_client($id, $data['password']);
+                if (function_exists('saas_login_client_for_company')) {
+                    saas_login_client_for_company($id);
+                }
 
                 if (!empty($data['referral_by'])) {
                     $this->saas_model->add_affiliate($id, $data, true);
@@ -1135,6 +1138,9 @@ class Gb extends App_Controller
         }
         $message = $msg;
         set_alert($type, $message);
+        if (function_exists('is_client_logged_in') && is_client_logged_in()) {
+            redirect('clients/dashboard');
+        }
         redirect('register');
     }
 

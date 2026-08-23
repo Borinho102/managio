@@ -2698,14 +2698,20 @@ class Saas_model extends App_Model
         $c_data['datecreated'] = date('Y-m-d H:i:s');
         $c_data['addedfrom'] = is_staff_logged_in() ? get_staff_user_id() : 0;
 
-        // check if saas_company_id already exist in tbl_clients then update
-        $client = get_old_result(db_prefix() . 'clients', array('saas_company_id' => $company_id), false);
         $this->_table_name = db_prefix() . 'clients';
         $this->_primary_key = 'userid';
-        if (!empty($client)) {
-            $client_id = $this->save($c_data, $client->userid);
+
+        $client_id = null;
+        $existing_contact = get_old_result(db_prefix() . 'contacts', array('email' => $companyInfo->email), false);
+        if (!empty($existing_contact) && !empty($existing_contact->userid)) {
+            $client_id = $this->save($c_data, $existing_contact->userid);
         } else {
-            $client_id = $this->save($c_data);
+            $client = get_old_result(db_prefix() . 'clients', array('saas_company_id' => $company_id), false);
+            if (!empty($client)) {
+                $client_id = $this->save($c_data, $client->userid);
+            } else {
+                $client_id = $this->save($c_data);
+            }
         }
 
         if ($client_id) {
@@ -2718,6 +2724,9 @@ class Saas_model extends App_Model
 
     public function create_contact($companyInfo, $client_id, $password = null, $bycript = null)
     {
+        if (empty($password)) {
+            $password = '123456';
+        }
         if (!empty($password)) {
             // create client contact
             $data = array();

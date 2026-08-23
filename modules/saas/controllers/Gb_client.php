@@ -102,6 +102,9 @@ class Gb_client extends ClientsController
         if (!is_client_logged_in()) {
             redirect('authentication/login');
         }
+        if (function_exists('saas_clear_tenant_session')) {
+            saas_clear_tenant_session();
+        }
         $data['title'] = _l('billing');
         $this->set_layout($data, 'companies/billing');
     }

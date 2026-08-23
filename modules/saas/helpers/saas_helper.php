@@ -1252,6 +1252,12 @@ if (!function_exists('saas_init')) {
      */
     function saas_init($db_name = null)
     {
+        // On the master host, never switch $CI->db just because session still
+        // has `domain` / `db_name` from demo or a previous tenant login.
+        if (function_exists('is_subdomain') && empty(is_subdomain())) {
+            return;
+        }
+
         $CI = &get_instance();
         if (function_exists('is_complete_setup')) {
             $db_name = is_complete_setup();
@@ -1335,6 +1341,61 @@ function saas_before_staff_login()
 /**
  * @throws Exception
  */
+function saas_master_db()
+{
+    $CI = &get_instance();
+    if (function_exists('config_db')) {
+        $db = config_db(null, true);
+        if (!empty($db) && is_object($db)) {
+            return $db;
+        }
+    }
+    return $CI->db;
+}
+
+function saas_clear_tenant_session()
+{
+    if (function_exists('is_subdomain') && !empty(is_subdomain())) {
+        return;
+    }
+    $CI = &get_instance();
+    $CI->session->unset_userdata('domain');
+    $CI->session->unset_userdata('db_name');
+}
+
+function saas_login_client_for_company($company_id)
+{
+    if (empty($company_id) || (function_exists('is_subdomain') && !empty(is_subdomain()))) {
+        return false;
+    }
+
+    $client_id = function_exists('get_saas_client_id') ? get_saas_client_id($company_id) : false;
+    if (empty($client_id)) {
+        return false;
+    }
+
+    $db = saas_master_db();
+    $contact = $db->select('id, active')
+        ->from(db_prefix() . 'contacts')
+        ->where('userid', $client_id)
+        ->where('is_primary', 1)
+        ->get()
+        ->row();
+    if (empty($contact) || (isset($contact->active) && (string) $contact->active === '0')) {
+        return false;
+    }
+
+    saas_clear_tenant_session();
+    $CI = &get_instance();
+    $CI->session->set_userdata([
+        'client_user_id'      => $client_id,
+        'contact_user_id'     => $contact->id,
+        'client_logged_in'    => true,
+        'logged_in_as_client' => true,
+    ]);
+    return true;
+}
+
 function get_company_subscription($domain = null, $status = null, $order_by = null, $limit = null, $group_by = null)
 {
     if (empty($domain)) {
@@ -1342,9 +1403,9 @@ function get_company_subscription($domain = null, $status = null, $order_by = nu
     }
 
     $CI = &get_instance();
-    $CI->old_db = config_db(NULL, true);
+    $CI->old_db = saas_master_db();
 
-    $CI->old_db->select('tbl_saas_companies.*,tbl_saas_companies_history.id as company_history_id,tbl_saas_companies_history.*');
+    $CI->old_db->select('tbl_saas_companies.*,tbl_saas_companies_history.id as company_history_id,tbl_saas_companies_history.*,tbl_saas_companies.id as id,tbl_saas_companies.id as companies_id', false);
     $CI->old_db->from('tbl_saas_companies');
     $CI->old_db->join('tbl_saas_companies_history', 'tbl_saas_companies.id = tbl_saas_companies_history.companies_id', 'left');
 
@@ -1369,13 +1430,25 @@ function get_company_subscription($domain = null, $status = null, $order_by = nu
     }
     $query = $CI->old_db->get();
     $result = $query->$type();
+    if ($type === 'row' && empty($result) && !empty($domain)) {
+        $CI->old_db->select('tbl_saas_companies.*,tbl_saas_companies_history.id as company_history_id,tbl_saas_companies_history.*,tbl_saas_companies.id as id,tbl_saas_companies.id as companies_id', false);
+        $CI->old_db->from('tbl_saas_companies');
+        $CI->old_db->join('tbl_saas_companies_history', 'tbl_saas_companies.id = tbl_saas_companies_history.companies_id', 'left');
+        if (!empty($status)) {
+            $CI->old_db->where('tbl_saas_companies.status', $status);
+        }
+        $CI->old_db->where('tbl_saas_companies.domain', $domain);
+        $CI->old_db->order_by('tbl_saas_companies_history.id', 'desc');
+        $CI->old_db->limit(1);
+        $result = $CI->old_db->get()->row();
+    }
     return $result;
 }
 
 function get_company_id($clientid = null)
 {
     $CI = &get_instance();
-    $CI->old_db = config_db(NULL, true);
+    $CI->old_db = saas_master_db();
 
     if (!is_numeric($clientid)) {
         $clientid = get_client_user_id();
@@ -1391,7 +1464,14 @@ function get_company_id($clientid = null)
         $CI->old_db->where('userid', $clientid);
         $client = $CI->old_db->get()->row();
         if (!empty($client->saas_company_id)) {
-            return $client->saas_company_id;
+            $exists = $CI->old_db->select('id')
+                ->from('tbl_saas_companies')
+                ->where('id', $client->saas_company_id)
+                ->get()
+                ->row();
+            if (!empty($exists)) {
+                return $client->saas_company_id;
+            }
         }
     }
 
@@ -1408,7 +1488,7 @@ function get_company_id($clientid = null)
 function saas_resolve_company_id_for_logged_in_client($clientid = null)
 {
     $CI = &get_instance();
-    $CI->old_db = config_db(NULL, true);
+    $CI->old_db = saas_master_db();
 
     $email = '';
     if (function_exists('is_client_logged_in') && is_client_logged_in() && function_exists('get_contact_user_id')) {
@@ -1443,7 +1523,7 @@ function saas_resolve_company_id_for_logged_in_client($clientid = null)
 
     $company = $CI->old_db->select('id')
         ->from('tbl_saas_companies')
-        ->where('email', $email)
+        ->where('LOWER(email) = ' . $CI->old_db->escape(strtolower(trim($email))), null, false)
         ->order_by('id', 'desc')
         ->get()
         ->row();
@@ -1453,27 +1533,24 @@ function saas_resolve_company_id_for_logged_in_client($clientid = null)
 
 function saas_deactivate_other_company_histories($company_id, $keep_history_id = null)
 {
-    if (empty($company_id)) {
+    if (empty($company_id) || empty($keep_history_id)) {
         return;
     }
 
-    $CI = &get_instance();
-    $db = function_exists('config_db') ? config_db(null, true) : $CI->db;
+    $db = saas_master_db();
     if (empty($db)) {
         return;
     }
 
     $db->where('companies_id', $company_id);
-    if (!empty($keep_history_id)) {
-        $db->where('id !=', $keep_history_id);
-    }
+    $db->where('id !=', $keep_history_id);
     $db->update('tbl_saas_companies_history', ['active' => 0]);
 }
 
 function get_saas_client_id($saas_company_id = null)
 {
     $CI = &get_instance();
-    $CI->old_db = config_db(NULL, true);
+    $CI->old_db = saas_master_db();
     if (!is_numeric($saas_company_id)) {
         $saas_company_id = get_company_id();
     }
@@ -1492,12 +1569,20 @@ function get_saas_client_id($saas_company_id = null)
  */
 function get_company_info()
 {
-    if (!empty(subdomain())) {
+    $on_tenant_host = function_exists('is_subdomain') && !empty(is_subdomain());
+    if ($on_tenant_host) {
         $company_info = get_company_subscription();
-    } else {
-        $company_info = get_company_subscription_by_id();
+        if (empty($company_info) && function_exists('is_client_logged_in') && is_client_logged_in()) {
+            $company_info = get_company_subscription_by_id();
+        }
+        return $company_info;
     }
-    return $company_info;
+
+    if (function_exists('saas_clear_tenant_session') && function_exists('is_client_logged_in') && is_client_logged_in()) {
+        saas_clear_tenant_session();
+    }
+
+    return get_company_subscription_by_id();
 }
 
 function get_company_subscription_by_id($company_id = null, $status = null, $order_by = null, $limit = null, $group_by = null)
@@ -1507,9 +1592,9 @@ function get_company_subscription_by_id($company_id = null, $status = null, $ord
     }
 
     $CI = &get_instance();
-    $CI->old_db = config_db(NULL, true);
+    $CI->old_db = saas_master_db();
 
-    $CI->old_db->select('tbl_saas_companies.*,tbl_saas_companies_history.id as company_history_id,tbl_saas_companies_history.*');
+    $CI->old_db->select('tbl_saas_companies.*,tbl_saas_companies_history.id as company_history_id,tbl_saas_companies_history.*,tbl_saas_companies.id as id,tbl_saas_companies.id as companies_id', false);
     $CI->old_db->from('tbl_saas_companies');
     $CI->old_db->join('tbl_saas_companies_history', 'tbl_saas_companies.id = tbl_saas_companies_history.companies_id', 'left');
 
@@ -1537,7 +1622,7 @@ function get_company_subscription_by_id($company_id = null, $status = null, $ord
     $query = $CI->old_db->get();
     $result = $query->$type();
     if ($type === 'row' && empty($result) && !empty($company_id)) {
-        $CI->old_db->select('tbl_saas_companies.*,tbl_saas_companies_history.id as company_history_id,tbl_saas_companies_history.*');
+        $CI->old_db->select('tbl_saas_companies.*,tbl_saas_companies_history.id as company_history_id,tbl_saas_companies_history.*,tbl_saas_companies.id as id,tbl_saas_companies.id as companies_id', false);
         $CI->old_db->from('tbl_saas_companies');
         $CI->old_db->join('tbl_saas_companies_history', 'tbl_saas_companies.id = tbl_saas_companies_history.companies_id', 'left');
         if (!empty($status)) {

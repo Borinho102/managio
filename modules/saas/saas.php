@@ -364,6 +364,9 @@ function saas_clients_authentication_constructor($data)
 // ensure the user is redirected to client portal after logging in and not landing page
 hooks()->add_action('after_contact_login', function () {
     $CI = &get_instance();
+    if (function_exists('saas_clear_tenant_session')) {
+        saas_clear_tenant_session();
+    }
     if (!$CI->session->has_userdata('red_url')) {
         $landing = (function_exists('is_subdomain') && empty(is_subdomain()))
             ? site_url('clients/dashboard')
