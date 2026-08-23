@@ -149,6 +149,19 @@ function saas_ensure_payin_schema()
         }
     }
 
+    if ($CI->db->table_exists('tbl_saas_packages') && !$CI->db->field_exists('currency', 'tbl_saas_packages')) {
+        $CI->db->query("ALTER TABLE `tbl_saas_packages` ADD `currency` VARCHAR(10) NULL DEFAULT NULL");
+    }
+
+    if (function_exists('add_option')) {
+        add_option('saas_default_currency', '');
+        if (get_option('saas_payin_perfex_gateway_bootstrapped') != '1') {
+            add_option('paymentmethod_payin_active', '1');
+            update_option('paymentmethod_payin_active', '1');
+            add_option('saas_payin_perfex_gateway_bootstrapped', '1');
+        }
+    }
+
     $options = [
         'payin_api_base_url'   => '',
         'payin_client_id'      => '',
@@ -221,7 +234,7 @@ function saas_maybe_upgrade_database()
             return;
         }
         if (function_exists('set_alert')) {
-            $version = defined('SAAS_VERSION') ? SAAS_VERSION : '1.2.7';
+            $version = defined('SAAS_VERSION') ? SAAS_VERSION : '1.2.8';
             set_alert('success', 'SaaS database upgraded to ' . $version . ' (PayIn).');
         }
     } catch (Throwable $e) {
@@ -516,9 +529,193 @@ function saas_packege_list($info, $limit = null, $front = null): string
     return $html;
 }
 
+function saas_default_currency()
+{
+    $code = function_exists('get_option') ? trim((string) get_option('saas_default_currency')) : '';
+    if ($code !== '') {
+        return strtoupper($code);
+    }
+    $base = function_exists('get_base_currency') ? get_base_currency() : null;
+    if (!empty($base->name)) {
+        return strtoupper($base->name);
+    }
+
+    return 'USD';
+}
+
 function default_currency()
 {
-    return get_base_currency()->name;
+    return saas_default_currency();
+}
+
+function saas_package_currency($package = null)
+{
+    if (is_array($package) && !empty($package['currency'])) {
+        return strtoupper($package['currency']);
+    }
+    if (is_object($package) && !empty($package->currency)) {
+        return strtoupper($package->currency);
+    }
+
+    return saas_default_currency();
+}
+
+function saas_currency_object($code = null)
+{
+    $code = $code ? strtoupper($code) : saas_default_currency();
+    $currency = function_exists('get_currency') ? get_currency($code) : null;
+    if (!empty($currency)) {
+        return $currency;
+    }
+
+    return get_base_currency();
+}
+
+function saas_gateway_mode_aliases()
+{
+    return [
+        'payin'  => ['payin'],
+        's3p'    => ['s3p', 's3p_gateway'],
+        'stripe' => ['stripe'],
+        'paypal' => ['paypal', 'paypal_checkout', 'paypal_smart_checkout'],
+        'wallet' => ['wallet_gateway'],
+    ];
+}
+
+function saas_map_mode_to_gateway($modeId)
+{
+    $id = strtolower(trim((string) $modeId));
+    if ($id === '') {
+        return null;
+    }
+    foreach (saas_gateway_mode_aliases() as $gateway => $aliases) {
+        if ($id === $gateway || in_array($id, $aliases, true)) {
+            return $gateway;
+        }
+    }
+    if (is_numeric($id)) {
+        return null;
+    }
+
+    return $id;
+}
+
+function saas_package_allowed_gateways($package = null)
+{
+    if (empty($package)) {
+        return [];
+    }
+    $raw = is_array($package)
+        ? ($package['allowed_payment_modes'] ?? '')
+        : ($package->allowed_payment_modes ?? '');
+    if (empty($raw)) {
+        return [];
+    }
+    $modes = is_array($raw) ? $raw : @unserialize($raw);
+    if (!is_array($modes) || empty($modes)) {
+        return [];
+    }
+    $gateways = [];
+    foreach ($modes as $mode) {
+        $mapped = saas_map_mode_to_gateway($mode);
+        if (!empty($mapped)) {
+            $gateways[] = $mapped;
+        }
+    }
+
+    return array_values(array_unique($gateways));
+}
+
+function saas_package_allows_gateway($package, $gatewayName)
+{
+    $allowed = saas_package_allowed_gateways($package);
+    if (empty($allowed)) {
+        return true;
+    }
+
+    return in_array(strtolower((string) $gatewayName), $allowed, true);
+}
+
+function saas_filter_checkout_payment_methods($methods, $package = null)
+{
+    $allowed = saas_package_allowed_gateways($package);
+    if (empty($allowed) || empty($methods)) {
+        return $methods;
+    }
+    $filtered = [];
+    foreach ($methods as $method) {
+        $name = is_array($method) ? ($method['gateway_name'] ?? '') : ($method->gateway_name ?? '');
+        if (in_array(strtolower((string) $name), $allowed, true)) {
+            $filtered[] = $method;
+        }
+    }
+
+    return $filtered;
+}
+
+function saas_assert_package_checkout_gateway($gatewayName, $package = null)
+{
+    if (saas_package_allows_gateway($package, $gatewayName)) {
+        return true;
+    }
+    if (function_exists('set_alert')) {
+        set_alert('warning', _l('payment_method_not_found'));
+    }
+    $back = !empty($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : base_url();
+    redirect($back);
+    exit;
+}
+
+function saas_merge_package_payment_modes($modes)
+{
+    $modes = is_array($modes) ? $modes : [];
+    $existing = [];
+    foreach ($modes as $mode) {
+        $id = strtolower((string) (is_array($mode) ? ($mode['id'] ?? '') : ($mode->id ?? '')));
+        if ($id !== '') {
+            $existing[$id] = true;
+        }
+        $mapped = saas_map_mode_to_gateway($id);
+        if (!empty($mapped)) {
+            $existing[$mapped] = true;
+        }
+    }
+
+    $saasMethods = get_old_result('tbl_saas_payment_methods', ['status' => 'active'], 'array');
+    if (empty($saasMethods)) {
+        return $modes;
+    }
+    foreach ($saasMethods as $method) {
+        $gateway = strtolower((string) ($method['gateway_name'] ?? ''));
+        if ($gateway === '') {
+            continue;
+        }
+        $aliases = saas_gateway_mode_aliases()[$gateway] ?? [$gateway];
+        $alreadyListed = isset($existing[$gateway]);
+        foreach ($aliases as $alias) {
+            if (isset($existing[$alias])) {
+                $alreadyListed = true;
+                break;
+            }
+        }
+        if ($alreadyListed) {
+            continue;
+        }
+        $label = _l($gateway);
+        if ($label === $gateway) {
+            $label = 'PayIn' === ucfirst($gateway) || $gateway === 'payin' ? 'PayIn' : ucfirst($gateway);
+        }
+        if ($gateway === 'payin') {
+            $label = _l('payin');
+        }
+        $modes[] = [
+            'id'   => $gateway,
+            'name' => $label,
+        ];
+        $existing[$gateway] = true;
+    }
+
+    return $modes;
 }
 
 function is_payment_mode_allowed_for_saas($id)
@@ -536,7 +733,7 @@ function is_payment_mode_allowed_for_saas($id)
 
 function display_money($amount, $currency = null)
 {
-    return app_format_money($amount, get_base_currency());
+    return app_format_money($amount, saas_currency_object($currency));
 }
 
 function package_price($package_info, $style = null)
@@ -548,19 +745,20 @@ function package_price($package_info, $style = null)
         $divStart = '';
         $divEnd = '<br/>';
     }
+    $packageCurrency = saas_package_currency($package_info);
     $active_frequency = get_active_frequency(true);
     if (!empty($active_frequency['monthly_price'])) {
         if ($package_info->monthly_price == 0) {
             $html .= $divStart . _l('free_for_month') . $divEnd;
         } else {
-            $html .= $divStart . display_money($package_info->monthly_price, default_currency()) . ' / ' . _l('month') . $divEnd;
+            $html .= $divStart . display_money($package_info->monthly_price, $packageCurrency) . ' / ' . _l('month') . $divEnd;
         }
     }
     if (!empty($active_frequency['yearly_price'])) {
-        $html .= $divStart . display_money($package_info->yearly_price, default_currency()) . ' / ' . _l('year') . $divEnd;
+        $html .= $divStart . display_money($package_info->yearly_price, $packageCurrency) . ' / ' . _l('year') . $divEnd;
     }
     if (!empty($active_frequency['lifetime_price'])) {
-        $html .= $divStart . display_money($package_info->lifetime_price, default_currency()) . ' / ' . _l('lifetime') . $divEnd;
+        $html .= $divStart . display_money($package_info->lifetime_price, $packageCurrency) . ' / ' . _l('lifetime') . $divEnd;
     }
     return $html;
 }
@@ -2794,6 +2992,68 @@ function isClientLogin($company_id = null)
         login_to_client($company_id);
     } elseif (!is_client_logged_in() && empty($company_id)) {
         redirect('authentication/login');
+    }
+}
+
+function saas_client_billing_prefix(): string
+{
+    if (is_client_logged_in() && empty(subdomain())) {
+        return 'clients/';
+    }
+
+    return 'admin/';
+}
+
+function saas_can_manage_subscription($company_id): bool
+{
+    if (empty($company_id)) {
+        return false;
+    }
+    if (function_exists('super_admin_access') && super_admin_access()) {
+        return true;
+    }
+    if (is_client_logged_in()) {
+        return (int) get_company_id() === (int) $company_id;
+    }
+    if (is_staff_logged_in() && !empty(subdomain())) {
+        $current = get_company_subscription();
+
+        return !empty($current) && (int) $current->companies_id === (int) $company_id;
+    }
+
+    return false;
+}
+
+function saas_billing_redirect($company_id = null): string
+{
+    if (is_client_logged_in()) {
+        return 'clients/billings';
+    }
+    if (!empty(subdomain())) {
+        return 'admin/dashboard';
+    }
+    if (!empty($company_id)) {
+        return 'saas/companies/details/' . $company_id;
+    }
+
+    return 'admin/dashboard';
+}
+
+function saas_load_gateway($gateway_name)
+{
+    if (empty($gateway_name)) {
+        return null;
+    }
+    $class = 'Saas_' . ucfirst($gateway_name);
+    if (!class_exists($class)) {
+        return null;
+    }
+    try {
+        return new $class();
+    } catch (Throwable $e) {
+        log_message('error', 'SaaS gateway "' . $class . '" failed: ' . $e->getMessage());
+
+        return null;
     }
 }
 

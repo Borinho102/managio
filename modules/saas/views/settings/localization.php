@@ -41,3 +41,32 @@ $date_formats = get_available_date_formats();
         <?php } ?>
     </select>
 </div>
+<hr />
+<div class="form-group">
+    <label for="saas_default_currency" class="control-label"><?php echo _l('saas_default_currency'); ?></label>
+    <select name="settings[saas_default_currency]" id="saas_default_currency" class="form-control selectpicker"
+            data-none-selected-text="<?php echo _l('dropdown_non_selected_tex'); ?>" data-live-search="true">
+        <?php
+        $CI = &get_instance();
+        $CI->load->model('currencies_model');
+        $saasCurrencies = $CI->currencies_model->get();
+        $saasDefaultCurrency = (string) get_option('saas_default_currency');
+        $baseCurrency = function_exists('get_base_currency') ? get_base_currency() : null;
+        $baseName = !empty($baseCurrency->name) ? $baseCurrency->name : 'USD';
+        ?>
+        <option value=""><?php echo _l('saas_package_currency_default', $baseName); ?></option>
+        <?php foreach ($saasCurrencies as $currency) {
+            $code = $currency['name'] ?? '';
+            if ($code === '') {
+                continue;
+            }
+            $label = $code;
+            if (!empty($currency['symbol'])) {
+                $label .= ' (' . $currency['symbol'] . ')';
+            }
+            ?>
+            <option value="<?php echo html_escape($code); ?>" <?php if ($saasDefaultCurrency === $code) { echo 'selected'; } ?>><?php echo html_escape($label); ?></option>
+        <?php } ?>
+    </select>
+    <p class="text-muted tw-mt-2"><?php echo _l('saas_default_currency_help'); ?></p>
+</div>

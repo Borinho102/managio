@@ -97,7 +97,11 @@ class Packages extends AdminController
             $data['title'] = 'Packages - Edit Package';
         }
         $this->load->model('payment_modes_model');
-        $data['payment_modes'] = $this->payment_modes_model->get('', ['expenses_only !=' => 1]);
+        $this->load->model('currencies_model');
+        $data['payment_modes'] = saas_merge_package_payment_modes(
+            $this->payment_modes_model->get('', ['expenses_only !=' => 1])
+        );
+        $data['currencies'] = $this->currencies_model->get();
         $data['modules'] = $this->app_modules->get();
         $data['subview'] = $this->load->view('packages/create', $data, true);
         $this->load->view('_layout_main', $data);
@@ -108,8 +112,11 @@ class Packages extends AdminController
 
         $data = $this->saas_model->array_from_post(array(
             'name', 'monthly_price', 'yearly_price', 'lifetime_price',
-            'trial_period', 'description', 'status', 'allowed_payment_modes', 'modules', 'allowed_themes', 'disabled_modules'
+            'trial_period', 'description', 'status', 'allowed_payment_modes', 'modules', 'allowed_themes', 'disabled_modules', 'currency'
         ));
+        if (isset($data['currency']) && $data['currency'] === '') {
+            $data['currency'] = null;
+        }
         $data['allowed_payment_modes'] = isset($data['allowed_payment_modes']) ? serialize($data['allowed_payment_modes']) : serialize([]);
         $data['modules'] = isset($data['modules']) ? serialize($data['modules']) : serialize([]);
         $data['disabled_modules'] = isset($data['disabled_modules']) ? serialize($data['disabled_modules']) : serialize([]);

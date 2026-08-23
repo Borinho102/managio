@@ -18,7 +18,12 @@ class Gb_client extends ClientsController
     {
         $data['title'] = _l('assign_package');
         isClientLogin($company_id);
-        $data['current_package'] = get_company_subscription_by_id()->package_id;
+        $subs = get_company_subscription_by_id();
+        if (empty($subs)) {
+            set_alert('warning', _l('404_error'));
+            redirect('clients/billings');
+        }
+        $data['current_package'] = $subs->package_id;
         $data['all_packages'] = get_old_result('tbl_saas_packages', array('status' => 'published'));
         $this->set_layout($data, 'packages/assign_package');
     }
@@ -29,31 +34,66 @@ class Gb_client extends ClientsController
     public
     function checkoutPayment($package_id = null, $company_id = null)
     {
-
-        $data['package_id'] = $package_id;
-        $data['frequency'] = 'monthly';
-        if (empty($data['package_id']) && !empty(subdomain())) {
-            $subs_info = get_company_subscription(null, 'running');
-            $data['package_id'] = $subs_info->package_id;
-            $data['frequency'] = $subs_info->frequency;
+        if (!is_client_logged_in()) {
+            redirect('authentication/login');
         }
+
+        $subs_info = get_company_subscription_by_id();
+        if (empty($subs_info)) {
+            set_alert('warning', _l('404_error'));
+            redirect('clients/billings');
+        }
+
+        $post_data = $this->input->post();
+        if (!empty($post_data)) {
+            $payment_method = get_old_result('tbl_saas_payment_methods', ['id' => $post_data['paymentmode'] ?? 0], false);
+            if (empty($payment_method)) {
+                set_alert('warning', _l('payment_method_not_found'));
+                redirect($_SERVER['HTTP_REFERER']);
+            }
+
+            $packageForGateway = get_old_result('tbl_saas_packages', ['id' => $post_data['package_id'] ?? $subs_info->package_id], false);
+            if (function_exists('saas_assert_package_checkout_gateway')) {
+                saas_assert_package_checkout_gateway($payment_method->gateway_name, $packageForGateway);
+            }
+
+            $data['frequency'] = str_replace('_price', '', $post_data['billing_cycle'] ?? 'monthly_price');
+            $gateway = saas_load_gateway($payment_method->gateway_name);
+            if (empty($gateway)) {
+                set_alert('warning', _l('payment_method_not_found'));
+                redirect($_SERVER['HTTP_REFERER']);
+            }
+
+            $result = $gateway->getPaymentForm($post_data, $subs_info);
+            if (empty($result['paymentForm'])) {
+                set_alert('warning', _l('payment_method_not_found'));
+                redirect($_SERVER['HTTP_REFERER']);
+            }
+
+            $package_info = $packageForGateway;
+            $data['title'] = _l('checkout') . ' ' . _l('payment') . ' ' . _l('for') . ' ' . ($package_info->name ?? '');
+            $data['package_info'] = $package_info;
+            $data['package_id'] = $post_data['package_id'] ?? $package_id;
+            $data['company_id'] = $post_data['companies_id'] ?? $subs_info->companies_id;
+            $data['paymentForm'] = $result['paymentForm'];
+            $this->set_layout($data, 'packages/checkoutPaymentPage');
+            return;
+        }
+
+        $data['package_id'] = $package_id ?: $subs_info->package_id;
+        $data['frequency'] = $subs_info->frequency ?: 'monthly';
         $package_info = get_old_result('tbl_saas_packages', array('id' => $data['package_id']), false);
+        if (empty($package_info)) {
+            set_alert('warning', _l('404_error'));
+            redirect('clients/billings');
+        }
         $data['title'] = _l('checkout') . ' ' . _l('payment') . ' ' . _l('for') . ' ' . $package_info->name;
         $data['package_info'] = $package_info;
         $data['all_packages'] = get_old_result('tbl_saas_packages', array('status' => 'published'));
-        $subview = 'checkoutPayment';
-        if (!empty(subdomain())) {
-            $front_end = true;
-            $data['subs_info'] = get_company_subscription();
-            $data['payment_modes'] = $this->saas_model->get_payment_modes();
-            $subview = 'checkoutPaymentOpen';
-        } else if (!empty($company_id)) {
-            $company_id = url_decode($company_id);
-            $data['company_info'] = $this->saas_model->company_info($company_id);
-            $data['payment_modes'] = $this->saas_model->get_payment_modes();
-            $subview = 'checkoutPaymentOpen';
-        }
-        $this->set_layout($data, 'saas/packages/' . $subview);
+        $data['subs_info'] = $subs_info;
+        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
+        $data['url'] = site_url('clients/checkoutPayment/' . $data['package_id']);
+        $this->set_layout($data, 'packages/checkoutPaymentOpen');
     }
 
     public function billings()
@@ -95,8 +135,8 @@ class Gb_client extends ClientsController
         if (!empty($type)) {
             $data['type'] = $type;
         }
-        $data['payment_modes'] = $this->saas_model->get_payment_modes();
         $data['sub_info'] = get_company_subscription_by_id();
+        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => $data['sub_info']->package_id ?? 0], false));
         $this->set_layout($data, 'settings/upgrade');
     }
 
@@ -308,7 +348,7 @@ class Gb_client extends ClientsController
             $company_id = $data['companyInfo']->companies_id;
             $data['company_id'] = $company_id;
             $data['moduleInfo'] = get_old_result('tbl_saas_package_module');
-            $data['payment_modes'] = $this->saas_model->get_payment_modes();
+            $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => $data['companyInfo']->package_id ?? 0], false));
             $data['url'] = 'clients/';
             $this->set_layout($data, 'packages/customize_packages');
         } else {
@@ -348,7 +388,7 @@ class Gb_client extends ClientsController
     {
         $data['title'] = _l('modules');
         isClientLogin($comp_id);
-        $data['payment_modes'] = $this->saas_model->get_payment_modes();
+        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => get_company_subscription_by_id()->package_id ?? 0], false));
         $data['all_modules'] = get_old_result('tbl_saas_package_module', array('status' => 'published'));
         $this->set_layout($data, 'packages/modules/get_modules');
     }
@@ -380,31 +420,37 @@ class Gb_client extends ClientsController
         $data['package_id'] = $package_id;
         $data['frequency'] = 'monthly';
         if (empty($data['package_id']) && !empty(is_client_logged_in())) {
-            $subs_info = get_company_subscription_by_id(null, 'running');
-            $data['package_id'] = $subs_info->package_id;
-            $data['frequency'] = $subs_info->frequency;
+            $subs_info = get_company_subscription_by_id();
+            if (!empty($subs_info)) {
+                $data['package_id'] = $subs_info->package_id;
+                $data['frequency'] = $subs_info->frequency;
+            }
         }
         $package_info = get_old_result('tbl_saas_packages', array('id' => $data['package_id']), false);
+        if (empty($package_info)) {
+            set_alert('warning', _l('404_error'));
+            redirect('clients/billings');
+        }
         $data['title'] = _l('checkout') . ' ' . _l('payment') . ' ' . _l('for') . ' ' . $package_info->name;
         $data['package_info'] = $package_info;
         $data['all_packages'] = get_old_result('tbl_saas_packages', array('status' => 'published'));
         $subview = 'checkoutPayment';
         if (!empty(is_client_logged_in())) {
             $data['subs_info'] = get_company_subscription_by_id();
-            $data['payment_modes'] = $this->saas_model->get_payment_modes();
+            $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
+            $data['url'] = site_url('clients/checkoutPayment/' . $data['package_id']);
             $subview = 'checkoutPaymentOpen';
         } else if (!empty($company_id)) {
             $company_id = url_decode($company_id);
             $data['subs_info'] = $this->saas_model->company_info($company_id);
             $data['subs_info']->companies_id = $company_id;
-            $data['payment_modes'] = $this->saas_model->get_payment_modes();
+            $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
             $subview = 'checkoutPaymentOpen';
             $data['company_id'] = $company_id;
             $data['front'] = true;
         }
 
-        $view = 'saas/packages/' . $subview;
-        $this->set_layout($data, $view);
+        $this->set_layout($data, 'packages/' . $subview);
     }
 
     // ------------------------------------------------------------------

@@ -50,9 +50,9 @@ class Gb_admin extends AdminController
         if (!empty($post_data)) {
 
             if (!empty(is_client_logged_in())) {
-                $subs_info = get_company_subscription_by_id(null, 'running');
+                $subs_info = get_company_subscription_by_id();
             } else {
-                $subs_info = get_company_subscription(null, 'running');
+                $subs_info = get_company_subscription();
             }
 
             $payment_method = get_old_result('tbl_saas_payment_methods', ['id' => $post_data['paymentmode']], false);
@@ -63,6 +63,8 @@ class Gb_admin extends AdminController
                 set_alert($type, $message);
                 redirect($_SERVER['HTTP_REFERER']);
             }
+            $packageForGateway = get_old_result('tbl_saas_packages', ['id' => $post_data['package_id'] ?? (is_object($subs_info) ? ($subs_info->package_id ?? 0) : 0)], false);
+            saas_assert_package_checkout_gateway($payment_method->gateway_name, $packageForGateway);
 
             $data['frequency'] = str_replace('_price', '', $post_data['billing_cycle']);
 
@@ -98,7 +100,7 @@ class Gb_admin extends AdminController
             $data['package_id'] = $package_id;
             $data['frequency'] = 'monthly';
             if (empty($data['package_id']) && !empty(subdomain())) {
-                $subs_info = get_company_subscription(null, 'running');
+                $subs_info = get_company_subscription();
                 $data['package_id'] = $subs_info->package_id;
                 $data['frequency'] = $subs_info->frequency;
             }
@@ -110,12 +112,12 @@ class Gb_admin extends AdminController
             if (!empty(subdomain())) {
                 $front_end = true;
                 $data['subs_info'] = get_company_subscription();
-                $data['payment_modes'] = $this->saas_model->get_payment_modes();
+                $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
                 $subview = 'checkoutPaymentOpen';
             } else if (!empty($company_id)) {
                 $company_id = url_decode($company_id);
                 $data['company_info'] = $this->saas_model->company_info($company_id);
-                $data['payment_modes'] = $this->saas_model->get_payment_modes();
+                $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
                 $subview = 'checkoutPaymentOpen';
 
             }
@@ -145,8 +147,8 @@ class Gb_admin extends AdminController
         if (!empty($type)) {
             $data['type'] = $type;
         }
-        $data['payment_modes'] = $this->saas_model->get_payment_modes();
         $data['sub_info'] = get_company_subscription();
+        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => $data['sub_info']->package_id ?? 0], false));
         $data['subview'] = $this->load->view('settings/upgrade', $data, TRUE);
         $this->load->view('_layout_open', $data); //page load
     }
@@ -356,7 +358,7 @@ class Gb_admin extends AdminController
             $company_id = $data['companyInfo']->companies_id;
             $data['company_id'] = $company_id;
             $data['moduleInfo'] = get_old_result('tbl_saas_package_module');
-            $data['payment_modes'] = $this->saas_model->get_payment_modes();
+            $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => $data['companyInfo']->package_id ?? 0], false));
             $data['url'] = 'admin/';
             $data['subview'] = $this->load->view('packages/customize_packages', $data, TRUE);
             $this->load->view('_layout_open', $data); //page load
@@ -419,7 +421,7 @@ class Gb_admin extends AdminController
     {
         $data['title'] = _l('modules');
         $data['all_modules'] = get_old_result('tbl_saas_package_module', array('status' => 'published'));
-        $data['payment_modes'] = $this->saas_model->get_payment_modes();
+        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => get_company_subscription()->package_id ?? 0], false));
         $data['companyInfo'] = get_company_subscription();
         $data['subview'] = $this->load->view('packages/modules/get_modules', $data, TRUE);
         $this->load->view('_layout_open', $data); //page load
@@ -435,7 +437,7 @@ class Gb_admin extends AdminController
             redirect('admin/dashboard');
         }
         $data['companyInfo'] = get_company_subscription();
-        $data['payment_modes'] = $this->saas_model->get_payment_modes();
+        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => $data['companyInfo']->package_id ?? 0], false));
         $data['subview'] = $this->load->view('packages/modules/module_details', $data, TRUE);
         $this->load->view('_layout_open', $data); //page load
     }

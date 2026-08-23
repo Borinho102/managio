@@ -80,6 +80,30 @@ echo form_open(base_url('saas/packages/save_packages/' . $id), array('id' => 'ne
                             </small>
                         </div>
                         <div class="form-group">
+                            <label for="currency" class="control-label"><?= _l('saas_package_currency') ?></label>
+                            <select name="currency" id="currency" class="selectpicker form-control" data-width="100%"
+                                    data-none-selected-text="<?php echo _l('dropdown_non_selected_tex'); ?>">
+                                <option value=""><?= _l('saas_package_currency_default', saas_default_currency()) ?></option>
+                                <?php
+                                if (!empty($currencies)) {
+                                    $selectedCurrency = !empty($package_info->currency) ? $package_info->currency : '';
+                                    foreach ($currencies as $currency) {
+                                        $code = $currency['name'] ?? ($currency['code'] ?? '');
+                                        if ($code === '') {
+                                            continue;
+                                        }
+                                        $label = $code;
+                                        if (!empty($currency['symbol'])) {
+                                            $label .= ' (' . $currency['symbol'] . ')';
+                                        }
+                                        echo '<option value="' . html_escape($code) . '"' . ($selectedCurrency == $code ? ' selected' : '') . '>' . html_escape($label) . '</option>';
+                                    }
+                                }
+                                ?>
+                            </select>
+                            <small class="text-muted d-block"><?= _l('saas_package_currency_help') ?></small>
+                        </div>
+                        <div class="form-group">
                             <label for="field-1" class="control-label"><?= _l('trial_period') ?>
                                 <span class="text-danger">*</span>
                             </label>

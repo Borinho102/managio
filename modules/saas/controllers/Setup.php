@@ -88,6 +88,8 @@ class Setup extends CI_Controller
                     set_alert($type, $message);
                     redirect($_SERVER['HTTP_REFERER']);
                 }
+                $packageForGateway = get_old_result('tbl_saas_packages', ['id' => $post_data['package_id'] ?? (is_object($subs_info) ? ($subs_info->package_id ?? 0) : 0)], false);
+                saas_assert_package_checkout_gateway($payment_method->gateway_name, $packageForGateway);
 
                 $data['frequency'] = str_replace('_price', '', $post_data['billing_cycle']);
 
@@ -137,10 +139,10 @@ class Setup extends CI_Controller
 
                 $subview = 'checkoutPaymentOpen';
                 if (!empty(subdomain())) {
-                    $data['payment_modes'] = $this->saas_model->get_payment_modes();
+                    $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
                     $subview = 'checkoutPaymentOpen';
                 } else if (!empty($company_id)) {
-                    $data['payment_modes'] = $this->saas_model->get_payment_modes();
+                    $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
                     $subview = 'checkoutPaymentOpen';
                 }
 

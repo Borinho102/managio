@@ -7,6 +7,23 @@ class Saas_Payin extends Saas_payment
     protected $type     = 'package';
     protected $currency = 'XAF';
 
+    protected function resolveCurrency($context = null): string
+    {
+        $package = null;
+        if (is_object($context) && isset($context->monthly_price)) {
+            $package = $context;
+        } elseif (is_array($context) && !empty($context['package_id'])) {
+            $package = get_old_result('tbl_saas_packages', ['id' => $context['package_id']], false);
+        } elseif (is_object($context) && !empty($context->package_id) && empty($context->monthly_price)) {
+            $package = get_old_result('tbl_saas_packages', ['id' => $context->package_id], false);
+        }
+        if (function_exists('saas_package_currency')) {
+            return saas_package_currency($package);
+        }
+
+        return $this->currency;
+    }
+
     public function __construct()
     {
         parent::__construct();
@@ -174,7 +191,7 @@ class Saas_Payin extends Saas_payment
             'companies_id'      => $package['companies_id'] ?? '',
             'billing_cycle'     => $package['billing_cycle'] ?? 'monthly_price',
             'amount'            => $amount,
-            'currency'          => $this->currency,
+            'currency'          => $this->resolveCurrency($package),
             'package_module_id' => $package['package_module_id'] ?? '',
             'type'              => 'package',
         ];
@@ -222,7 +239,7 @@ class Saas_Payin extends Saas_payment
             'companies_id'      => $data['companies_id'] ?? '',
             'billing_cycle'     => 'monthly_price',
             'amount'            => $amount,
-            'currency'          => $this->currency,
+            'currency'          => $this->resolveCurrency($data),
             'package_module_id' => $package_module_id,
             'type'              => 'module',
             'new_module'        => $data['new_module'] ?? '',

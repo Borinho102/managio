@@ -740,7 +740,7 @@ class Gb extends App_Controller
                 'transaction_id'        => $transaction_id,
                 'price_id'              => '',
                 'payment_method'        => 'payin',
-                'currency'              => default_currency(),
+                'currency'              => saas_package_currency($package),
                 'mark_paid'             => true,
                 'type'                  => 'module',
             ];
@@ -757,7 +757,7 @@ class Gb extends App_Controller
                 'transaction_id'  => $transaction_id,
                 'price_id'        => '',
                 'payment_method'  => 'payin',
-                'currency'        => default_currency(),
+                'currency'        => saas_package_currency($package),
                 'mark_paid'       => true,
             ];
             $result = $this->saas_model->update_company_packages($data);
@@ -800,7 +800,7 @@ class Gb extends App_Controller
         if ($result) {
             log_activity('PayIn Payment Completed [Company:' . $companies_id . ', TxID:' . $transaction_id . ']');
             set_alert('success', 'PayIn payment successfully completed');
-            redirect('admin/dashboard');
+            redirect(saas_billing_redirect($companies_id));
         }
 
         set_alert('danger', 'PayIn payment processing failed after collection');
@@ -922,10 +922,8 @@ class Gb extends App_Controller
     // paymentSuccess
     public function paymentSuccess($data = null)
     {
-        $type = 'success';
-        $message = _l('payment_success');
-        set_alert($type, $message);
-        redirect('admin/dashboard');
+        set_alert('success', _l('payment_success'));
+        redirect(saas_billing_redirect());
     }
 
     public function paymentCancel($data = null)
@@ -933,7 +931,7 @@ class Gb extends App_Controller
         $type = 'error';
         $message = _l('payment_cancelled');
         set_alert($type, $message);
-        redirect('admin/dashboard');
+        redirect(saas_billing_redirect());
     }
 
     public function get_expired_date($package_type)
@@ -971,13 +969,13 @@ class Gb extends App_Controller
 
         if (!empty(is_client_logged_in())) {
             $data['subs_info'] = get_company_subscription_by_id();
-            $data['payment_modes'] = $this->saas_model->get_payment_modes();
+            $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
             $subview = 'checkoutPaymentOpen';
         } else if (!empty($company_id)) {
             $company_id = url_decode($company_id);
             $data['subs_info'] = $this->saas_model->company_info($company_id);
             $data['subs_info']->companies_id = $company_id;
-            $data['payment_modes'] = $this->saas_model->get_payment_modes();
+            $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
             $subview = 'checkoutPaymentOpen';
             $data['company_id'] = $company_id;
             $data['front'] = true;
@@ -1159,6 +1157,8 @@ class Gb extends App_Controller
                 set_alert($type, $message);
                 redirect($_SERVER['HTTP_REFERER']);
             }
+            $packageForGateway = get_old_result('tbl_saas_packages', ['id' => $post_data['package_id'] ?? (is_object($subs_info) ? ($subs_info->package_id ?? 0) : 0)], false);
+            saas_assert_package_checkout_gateway($payment_method->gateway_name, $packageForGateway);
 
             $data['frequency'] = str_replace('_price', '', $post_data['billing_cycle']);
 
@@ -1209,10 +1209,10 @@ class Gb extends App_Controller
 
             $subview = 'checkoutPayment';
             if (!empty(subdomain())) {
-                $data['payment_modes'] = $this->saas_model->get_payment_modes();
+                $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
                 $subview = 'checkoutPaymentOpen';
             } else if (!empty($company_id)) {
-                $data['payment_modes'] = $this->saas_model->get_payment_modes();
+                $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
                 $subview = 'checkoutPaymentOpen';
             }
         }
@@ -1453,6 +1453,8 @@ class Gb extends App_Controller
                 set_alert($type, $message);
                 redirect($_SERVER['HTTP_REFERER']);
             }
+            $packageForGateway = get_old_result('tbl_saas_packages', ['id' => $data['package_id'] ?? (is_object($subs_info) ? ($subs_info->package_id ?? 0) : 0)], false);
+            saas_assert_package_checkout_gateway($payment_method->gateway_name, $packageForGateway);
 
             $gateway_name = $payment_method->gateway_name;
             $paymentGateway = 'Saas_' . ucfirst($gateway_name);
@@ -1507,106 +1509,82 @@ class Gb extends App_Controller
 
     public function cancel_subscription($company_id)
     {
+        if (!is_client_logged_in() && !is_staff_logged_in()) {
+            redirect('authentication/login');
+        }
+
         $company_subs = get_old_result('tbl_saas_gateway_subscriptions', ['id' => $company_id], false);
-        if (!empty($company_subs)) {
-            if (!empty($company_subs)) {
-                $gateway_name = $company_subs->gateway_name;
-                $paymentGateway = 'Saas_' . ucfirst($gateway_name);
-                $gateway = new $paymentGateway();
+        if (empty($company_subs) || !saas_can_manage_subscription($company_subs->company_id)) {
+            set_alert('danger', _l('subscription_not_found'));
+            redirect(saas_billing_redirect(!empty($company_subs) ? $company_subs->company_id : null));
+        }
+
+        $gateway = saas_load_gateway($company_subs->gateway_name);
+        $result = ['status' => 'success'];
+        if ($gateway && method_exists($gateway, 'cancel_subscription')) {
+            try {
                 $result = $gateway->cancel_subscription($company_subs);
+            } catch (Throwable $e) {
+                $result = ['status' => 'error', 'message' => $e->getMessage()];
+            }
+        }
 
-                if (!empty($result)) {
-                    $this->saas_model->_table_name = 'tbl_saas_gateway_subscriptions';
-                    $this->saas_model->_primary_key = 'id';
-                    $this->saas_model->save_old(['status' => 'cancelled', 'temp' => ''], $company_subs->id);
+        if (!empty($result) && (($result['status'] ?? '') !== 'error')) {
+            $this->saas_model->_table_name = 'tbl_saas_gateway_subscriptions';
+            $this->saas_model->_primary_key = 'id';
+            $this->saas_model->save_old(['status' => 'cancelled', 'temp' => ''], $company_subs->id);
 
-
-//                        $module_subscription = $this->saas_model->get_module_subscription($company_subs->company_id, $company_subs->module_id);
-//
-//                        $companyInfo = $this->saas_model->company_info($company_subs->company_id, true);
-//                        $delete_modules = [$module_subscription->module_name];
-//                        $current_modules = (!empty($companyInfo->modules)) ? unserialize($companyInfo->modules) : [];
-//                        $company_history_id = $companyInfo->company_history_id;
-//                        $company_history = get_row('tbl_saas_companies_history', array('id' => $company_history_id));
-//
-//                        // convert company history object to array
-//                        $post = (array)$company_history;
-//                        if (!empty($delete_modules) && count($delete_modules) > 0) {
-//                            $modules = array_diff($current_modules, $delete_modules);
-//                            $post['modules'] = serialize($modules);
-//                            $post['delete_modules'] = $delete_modules;
-//
-//                            $this->saas_model->update_company_history($post, $company_history_id);
-//                        }
-                    if ($company_subs->type == 'package') {
-                        // update company package
-                        $data = [
-                            'status' => 'terminated',
-                        ];
-
-                        $this->saas_model->_table_name = 'tbl_saas_companies';
-                        $this->saas_model->_primary_key = 'id';
-                        $this->saas_model->save_old($data, $company_subs->company_id);
-                    }
-                }
+            if ($company_subs->type == 'package') {
+                $this->saas_model->_table_name = 'tbl_saas_companies';
+                $this->saas_model->_primary_key = 'id';
+                $this->saas_model->save_old(['status' => 'terminated'], $company_subs->company_id);
             }
 
-
-            $type = "success";
-            $message = _l('subscription_cancelled');
-            set_alert($type, $message);
-
+            set_alert('success', _l('subscription_cancelled'));
         } else {
-            $type = "error";
-            $message = _l('subscription_not_found');
-            set_alert($type, $message);
-        }
-        if (!empty(subdomain())) {
-            redirect('admin/dashboard');
-        } else {
-            redirect('saas/companies/details/' . $company_subs->company_id);
+            set_alert('danger', $result['message'] ?? _l('subscription_not_found'));
         }
 
+        redirect(saas_billing_redirect($company_subs->company_id));
     }
 
     public function resume_subscription($company_id)
     {
+        if (!is_client_logged_in() && !is_staff_logged_in()) {
+            redirect('authentication/login');
+        }
+
         $company_subs = get_old_result('tbl_saas_gateway_subscriptions', ['id' => $company_id], false);
-        if (!empty($company_subs)) {
-            $gateway_name = $company_subs->gateway_name;
+        if (empty($company_subs) || !saas_can_manage_subscription($company_subs->company_id)) {
+            set_alert('danger', _l('subscription_not_found'));
+            redirect(saas_billing_redirect(!empty($company_subs) ? $company_subs->company_id : null));
+        }
 
-            $paymentGateway = 'Saas_' . ucfirst($gateway_name);
-            $gateway = new $paymentGateway();
-            $result = $gateway->resume_subscription($company_subs);
-
-            if (!empty($result['status']) && $result['status'] == 'success') {
-                $this->saas_model->_table_name = 'tbl_saas_gateway_subscriptions';
-                $this->saas_model->_primary_key = 'id';
-                $this->saas_model->save_old(['status' => 'running'], $company_subs->id);
-
-                // update company package
-                $data = [
-                    'status' => 'running',
-                ];
-                $this->saas_model->_table_name = 'tbl_saas_companies';
-                $this->saas_model->_primary_key = 'id';
-                $this->saas_model->save_old($data, $company_subs->company_id);
-
-            } else {
-                $type = "error";
-                $message = $result['message'];
-                set_alert($type, $message);
+        $gateway = saas_load_gateway($company_subs->gateway_name);
+        $result = ['status' => 'success', 'message' => _l('subscription_resumed')];
+        if ($gateway && method_exists($gateway, 'resume_subscription')) {
+            try {
+                $result = $gateway->resume_subscription($company_subs);
+            } catch (Throwable $e) {
+                $result = ['status' => 'error', 'message' => $e->getMessage()];
             }
-        } else {
-            $type = "error";
-            $message = _l('subscription_not_found');
-            set_alert($type, $message);
         }
-        if (!empty(subdomain())) {
-            redirect('admin/dashboard');
+
+        if (!empty($result['status']) && $result['status'] == 'success') {
+            $this->saas_model->_table_name = 'tbl_saas_gateway_subscriptions';
+            $this->saas_model->_primary_key = 'id';
+            $this->saas_model->save_old(['status' => 'running'], $company_subs->id);
+
+            $this->saas_model->_table_name = 'tbl_saas_companies';
+            $this->saas_model->_primary_key = 'id';
+            $this->saas_model->save_old(['status' => 'running'], $company_subs->company_id);
+
+            set_alert('success', $result['message'] ?? _l('subscription_resumed'));
         } else {
-            redirect('saas/companies/details/' . $company_subs->company_id);
+            set_alert('danger', $result['message'] ?? _l('subscription_not_found'));
         }
+
+        redirect(saas_billing_redirect($company_subs->company_id));
     }
 
 

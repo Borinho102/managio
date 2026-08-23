@@ -270,7 +270,7 @@ class Companies extends AdminController
             $data['trial_period'] = $package_info->trial_period;
             $data['is_trial'] = 'Yes';
             $data['expired_date'] = $this->input->post('expired_date', true);
-            $data['currency'] = config_item('default_currency');
+            $data['currency'] = saas_package_currency($package_info);
             $data['amount'] = $package_info->$billing_cycle;
 
             if (!empty($mark_paid)) {

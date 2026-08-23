@@ -1,7 +1,11 @@
 <?php
 $company_id = !empty($subs_info) ? $subs_info->companies_id : '';
 if (empty($url)) {
-    $url = base_url('checkoutPayment/' . $package_id);
+    if (function_exists('is_client_logged_in') && is_client_logged_in()) {
+        $url = site_url('clients/checkoutPayment/' . $package_id);
+    } else {
+        $url = base_url('checkoutPayment/' . $package_id);
+    }
 }
 echo form_open($url, array('id' => 'checkoutPayment', 'enctype' => 'multipart/form-data', 'data-parsley-validate' => '', 'role' => 'form')); ?>
 

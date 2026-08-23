@@ -2,12 +2,12 @@
 /*
 Module Name: Perfect SaaS - Powerful Multi-Tenancy Module for Perfex CRM
 Description: this is a module for Perfex CRM that allows you to create a SaaS or multi-company enabled setup.
-Version: 1.2.7
+Version: 1.2.8
 Requires at least: 2.3.*
 */
 
 define('SaaS_MODULE', 'saas');
-define('SAAS_VERSION', '1.2.7');
+define('SAAS_VERSION', '1.2.8');
 
 
 $CI = &get_instance();
@@ -903,9 +903,9 @@ function make_dropdown()
     $html .= ' <span class="caret"></span>';
     $html .= '</a>';
     $html .= '<ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">';
-    $html .= '<li><a href="' . site_url('customizePackages') . '">' . _l('customize') . '</a></li>';
-    $html .= '<li><a href="' . site_url('updatePackage') . '">' . _l('upgrade') . '</a></li>';
-    $html .= '<li><a href="' . site_url('get_modules') . '">' . _l('buy_modules') . '</a></li>';
+    $html .= '<li><a href="' . site_url('clients/customizePackages') . '">' . _l('customize') . '</a></li>';
+    $html .= '<li><a href="' . site_url('clients/updatePackage') . '">' . _l('upgrade') . '</a></li>';
+    $html .= '<li><a href="' . site_url('clients/get_modules') . '">' . _l('buy_modules') . '</a></li>';
     $html .= '</ul>';
     return $html;
 

@@ -1782,7 +1782,7 @@ class Saas_model extends App_Model
         $data['is_trial'] = 'Yes';
         $data['expired_date'] = $expired_date;;
         $data['package_id'] = $package_id;
-        $data['currency'] = get_base_currency()->name;
+        $data['currency'] = $post_data['currency'] ?? saas_package_currency($package_info);
         $data['amount'] = $package_info->$billing_cycle;
         if (!empty($mark_paid)) {
             $data['status'] = 'running';
@@ -1884,7 +1884,7 @@ class Saas_model extends App_Model
             'transaction_id' => $stripe_company->transaction_id ?? '',
             'price_id' => $stripe_company->price_id ?? '',
             'payment_method' => $payment_gateway,
-            'currency' => default_currency(),
+            'currency' => saas_package_currency($package),
             'mark_paid' => true,
         ];
         $this->update_company_packages($data);
@@ -1922,7 +1922,7 @@ class Saas_model extends App_Model
         $data['is_trial'] = 'Yes';
         $data['expired_date'] = $expired_date;;
         $data['package_id'] = $package_id;
-        $data['currency'] = get_base_currency()->name;
+        $data['currency'] = $post_data['currency'] ?? saas_package_currency($package_info);
 
         $data['amount'] = $package_info->$billing_cycle;
         if (!empty($mark_paid)) {
@@ -2027,7 +2027,7 @@ class Saas_model extends App_Model
         $data['is_trial'] = 'No';
         $data['expired_date'] = $expired_date;;
         $data['package_id'] = $package_id;
-        $data['currency'] = get_base_currency()->name;
+        $data['currency'] = $post_data['currency'] ?? saas_package_currency($package_info ?? null);
 
         $data['amount'] = $post_data['amount'];
 
@@ -2232,7 +2232,7 @@ class Saas_model extends App_Model
             'companies_id' => $data['companies_id'],
             'transaction_id' => 'TRN' . date('Ymd') . date('His') . '_' . substr(number_format(time() * rand(), 0, '', ''), 0, 6),
             'payment_method' => (!empty($data['payment_method'])) ? $data['payment_method'] : 'manual',
-            'currency' => $data['currency'] ?? get_base_currency()->name,
+            'currency' => $data['currency'] ?? saas_package_currency($package_info ?? null),
             'subtotal' => $data['amount'],
             'discount_percent' => $discount_percentage,
             'discount_amount' => $discount_amount,
@@ -2537,15 +2537,21 @@ class Saas_model extends App_Model
         }
     }
 
-    public function get_payment_modes($payment_modes = false)
+    public function get_payment_modes($payment_modes = false, $package = null)
     {
-        if (!empty($payment_modes)) {
+        if (!empty($payment_modes) && !is_object($payment_modes)) {
             $this->load->model('payment_modes_model');
             return $this->payment_modes_model->get();
-        } else {
-            $payment_methods = get_old_result('tbl_saas_payment_methods', ['status' => 'active'], 'array');
-            return $payment_methods;
         }
+        if (is_object($payment_modes) && $package === null) {
+            $package = $payment_modes;
+        }
+        $payment_methods = get_old_result('tbl_saas_payment_methods', ['status' => 'active'], 'array');
+        if (function_exists('saas_filter_checkout_payment_methods')) {
+            return saas_filter_checkout_payment_methods($payment_methods, $package);
+        }
+
+        return $payment_methods;
     }
 
     public
@@ -2783,6 +2789,8 @@ class Saas_model extends App_Model
             set_alert($type, $message);
             redirect($_SERVER['HTTP_REFERER']);
         }
+        $packageForGateway = get_old_result('tbl_saas_packages', ['id' => $data['package_id'] ?? (is_object($subs_info) ? ($subs_info->package_id ?? 0) : 0)], false);
+        saas_assert_package_checkout_gateway($payment_method->gateway_name, $packageForGateway);
 
 
         $gateway_name = $payment_method->gateway_name;

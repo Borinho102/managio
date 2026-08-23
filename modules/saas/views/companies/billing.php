@@ -2,8 +2,12 @@
 defined('BASEPATH') or exit('No direct script access allowed'); ?>
 <?php
 echo '<link href="' . module_dir_url(SaaS_MODULE, 'assets/css/style_media.css') . '"  rel="stylesheet" type="text/css" />';
-$url = 'clients/';
+$billing_prefix = saas_client_billing_prefix();
 $company_info = get_company_info();
+if (empty($company_info)) {
+    echo '<div class="alert alert-warning">' . _l('404_error') . '</div>';
+    return;
+}
 
 $company_subs = get_old_result('tbl_saas_gateway_subscriptions', ['type' => 'package', 'company_id' => $company_info->companies_id], false);
 
@@ -157,7 +161,7 @@ $company_subs = get_old_result('tbl_saas_gateway_subscriptions', ['type' => 'pac
                         </div>
 
                         <div class="pb-sm pt-sm tw-flex tw-justify-between">
-                            <a href="<?= site_url('admin/customizePackages/' . $company_info->companies_id) ?>"
+                            <a href="<?= site_url($billing_prefix . 'customizePackages/' . $company_info->companies_id) ?>"
                                class="btn btn-sm btn-primary"><?= _l('customize') . ' ' . _l('package') ?>
                             </a>
 
@@ -165,19 +169,19 @@ $company_subs = get_old_result('tbl_saas_gateway_subscriptions', ['type' => 'pac
                             if (!empty($company_subs)) {
                                 if ($company_subs->status == 'running') {
                                     ?>
-                                    <a href="<?= base_url('cancel_subscription/' . $company_subs->id) ?>"
+                                    <a href="<?= site_url('cancel_subscription/' . $company_subs->id) ?>"
                                        class="btn btn-sm btn-warning pull-right"><?= _l('cancel_subscription') ?>
                                     </a>
                                 <?php } else {
                                     ?>
-                                    <a href="<?= base_url('resume_subscription/' . $company_subs->id) ?>"
+                                    <a href="<?= site_url('resume_subscription/' . $company_subs->id) ?>"
                                        class="btn btn-sm btn-info pull-right"><?= _l('resume_subscription') ?>
                                     </a>
                                 <?php }
                             }
                             ?>
 
-                            <a href="<?= site_url('updatePackage/' . $company_info->companies_id) ?>"
+                            <a href="<?= site_url($billing_prefix . 'updatePackage/' . $company_info->companies_id) ?>"
                                class="btn btn-sm btn-info  pull-right"><?= _l('upgrade') . ' ' . _l('package') ?></a>
                         </div>
                     </div>
@@ -202,7 +206,7 @@ $company_subs = get_old_result('tbl_saas_gateway_subscriptions', ['type' => 'pac
                                     $total .= '<del class="tw-text-base tw-font-normal tw-text-neutral-500">';
                                     $name .= '<del class="tw-text-base tw-font-normal tw-text-neutral-500">';
                                     $limit = '';
-                                    $url = base_url('updatePackage');
+                                    $url = site_url($billing_prefix . 'updatePackage');
                                 }
                                 $usesClass = '';
                                 // check if the usage is over the limit
