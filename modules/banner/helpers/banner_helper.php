@@ -74,8 +74,11 @@ if (!function_exists('handleBannerImageUpload')) {
     }
 }
 
-if (!function_exists('is_serialized')) {
-    function is_serialized($data) {
+if (!function_exists('banner_is_serialized')) {
+    function banner_is_serialized($data) {
+        if (function_exists('is_serialized')) {
+            return is_serialized($data);
+        }
         if (!is_string($data)) {
             return false;
         }
@@ -108,7 +111,7 @@ if (!function_exists('getBannerDetails')) {
 
             $ids = ('admin_area' == $allowArea) ? $value['staff_ids'] : $value['client_ids'];
             if ($isInRange) {
-                if (is_serialized($ids)) {
+                if (banner_is_serialized($ids)) {
                     return in_array(('admin_area' == $allowArea) ? get_staff_user_id() : get_client_user_id(), unserialize($ids));
                 }
             }
@@ -142,7 +145,7 @@ if (!function_exists('renderBanner')) {
                                         <div class="panel">';
 
                 $circle = (!is_mobile()) ? 'banner_circle' : '';
-                $preparContent .= '<span class="' . $circle . ' banner_numbertext">'. $i + 1 .' / ' . count($details['banner']) . '</span>';
+                $preparContent .= '<span class="' . $circle . ' banner_numbertext">' . ($i + 1) . ' / ' . count($details['banner']) . '</span>';
                 if ($detail['has_action'] == 1) {
                     $preparContent .= '<a href="' . $action_url . '" target="' . $target . '">';
                 }
@@ -245,7 +248,7 @@ if (!function_exists('getNewsTicker')) {
 
             $ids = ('admin_area' == $allowArea) ? $value['staff_ids'] : $value['client_ids'];
             if ($isInRange) {
-                if (is_serialized($ids)) {
+                if (banner_is_serialized($ids)) {
                     return in_array(('admin_area' == $allowArea) ? get_staff_user_id() : get_client_user_id(), unserialize($ids));
                 }
             }

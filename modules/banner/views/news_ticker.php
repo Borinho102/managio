@@ -91,7 +91,7 @@
                                                     <p class="tw-text-lg tw-font-medium">
                                                         <?php echo _l('admin_area'); ?>
                                                     </p>
-                                                    <?php echo render_select('staff_ids[]', $staff, ['staffid', ['firstname', 'lastname']], 'select_staff_members', (isset($news_ticker) && is_serialized($news_ticker->staff_ids)) ? unserialize($news_ticker->staff_ids) : '', ['data-actions-box' => true, 'multiple' => true], [], '', '', false); ?>
+                                                    <?php echo render_select('staff_ids[]', $staff, ['staffid', ['firstname', 'lastname']], 'select_staff_members', (isset($news_ticker) && function_exists('banner_is_serialized') && banner_is_serialized($news_ticker->staff_ids)) ? unserialize($news_ticker->staff_ids) : '', ['data-actions-box' => true, 'multiple' => true], [], '', '', false); ?>
                                                 </div>
                                             </div>
                                         </div>
@@ -101,7 +101,7 @@
                                                     <p class="tw-text-lg tw-font-medium">
                                                         <?php echo _l('clients_area'); ?>
                                                     </p>
-                                                    <?php echo render_select('client_ids[]', $clients, ['userid', 'company'], 'select_clients', (isset($news_ticker) && is_serialized($news_ticker->client_ids)) ? unserialize($news_ticker->client_ids) : '', ['data-actions-box' => true, 'multiple' => true], [], '', '', false); ?>
+                                                    <?php echo render_select('client_ids[]', $clients, ['userid', 'company'], 'select_clients', (isset($news_ticker) && function_exists('banner_is_serialized') && banner_is_serialized($news_ticker->client_ids)) ? unserialize($news_ticker->client_ids) : '', ['data-actions-box' => true, 'multiple' => true], [], '', '', false); ?>
                                                 </div>
                                             </div>
                                         </div>

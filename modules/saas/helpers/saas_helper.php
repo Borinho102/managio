@@ -3721,6 +3721,7 @@ function all_packages()
     return get_old_result('tbl_saas_packages', array('status' => 'published'));
 }
 
+if (!function_exists('is_serialized')) {
 function is_serialized($data)
 {
     // if it isn't a string, it isn't serialized
@@ -3752,4 +3753,5 @@ function is_serialized($data)
     }
     return false;
 
+}
 }

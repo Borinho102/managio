@@ -22,25 +22,32 @@ if (!defined('BANNER_MODULE_ATTACHMENTS_FOLDER')) {
 }
 
 register_activation_hook(BANNER_MODULE, 'banner_module_activation_hook');
-function banner_module_activation_hook() {
-    require_once __DIR__ . '/install.php';
+if (!function_exists('banner_module_activation_hook')) {
+    function banner_module_activation_hook() {
+        require_once __DIR__ . '/install.php';
+    }
 }
 
 register_deactivation_hook(BANNER_MODULE, 'banner_module_deactivation_hook');
-function banner_module_deactivation_hook() {
-    $themeHome = VIEWPATH . 'themes/perfex/views/my_home.php';
-    if (file_exists($themeHome)) {
-        @unlink($themeHome);
+if (!function_exists('banner_module_deactivation_hook')) {
+    function banner_module_deactivation_hook() {
+        $themeHome = VIEWPATH . 'themes/perfex/views/my_home.php';
+        if (file_exists($themeHome)) {
+            @unlink($themeHome);
+        }
     }
 }
 
 register_language_files(BANNER_MODULE, [BANNER_MODULE]);
 
-get_instance()->load->helper(BANNER_MODULE . '/banner');
-
-require_once __DIR__ . '/includes/assets.php';
-require_once __DIR__ . '/includes/staff_permissions.php';
-require_once __DIR__ . '/includes/sidebar_menu_links.php';
+try {
+    get_instance()->load->helper(BANNER_MODULE . '/banner');
+    require_once __DIR__ . '/includes/assets.php';
+    require_once __DIR__ . '/includes/staff_permissions.php';
+    require_once __DIR__ . '/includes/sidebar_menu_links.php';
+} catch (Throwable $e) {
+    log_message('error', 'Banner module boot failed: ' . $e->getMessage());
+}
 
 hooks()->add_filter('get_upload_path_by_type', function ($path, $type) {
     if ($type === 'banner') {
@@ -52,18 +59,31 @@ hooks()->add_filter('get_upload_path_by_type', function ($path, $type) {
 
 if (!function_exists('bannerContent')) {
     function bannerContent($allowArea, $value = '') {
+        if (!function_exists('getBannerDetails') || !function_exists('getNewsTicker')) {
+            return '';
+        }
         $details['banner'] = getBannerDetails($allowArea);
         $details['news'] = getNewsTicker($allowArea);
         if (!empty($details['banner']) || !empty($details['news'])) {
             return renderBanner($details);
         }
+
+        return '';
     }
 }
 
 hooks()->add_action('before_start_render_dashboard_content', function () {
-    echo bannerContent('admin_area');
+    try {
+        echo bannerContent('admin_area');
+    } catch (Throwable $e) {
+        log_message('error', 'Banner dashboard render failed: ' . $e->getMessage());
+    }
 });
 
 hooks()->add_action('display_banner_for_client_area', function () {
-    echo '<div class="row">' . bannerContent('clients_area') . '</div>';
+    try {
+        echo '<div class="row">' . bannerContent('clients_area') . '</div>';
+    } catch (Throwable $e) {
+        log_message('error', 'Banner client render failed: ' . $e->getMessage());
+    }
 });
