@@ -185,7 +185,7 @@ $route['authentication/set_password/(:num)/(:num)/(:any)'] = 'admin/authenticati
 $route['survey/(:num)/(:any)'] = 'surveys/participate/index/$1/$2';
 
 $route['publish/(:any)'] = 'zillapage/publishlandingpage/index/$1';
-$route['publish/thankyou/(:any)'] = 'zillapage/publishlandingpage/thankyou/$1'
+$route['publish/thankyou/(:any)'] = 'zillapage/publishlandingpage/thankyou/$1';
 
 if (file_exists(APPPATH . 'config/my_routes.php')) {
     include_once(APPPATH . 'config/my_routes.php');
