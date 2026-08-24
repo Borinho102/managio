@@ -313,7 +313,7 @@ class Themebuilder extends AdminController
         foreach ($forms as $form) {
             $action = $form->getAttribute('action');
 
-            if (empty($action) || str_starts_with($action, ["/", "#", base_url()])) {
+            if (empty($action) || str_starts_with($action, '/') || str_starts_with($action, '#') || str_starts_with($action, base_url())) {
 
                 $inputExists = false;
                 $inputElements = $xpath->query('.//input[@name="[csrf_token_name]"]', $form);

@@ -5,6 +5,9 @@ AddDefaultCharset utf-8
 RewriteCond %{HTTP:Authorization} .
 RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 RewriteEngine on
+# Keep cookies on the canonical host so public signup CSRF does not 419.
+RewriteCond %{HTTP_HOST} ^www\.managio\.africa$ [NC]
+RewriteRule ^(.*)$ https://managio.africa/$1 [R=301,L]
 RewriteCond $1 !^(index\.php|resources|robots\.txt)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

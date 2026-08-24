@@ -2970,6 +2970,9 @@ function get_coupon_by_package_type($package_type)
 
 function apply_coupon($package)
 {
+    if (empty($package) || !is_object($package) || empty($package->id)) {
+        return $package;
+    }
 
     $where = array(
         'end_date >=' => date('Y-m-d'),

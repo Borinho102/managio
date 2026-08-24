@@ -20,6 +20,16 @@ if (defined('APP_DB_ENCRYPT')) {
 }
 $app_csrf_exclude_uris = [
     'saas-data\/.+',
+    'signed_up',
+    'register',
+    'register\/.+',
+    'saas/gb/signed_up',
+    'saas/gb/check_already_exists',
+    'saas/gb/get_package_info',
+    'saas/gb/check_coupon_code',
+    'index.php/signed_up',
+    'index.php/saas/gb/check_already_exists',
+    'index.php/saas/gb/get_package_info',
     'saas/gb/payin_payment_callback.*',
     'saas/gb/payin_payment_cancel.*',
     'index.php/saas/gb/payin_payment_callback.*',

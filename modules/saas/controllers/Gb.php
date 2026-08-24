@@ -69,6 +69,10 @@ class Gb extends App_Controller
 
         $data['type'] = (!empty($package_type)) ? $package_type : 'monthly_price';
         $data['package_info'] = get_old_result('tbl_saas_packages', array('id' => $package_id), false);
+        if (empty($data['package_info'])) {
+            echo json_encode(['error' => _l('package_not_found')]);
+            exit();
+        }
         $data['package_info'] = apply_coupon($data['package_info']);
         $data['options'] = get_active_frequency(true);
         $data['company_id'] = $company_id;
@@ -1064,20 +1068,29 @@ class Gb extends App_Controller
             } else {
 
                 $billing_cycle = $this->input->post('billing_cycle', true);
+                if (empty($billing_cycle)) {
+                    $billing_cycle = 'monthly_price';
+                }
                 $package_info = get_row('tbl_saas_packages', array('id' => $data['package_id']));
+                if (empty($package_info)) {
+                    set_alert('error', _l('package_not_found'));
+                    redirect('register');
+                }
                 $package_info = apply_coupon($package_info);
 
                 // deduct $billing_cycle from price
                 $data['frequency'] = str_replace('_price', '', $billing_cycle);
-                $data['trial_period'] = $package_info->trial_period;
+                $data['trial_period'] = $package_info->trial_period ?? 0;
                 $data['is_trial'] = 'Yes';
-                $data['expired_date'] = $this->input->post('expired_date', true);;
+                $data['expired_date'] = $this->input->post('expired_date', true);
                 $data['currency'] = saas_package_currency($package_info);
                 $offer_price = $data['frequency'] . '_offer';
                 if (!empty($package_info->$offer_price)) {
                     $data['amount'] = $package_info->$offer_price;
-                } else {
+                } elseif (!empty($package_info->$billing_cycle)) {
                     $data['amount'] = $package_info->$billing_cycle;
+                } else {
+                    $data['amount'] = $package_info->monthly_price ?? 0;
                 }
 
                 // enable_affiliate and get referral code from session
@@ -1094,6 +1107,11 @@ class Gb extends App_Controller
                 $this->saas_model->_table_name = 'tbl_saas_companies';
                 $this->saas_model->_primary_key = 'id';
                 $id = $this->saas_model->save($data);
+                if (empty($id)) {
+                    log_message('error', 'SaaS signed_up failed to save company for ' . ($data['email'] ?? ''));
+                    set_alert('error', _l('something_went_wrong'));
+                    redirect('register');
+                }
 
                 $this->saas_model->save_client($id, $data['password']);
                 if (function_exists('saas_login_client_for_company')) {
