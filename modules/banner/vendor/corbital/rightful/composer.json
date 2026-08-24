@@ -1,0 +1,42 @@
+{
+    "name": "corbital/rightful",
+    "description": "To check if the module is valid or not",
+    "keywords": [
+        "corbital",
+        "rightful"
+    ],
+    "homepage": "https://github.com/corbital/rightful",
+    "license": "proprietory",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Chirag Jagani",
+            "email": "trueline.chirag@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.0",
+        "rmccue/requests": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Corbital\\Rightful\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+        }
+    },
+    "scripts": {
+
+    },
+    "repositories": [
+        {"type": "vcs", "url": "https://github.com/CorbitalTechnologies/rightful"}
+    ],
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
