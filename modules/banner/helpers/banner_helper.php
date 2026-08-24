@@ -74,17 +74,16 @@ if (!function_exists('handleBannerImageUpload')) {
     }
 }
 
-function is_serialized($data) {
-    // If it's not a string, it can't be serialized
-    if (!is_string($data)) {
-        return false;
+if (!function_exists('is_serialized')) {
+    function is_serialized($data) {
+        if (!is_string($data)) {
+            return false;
+        }
+
+        $data = trim($data);
+
+        return 'N;' === $data || preg_match('/^([sia]:|O:|a:|b:|d:|i:|s:)/', $data);
     }
-
-    // Trim any whitespace
-    $data = trim($data);
-
-    // Serialized data starts with 'a:', 's:', 'i:', etc.
-    return 'N;' === $data || preg_match('/^([sia]:|O:|a:|b:|d:|i:|s:)/', $data);
 }
 
 /*
@@ -95,8 +94,12 @@ function is_serialized($data) {
 if (!function_exists('getBannerDetails')) {
     function getBannerDetails($allowArea) {
         $res = [];
+        $CI = get_instance();
+        if (!$CI->db->table_exists(db_prefix() . 'banner')) {
+            return $res;
+        }
 
-        $details = get_instance()->db->get_where(db_prefix().'banner', ['status' => 1])->result_array();
+        $details = $CI->db->get_where(db_prefix().'banner', ['status' => 1])->result_array();
 
         // Filter out banners whose time duration is finished or not available for currently logged-in staff member
         $filteredData = array_filter($details, function ($value, $key) use ($allowArea) {
@@ -228,8 +231,12 @@ if (!function_exists('get_news_picker')) {
 if (!function_exists('getNewsTicker')) {
     function getNewsTicker($allowArea) {
         $res = [];
+        $CI = get_instance();
+        if (!$CI->db->table_exists(db_prefix() . 'news_ticker')) {
+            return $res;
+        }
 
-        $news_ticker = get_instance()->db->get_where(db_prefix().'news_ticker', ['status' => 1])->result_array();
+        $news_ticker = $CI->db->get_where(db_prefix().'news_ticker', ['status' => 1])->result_array();
 
         // Filter out banners whose time duration is finished or not available for currently logged-in staff member
         $filteredData = array_filter($news_ticker, function ($value, $key) use ($allowArea) {
