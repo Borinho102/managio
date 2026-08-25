@@ -276,6 +276,54 @@ function saas_ensure_payin_schema()
  * Apply PayIn schema and, when the module header is ahead of the DB, run the
  * official SaaS migrations without requiring the upgrade prompt.
  */
+/**
+ * Ensure the SaaS credentials email template exists (no Upgrade click required).
+ */
+function saas_ensure_credentials_email_template()
+{
+    if (!saas_is_master_instance()) {
+        return;
+    }
+
+    static $ensured = false;
+    if ($ensured) {
+        return;
+    }
+    $ensured = true;
+
+    if (!function_exists('get_row') || !function_exists('create_email_template') || !function_exists('db_prefix')) {
+        return;
+    }
+
+    $slug = 'saas-credentials-mail';
+    $exists = get_row(db_prefix() . 'emailtemplates', ['slug' => $slug]);
+    if (!empty($exists)) {
+        return;
+    }
+
+    create_email_template(
+        'Your account credentials',
+        'Dear {name},<br/><br/>
+Thank you for registering on the <b>{companyname}</b> platform.<br/><br/>
+Here are your account credentials. Please keep them safe:<br/><br/>
+<b>Company URL:</b> <a href="{company_url}">{company_url}</a><br/>
+<b>Admin URL:</b> <a href="{admin_url}">{admin_url}</a><br/>
+<b>Subdomain:</b> {domain}<br/>
+<b>Email / Username:</b> {email}<br/>
+<b>Password:</b> {password}<br/>
+<b>Phone:</b> {mobile}<br/>
+<b>Address:</b> {address}<br/>
+<b>Package:</b> {package_name}<br/><br/>
+You can log in using the Admin URL above with your email and password.<br/><br/>
+Best regards,<br/>
+{email_signature}<br/>
+(This is an automated email, so please do not reply to this.)',
+        'saas',
+        'SaaS Account Credentials',
+        $slug
+    );
+}
+
 function saas_maybe_upgrade_database()
 {
     if (!saas_is_master_instance()) {
@@ -292,6 +340,7 @@ function saas_maybe_upgrade_database()
     $ran = true;
 
     saas_ensure_payin_schema();
+    saas_ensure_credentials_email_template();
 
     $CI = &get_instance();
     if (empty($CI->app_modules) || !$CI->app_modules->is_database_upgrade_required('saas')) {
