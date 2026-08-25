@@ -1464,6 +1464,37 @@ class Saas_model extends App_Model
         return $send;
     }
 
+    /**
+     * Send account credentials to the tenant after registration (separate from activation email).
+     *
+     * @param int $id Company id
+     * @param bool $return Whether to return the send result instead of redirecting on failure
+     * @return bool
+     */
+    public function send_credentials_email($id, $return = false)
+    {
+        $company_info = $this->company_info($id);
+        if (empty($company_info)) {
+            $company_info = get_row('tbl_saas_companies', ['id' => $id]);
+        }
+        if (empty($company_info) || empty($company_info->email)) {
+            return false;
+        }
+
+        $send = send_mail_template('saas_credentials_mail', SaaS_MODULE, $company_info->email, $company_info->id, $company_info);
+        if ($return) {
+            return $send;
+        }
+
+        if (!$send) {
+            $type = 'warning';
+            $message = _l('email_not_sent_please_configure_email_settings');
+            set_alert($type, $message);
+            redirect('saas/settings/index/email_settings');
+        }
+        return $send;
+    }
+
     public
     function send_subscription_expired_email($id)
     {
@@ -2653,7 +2684,7 @@ class Saas_model extends App_Model
         return $_invoices;
     }
 
-    public function save_client($company_id, $password = null, $bycript = null)
+    public function save_client($company_id, $password = null, $bycript = null, $send_welcome = true)
     {
         $companyInfo = get_old_result('tbl_saas_companies', array('id' => $company_id), false);
         $country = 0;
@@ -2715,14 +2746,14 @@ class Saas_model extends App_Model
         }
 
         if ($client_id) {
-            $this->create_contact($companyInfo, $client_id, $password, $bycript);
+            $this->create_contact($companyInfo, $client_id, $password, $bycript, $send_welcome);
         }
 
 
         return $client_id;
     }
 
-    public function create_contact($companyInfo, $client_id, $password = null, $bycript = null)
+    public function create_contact($companyInfo, $client_id, $password = null, $bycript = null, $send_welcome = true)
     {
         if (empty($password)) {
             $password = '123456';
@@ -2797,13 +2828,15 @@ class Saas_model extends App_Model
                 $this->db->where('id', $contact_id);
                 $this->db->update(db_prefix() . 'contacts', ['invoice_emails' => 1, 'credit_note_emails' => 1]);
 
-                send_mail_template(
-                    'customer_created_welcome_mail',
-                    $data['email'],
-                    $data['userid'],
-                    $contact_id,
-                    $password_before_hash
-                );
+                if ($send_welcome) {
+                    send_mail_template(
+                        'customer_created_welcome_mail',
+                        $data['email'],
+                        $data['userid'],
+                        $contact_id,
+                        $password_before_hash
+                    );
+                }
             }
 
         }

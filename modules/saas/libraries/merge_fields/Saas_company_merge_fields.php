@@ -13,13 +13,17 @@ class Saas_company_merge_fields extends App_merge_fields
     {
         // List of email templates used by the plugin
         $templates = [
-            'saas-welcome-email',
+            'saas-welcome-mail',
+            'saas-credentials-mail',
             'saas-token-activate-account',
             'saas-faq-request-email',
             'saas-assign-new-package',
             'saas-company-expiration-email',
             'saas-inactive-company-email',
             'saas-company-url',
+        ];
+        $credentials_templates = [
+            'saas-credentials-mail',
         ];
         $available = ['saas'];
         return [
@@ -32,6 +36,12 @@ class Saas_company_merge_fields extends App_merge_fields
             [
                 'name' => 'Company URL',
                 'key' => '{company_url}', // Key for instance slug
+                'available' => $available,
+                'templates' => $templates,
+            ],
+            [
+                'name' => 'Admin URL',
+                'key' => '{admin_url}',
                 'available' => $available,
                 'templates' => $templates,
             ],
@@ -52,13 +62,43 @@ class Saas_company_merge_fields extends App_merge_fields
                 'key' => '{activation_url}', // Key for instance admin URL
                 'available' => $available,
                 'templates' => $templates,
-            ], [
+            ],
+            [
                 'name' => 'Activation token',
                 'key' => '{activation_token}', // Key for instance admin URL
                 'available' => $available,
                 'templates' => $templates,
             ],
-
+            [
+                'name' => 'Login email',
+                'key' => '{email}',
+                'available' => $available,
+                'templates' => $credentials_templates,
+            ],
+            [
+                'name' => 'Password',
+                'key' => '{password}',
+                'available' => $available,
+                'templates' => $credentials_templates,
+            ],
+            [
+                'name' => 'Phone number',
+                'key' => '{mobile}',
+                'available' => $available,
+                'templates' => $credentials_templates,
+            ],
+            [
+                'name' => 'Domain / Subdomain',
+                'key' => '{domain}',
+                'available' => $available,
+                'templates' => $credentials_templates,
+            ],
+            [
+                'name' => 'Address',
+                'key' => '{address}',
+                'available' => $available,
+                'templates' => $credentials_templates,
+            ],
         ];
     }
 
@@ -95,13 +135,20 @@ class Saas_company_merge_fields extends App_merge_fields
         }
         $sub_domain = $companyUrl . 'setup?c=' . url_encode($activation_code) . $domain;
 
+        $company_url = companyUrl($company->domain);
         $fields = [];
-        $fields['{name}'] = $company->name;
-        $fields['{company_url}'] = companyUrl($company->domain);
-        $fields['{package_name}'] = $company->package_name;
-        $fields['{expiration_date}'] = $company->expired_date;
+        $fields['{name}'] = $company->name ?? '';
+        $fields['{company_url}'] = $company_url;
+        $fields['{admin_url}'] = rtrim($company_url, '/') . '/admin';
+        $fields['{package_name}'] = $company->package_name ?? '';
+        $fields['{expiration_date}'] = $company->expired_date ?? '';
         $fields['{activation_url}'] = $sub_domain;
-        $fields['{activation_token}'] = $company->activation_code;
+        $fields['{activation_token}'] = $company->activation_code ?? '';
+        $fields['{email}'] = $company->email ?? '';
+        $fields['{password}'] = $company->password ?? '';
+        $fields['{mobile}'] = $company->mobile ?? '';
+        $fields['{domain}'] = $company->domain ?? '';
+        $fields['{address}'] = $company->address ?? '';
         return $fields;
     }
 }

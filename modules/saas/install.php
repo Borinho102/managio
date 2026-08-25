@@ -282,6 +282,28 @@ function installed()
     (This is an automated email, so please do not reply to this.)',
     ];
 
+    $credentials_email = [
+        'type' => 'saas',
+        'slug' => 'saas-credentials-mail',
+        'name' => 'SaaS Account Credentials',
+        'subject' => 'Your account credentials',
+        'message' => 'Dear {name},<br/><br/>
+Thank you for registering on the <b>{companyname}</b> platform.<br/><br/>
+Here are your account credentials. Please keep them safe:<br/><br/>
+<b>Company URL:</b> <a href="{company_url}">{company_url}</a><br/>
+<b>Admin URL:</b> <a href="{admin_url}">{admin_url}</a><br/>
+<b>Subdomain:</b> {domain}<br/>
+<b>Email / Username:</b> {email}<br/>
+<b>Password:</b> {password}<br/>
+<b>Phone:</b> {mobile}<br/>
+<b>Address:</b> {address}<br/>
+<b>Package:</b> {package_name}<br/><br/>
+You can log in using the Admin URL above with your email and password.<br/><br/>
+Best regards,<br/>
+{email_signature}<br/>
+(This is an automated email, so please do not reply to this.)',
+    ];
+
     $token_activate_account = [
         'type' => 'saas',
         'slug' => 'saas-token-activate-account',
@@ -482,7 +504,7 @@ Best regards,<br/>
 
 
     $CI->load->model('emails_model');
-    $templates = [$welcome_email, $token_activate_account, $faq_request_email, $company_database_reset, $assign_new_package, $company_expiration_email, $inactive_company_email, $company_url, $affiliate_request, $affiliate_withdrawal_request, $affiliate_withdrawal_accepted, $affiliate_withdrawal_declined];
+    $templates = [$welcome_email, $credentials_email, $token_activate_account, $faq_request_email, $company_database_reset, $assign_new_package, $company_expiration_email, $inactive_company_email, $company_url, $affiliate_request, $affiliate_withdrawal_request, $affiliate_withdrawal_accepted, $affiliate_withdrawal_declined];
 
     foreach ($templates as $t) {
         //this helper check buy slug and create if not exist by slug

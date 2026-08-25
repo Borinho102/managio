@@ -1113,7 +1113,8 @@ class Gb extends App_Controller
                     redirect('register');
                 }
 
-                $this->saas_model->save_client($id, $data['password']);
+                // Skip Perfex client welcome; SaaS credentials mail is sent separately below.
+                $this->saas_model->save_client($id, $data['password'], null, false);
                 if (function_exists('saas_login_client_for_company')) {
                     saas_login_client_for_company($id);
                 }
@@ -1129,6 +1130,9 @@ class Gb extends App_Controller
 
                 $history_id = $this->saas_model->update_company_history($data);
                 saas_deactivate_other_company_histories($id, $history_id);
+
+                // Account credentials (subdomain, email, password, phone, etc.) — separate from verification
+                $this->saas_model->send_credentials_email($id, true);
 
                 // send activation email
                 if (empty($disable_email_verification) && $disable_email_verification !== 1) {
@@ -1148,7 +1152,7 @@ class Gb extends App_Controller
                     $msg .= 'Password: ' . $data['password'] . '<br>';
                     $msg .= '<p>Thanks</p>';
                 } else {
-                    $msg = 'Registration Successfully Completed. Please check your email for activation link. if you not received email please check spam folder.if you still not received email please contact with us for activate your account.';
+                    $msg = 'Registration Successfully Completed. Please check your email for your account credentials and activation link. If you did not receive the emails, please check your spam folder or contact us to activate your account.';
                 }
                 log_activity('New Company Created [ID:' . $id . ', Name: ' . $data['name'] . ']');
 
