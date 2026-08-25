@@ -806,6 +806,11 @@ class Saas_model extends App_Model
         }
 
 
+        if (empty($company_info)) {
+            log_message('error', '[create_database] company not found id=' . $id);
+            return ['error' => 'Company not found or has no active package history'];
+        }
+
         if (!empty($company_info)) {
             $server_type = ConfigItems('saas_server') ?: 'local';
             log_message('debug', '[create_database] company_id=' . $id . ' server=' . $server_type . ' domain=' . $company_info->domain);
@@ -1628,7 +1633,7 @@ class Saas_model extends App_Model
                         $sub_h_data[$additional_field] = (!empty($data[$additional_field])) ? $data[$additional_field] : $package_info->$additional_field;
                     }
                 }
-                $sub_h_data[$field_name] = $data[$field_name] ?? $package_info->$field_name;
+                $sub_h_data[$field_name] = $data[$field_name] ?? ($package_info->$field_name ?? null);
             }
         }
 
@@ -1709,17 +1714,43 @@ class Saas_model extends App_Model
         }
     }
 
+    public function restore_master_db()
+    {
+        try {
+            $this->session->unset_userdata('new_db_name');
+            $this->db = config_db(null, true);
+        } catch (Throwable $e) {
+            log_message('error', '[restore_master_db] ' . $e->getMessage());
+        }
+    }
+
     public function active_modules($modules, $companies_history_id): bool
     {
         $all_modules = $this->app_modules->get();
         $companyInfo = $this->select_data_old('tbl_saas_companies', 'tbl_saas_companies.*,tbl_saas_companies_history.package_name,tbl_saas_companies_history.id as company_history_id', NULL, array('tbl_saas_companies_history.id' => $companies_history_id), ['tbl_saas_companies_history' => 'tbl_saas_companies.id = tbl_saas_companies_history.companies_id'], 'row');
-        if (!empty($companyInfo->db_name)) {
+        if (empty($companyInfo) || empty($companyInfo->db_name)) {
+            log_message('error', '[active_modules] missing company/db for history_id=' . $companies_history_id);
+            return false;
+        }
+        {
             $db_name = $companyInfo->db_name;
             $this->new_db = config_db($db_name);
+            if (empty($this->new_db) || $this->new_db === false) {
+                log_message('error', '[active_modules] cannot connect to tenant db=' . $db_name);
+                $this->restore_master_db();
+                return false;
+            }
 
             // get all modules from database except saas
             $all_module = $this->new_db->select('module_name')->get(db_prefix() . 'modules')->result_array();
-            $new_modules = unserialize($modules) ?? [];
+            if (is_array($modules)) {
+                $new_modules = $modules;
+            } elseif (is_string($modules) && $modules !== '') {
+                $decoded = @unserialize($modules);
+                $new_modules = is_array($decoded) ? $decoded : [];
+            } else {
+                $new_modules = [];
+            }
             $all_module = array_column($all_module, 'module_name');
 
             // check saas module exist or not in all_module if exist then remove it
@@ -1746,14 +1777,13 @@ class Saas_model extends App_Model
                     if ($module === 'payin' || $module === 'saas') {
                         continue;
                     }
+                    // Skip non-file modules (core feature flags like leads/projects)
+                    $mod = $this->app_modules->get($module);
+                    if (empty($mod) || empty($mod['init_file'])) {
+                        continue;
+                    }
                     $this->session->set_userdata('new_db_name', $db_name);
                     try {
-                        $mod = $this->app_modules->get($module);
-                        if (empty($mod)) {
-                            log_message('error', '[active_modules] module not found=' . $module);
-                            continue;
-                        }
-
                         // Point CI DB at the tenant before any module code runs
                         if (function_exists('saas_db_activate_module')) {
                             saas_db_activate_module($mod);
@@ -1768,7 +1798,7 @@ class Saas_model extends App_Model
                         }
 
                         // include_once may register license pre_activate hooks
-                        if (!empty($mod['init_file']) && is_file($mod['init_file'])) {
+                        if (is_file($mod['init_file'])) {
                             include_once($mod['init_file']);
                         }
 
@@ -1777,12 +1807,12 @@ class Saas_model extends App_Model
                         hooks()->add_action('pre_activate_module', 'saas_db_activate_module');
 
                         hooks()->do_action('pre_activate_module', $mod);
-                        hooks()->do_action('activate_' . $module . '_module');
+                        // Do not run activate_{module}_module — those often assume admin UI /
+                        // license flows and can exit() or throw during tenant provisioning.
 
                         $this->db->where('module_name', $module);
                         $this->db->update(db_prefix() . 'modules', ['active' => 1]);
 
-                        hooks()->do_action('module_activated', $mod);
                         $activated[] = $module;
                         log_message('debug', '[active_modules] activated=' . $module);
                     } catch (Throwable $e) {
@@ -1791,8 +1821,7 @@ class Saas_model extends App_Model
                         hooks()->remove_all_actions('pre_activate_module');
                     }
                 }
-                $this->session->unset_userdata('new_db_name');
-                $this->db = config_db(null, true);
+                $this->restore_master_db();
                 // Restore SaaS gate for the rest of the request
                 if (function_exists('saas_pre_activate_module')) {
                     hooks()->add_action('pre_activate_module', 'saas_pre_activate_module');
@@ -1815,12 +1844,20 @@ class Saas_model extends App_Model
                     if ($new_module === 'payin' || $new_module === 'saas') {
                         continue;
                     }
-                    $installed_version = array_column(array_filter($all_modules, function ($all_module) use ($new_module) {
-                        return $all_module['system_name'] == $new_module;
-                    }), 'headers')[0]['version'];
+                    $installed_version = '1.0.0';
+                    $matched = array_values(array_filter($all_modules, function ($all_module) use ($new_module) {
+                        return ($all_module['system_name'] ?? '') === $new_module;
+                    }));
+                    if (!empty($matched[0]['headers']['version'])) {
+                        $installed_version = $matched[0]['headers']['version'];
+                    }
 
                     $this->new_db->where('module_name', $new_module);
-                    $this->new_db->insert(db_prefix() . 'modules', ['module_name' => $new_module, 'installed_version' => $installed_version, 'active' => 1]);
+                    $this->new_db->insert(db_prefix() . 'modules', [
+                        'module_name'       => $new_module,
+                        'installed_version' => $installed_version,
+                        'active'            => 1,
+                    ]);
                 }
             }
 
@@ -2038,7 +2075,15 @@ class Saas_model extends App_Model
         }
 
         if ($company_info->status == 'pending') {
-            $this->create_database($company_id);
+            $dbResult = $this->create_database($company_id);
+            $dbName = is_array($dbResult) ? ($dbResult['db_name'] ?? null) : null;
+            if (empty($dbName)) {
+                $err = is_array($dbResult)
+                    ? ($dbResult['error'] ?? $dbResult['message'] ?? 'Database not created')
+                    : 'Database not created (empty company or history)';
+                log_message('error', '[update_company_packages] create_database failed company_id=' . $company_id . ' error=' . $err);
+                throw new RuntimeException('Tenant database could not be created: ' . $err);
+            }
         }
 
 
@@ -2258,6 +2303,13 @@ class Saas_model extends App_Model
     {
         // send email to company for assign_new_package
         $company_info = $this->select_old_data('tbl_saas_companies', 'tbl_saas_companies.*,tbl_saas_companies_history.package_name,tbl_saas_companies_history.id as company_history_id', NULL, array('tbl_saas_companies.id' => $company_id, 'tbl_saas_companies_history.active' => 1), ['tbl_saas_companies_history' => 'tbl_saas_companies.id = tbl_saas_companies_history.companies_id'], 'row');
+        if (empty($company_info) || empty($company_info->email)) {
+            $company_info = get_old_result('tbl_saas_companies', ['id' => $company_id], false);
+        }
+        if (empty($company_info) || empty($company_info->email)) {
+            log_message('error', '[send_email_to_company] missing company/email for id=' . $company_id);
+            return false;
+        }
         $send = send_mail_template('saas_assign_new_package', SaaS_MODULE, $company_info->email, $company_info->id, $company_info);
         if (!empty($return)) {
             return true;
@@ -2322,9 +2374,9 @@ class Saas_model extends App_Model
                     $coupon_data['applied_date'] = date('Y-m-d H:i:s');
 
                     // save into tbl_saas_applied_coupon
-                    $this->saas_model->_table_name = 'tbl_saas_applied_coupon';
-                    $this->saas_model->_primary_key = 'id';
-                    $applied_coupon_id = $this->saas_model->save_old($coupon_data);
+                    $this->_table_name = 'tbl_saas_applied_coupon';
+                    $this->_primary_key = 'id';
+                    $applied_coupon_id = $this->save_old($coupon_data);
                 }
             }
         }
@@ -2348,9 +2400,9 @@ class Saas_model extends App_Model
             'created_at' => date("Y-m-d H:i:s"),
             'ip' => $this->input->ip_address(),
         );
-        $this->saas_model->_table_name = 'tbl_saas_companies_payment';
-        $this->saas_model->_primary_key = 'id';
-        return $this->saas_model->save_old($pdata);
+        $this->_table_name = 'tbl_saas_companies_payment';
+        $this->_primary_key = 'id';
+        return $this->save_old($pdata);
     }
 
     public function select_data($table, $id, $value = null, $where = null, $join = null, $row = null)

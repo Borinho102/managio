@@ -814,8 +814,14 @@ class Gb extends App_Controller
                 $result = $this->saas_model->update_company_packages($data);
             }
         } catch (Throwable $e) {
-            log_message('error', '[PAYIN_CALLBACK] provisioning failed: ' . $e->getMessage());
-            set_alert('danger', 'PayIn: account setup failed. Please contact support.');
+            log_message('error', '[PAYIN_CALLBACK] provisioning failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() . "\n" . $e->getTraceAsString());
+            // Restore master DB if a tenant switch left it mid-provision
+            if (method_exists($this->saas_model, 'restore_master_db')) {
+                $this->saas_model->restore_master_db();
+            } elseif (function_exists('config_db')) {
+                $this->db = config_db(null, true);
+            }
+            set_alert('danger', 'PayIn: account setup failed — ' . $e->getMessage());
             redirect($checkout_url);
             return;
         }
