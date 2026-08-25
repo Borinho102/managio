@@ -14,11 +14,6 @@ $route['front/(:any)'] = 'saas/frontcms/home/page/$1';
 $route['pricing'] = 'saas/frontcms/home/page/pricing';
 $route['register'] = 'saas/frontcms/home/register';
 $route['register/(:any)'] = 'saas/frontcms/home/register/$1';
-// Use SaaS tenant signup (registration + subscription) instead of Perfex client register
-$route['authentication/register'] = 'saas/frontcms/home/register';
-$route['authentication/register/(:any)'] = 'saas/frontcms/home/register/$1';
-$route['clients/register'] = 'saas/frontcms/home/register';
-$route['clients/register/(:any)'] = 'saas/frontcms/home/register/$1';
 $route['frontcms/(:any)'] = 'saas/frontcms/home/page/$1';
 $route['front'] = 'saas/frontcms/home/index';
 $route['affiliate-program'] = 'saas/frontcms/home/affiliate_program';
