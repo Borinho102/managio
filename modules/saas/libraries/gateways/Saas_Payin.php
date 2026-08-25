@@ -281,6 +281,10 @@ class Saas_Payin extends Saas_payment
 
     public function processCallback(array $pending, array $payload = []): array
     {
+        $token = (string) ($pending['token'] ?? '');
+        $isFreeToken = $token !== '' && strpos($token, 'FREE_') === 0;
+        $isZeroPrice = !empty($pending['zero_price']) || $isFreeToken;
+
         $billingCycle = $pending['billing_cycle'] ?? 'monthly_price';
         $catalogPackage = !empty($pending['package_id'])
             ? get_old_result('tbl_saas_packages', ['id' => $pending['package_id']], false)
@@ -289,19 +293,19 @@ class Saas_Payin extends Saas_payment
             ? saas_package_cycle_price($catalogPackage, $billingCycle)
             : 0.0;
         $amount = (float) ($pending['amount'] ?? 0);
-        if ($amount <= 0) {
+        // Never override an explicit free checkout with catalog pricing
+        if (!$isZeroPrice && $amount <= 0) {
             $amount = (float) $catalogAmount;
         }
 
-        if (!empty($pending['zero_price']) && $amount <= 0) {
-            $token = $pending['token'] ?? ('FREE_' . time());
+        if ($isZeroPrice || $amount <= 0) {
             return [
                 'success'        => true,
-                'transaction_id' => 'PAYIN_FREE_' . $token,
+                'transaction_id' => 'PAYIN_FREE_' . ($token !== '' ? $token : ('FREE_' . time())),
             ];
         }
 
-        if (empty($payload) || $amount > 0 && empty($payload)) {
+        if (empty($payload)) {
             return ['success' => false, 'message' => 'PayIn callback payload is missing.'];
         }
 
@@ -358,11 +362,31 @@ class Saas_Payin extends Saas_payment
 
     private function buildZeroPriceForm(array $hiddenFields): string
     {
-        $action_url = base_url('saas/gb/payin_payment_callback/' . ($hiddenFields['companies_id'] ?? '') . '/' . ($hiddenFields['package_id'] ?? '') . '/' . ($hiddenFields['token'] ?? 'free'));
+        $token = $hiddenFields['token'] ?? ('FREE_' . bin2hex(random_bytes(8)));
+        $hiddenFields['token'] = $token;
+        $hiddenFields['zero_price'] = '1';
+
+        $action_url = base_url('saas/gb/payin_payment_callback/' . ($hiddenFields['companies_id'] ?? '') . '/' . ($hiddenFields['package_id'] ?? '') . '/' . $token);
         $csrf_name  = $this->ci->security->get_csrf_token_name();
         $csrf_hash  = $this->ci->security->get_csrf_hash();
 
-        $this->ci->session->set_userdata($this->pendingKey($hiddenFields['token']), $hiddenFields);
+        $this->ci->session->set_userdata($this->pendingKey($token), $hiddenFields);
+
+        // Persist like paid checkout so GET / lost-session can still complete
+        $payinCompany = get_old_result('tbl_saas_gateway_subscriptions', [
+            'company_id'   => $hiddenFields['companies_id'] ?? 0,
+            'type'         => ($hiddenFields['type'] ?? 'package') === 'module' ? 'module' : 'package',
+            'gateway_name' => $this->gateway,
+        ], false);
+        if (!empty($payinCompany->id)) {
+            $this->ci->saas_model->_table_name = 'tbl_saas_gateway_subscriptions';
+            $this->ci->saas_model->_primary_key = 'id';
+            $this->ci->saas_model->save_old([
+                'subscription_id' => 'PAYIN_PENDING_' . $token,
+                'status'          => 'pending',
+                'temp'            => json_encode($hiddenFields),
+            ], $payinCompany->id);
+        }
 
         $form  = '<form id="payin-free-form" action="' . html_escape($action_url) . '" method="POST">';
         $form .= '<input type="hidden" name="' . html_escape($csrf_name) . '" value="' . html_escape($csrf_hash) . '">';

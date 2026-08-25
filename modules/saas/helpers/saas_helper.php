@@ -3743,11 +3743,21 @@ function saas_billing_redirect($company_id = null): string
     if (!empty(subdomain())) {
         return 'admin/dashboard';
     }
-    if (!empty($company_id)) {
+    // Staff only — never send freemium buyers to admin company details
+    if (is_staff_logged_in() && !empty($company_id)) {
         return 'saas/companies/details/' . $company_id;
     }
+    if (!empty($company_id)) {
+        $company = get_old_result('tbl_saas_companies', ['id' => $company_id], false);
+        if (!empty($company->domain) && function_exists('companyUrl')) {
+            return rtrim(companyUrl($company->domain), '/') . '/admin';
+        }
+        if (!empty($company->activation_code)) {
+            return 'checkout/' . $company->activation_code;
+        }
+    }
 
-    return 'admin/dashboard';
+    return 'clients/billings';
 }
 
 function saas_load_gateway($gateway_name)

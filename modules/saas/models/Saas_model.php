@@ -1738,28 +1738,65 @@ class Saas_model extends App_Model
 
             $activated = [];
             if (!empty($diff)) {
-                // Third-party modules (Envato license checks like perfex_mobile_companion)
-                // hook 'pre_activate_module' to render an activation page and exit(),
-                // which aborts tenant provisioning mid-payment. Strip them; only the
-                // saas DB-switch handler may run during provisioning.
-                hooks()->remove_all_actions('pre_activate_module');
+                // Third-party modules (Envato / Flutex / etc.) hook pre_activate_module to
+                // echo a license page and exit(). App_modules::activate() include_once()'s
+                // the module init file which RE-registers those hooks after we strip them.
+                // Provision tenants by activating without license gates.
                 foreach ($diff as $module) {
+                    if ($module === 'payin' || $module === 'saas') {
+                        continue;
+                    }
                     $this->session->set_userdata('new_db_name', $db_name);
-                    hooks()->add_action('pre_activate_module', 'saas_db_activate_module');
                     try {
-                        $result = $this->app_modules->activate($module);
-                        if (!empty($result)) {
-                            $activated[] = $module;
-                            log_message('debug', '[active_modules] activated=' . $module);
-                        } else {
-                            log_message('error', '[active_modules] failed to activate=' . $module);
+                        $mod = $this->app_modules->get($module);
+                        if (empty($mod)) {
+                            log_message('error', '[active_modules] module not found=' . $module);
+                            continue;
                         }
-                    } catch (Exception $e) {
+
+                        // Point CI DB at the tenant before any module code runs
+                        if (function_exists('saas_db_activate_module')) {
+                            saas_db_activate_module($mod);
+                        }
+
+                        $exists = $this->db->where('module_name', $module)->count_all_results(db_prefix() . 'modules') > 0;
+                        if (!$exists) {
+                            $this->db->insert(db_prefix() . 'modules', [
+                                'module_name'       => $module,
+                                'installed_version' => $mod['headers']['version'] ?? '1.0.0',
+                            ]);
+                        }
+
+                        // include_once may register license pre_activate hooks
+                        if (!empty($mod['init_file']) && is_file($mod['init_file'])) {
+                            include_once($mod['init_file']);
+                        }
+
+                        // Strip license gates (re)registered by include_once; keep only DB switch
+                        hooks()->remove_all_actions('pre_activate_module');
+                        hooks()->add_action('pre_activate_module', 'saas_db_activate_module');
+
+                        hooks()->do_action('pre_activate_module', $mod);
+                        hooks()->do_action('activate_' . $module . '_module');
+
+                        $this->db->where('module_name', $module);
+                        $this->db->update(db_prefix() . 'modules', ['active' => 1]);
+
+                        hooks()->do_action('module_activated', $mod);
+                        $activated[] = $module;
+                        log_message('debug', '[active_modules] activated=' . $module);
+                    } catch (Throwable $e) {
                         log_message('error', '[active_modules] exception activating=' . $module . ' msg=' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+                    } finally {
+                        hooks()->remove_all_actions('pre_activate_module');
                     }
                 }
                 $this->session->unset_userdata('new_db_name');
                 $this->db = config_db(null, true);
+                // Restore SaaS gate for the rest of the request
+                if (function_exists('saas_pre_activate_module')) {
+                    hooks()->add_action('pre_activate_module', 'saas_pre_activate_module');
+                }
             }
 
             // modules in diff but not in activated = failed to activate
@@ -1956,8 +1993,13 @@ class Saas_model extends App_Model
         $package_id = $post_data['package_id'];
         $package_info = get_old_result('tbl_saas_packages', array('id' => $package_id), false);
         $company_info = $this->company_info($company_id);
-
-
+        if (empty($company_info)) {
+            $company_info = get_old_result('tbl_saas_companies', ['id' => $company_id], false);
+        }
+        if (empty($company_info) || empty($package_info)) {
+            log_message('error', '[update_company_packages] Missing company or package company_id=' . $company_id . ' package_id=' . $package_id);
+            return false;
+        }
         $data['updated_date'] = date('Y-m-d H:i:s');
         $data['updated_by'] = get_staff_user_id();
         $billing_cycle = $this->input->post('billing_cycle', true);
