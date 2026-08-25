@@ -342,9 +342,12 @@ class Gb extends App_Controller
                 $data['status'] = 'running';
                 $data['is_trial'] = 'No';
             }
+            // payment_method lives on history/payment tables, not tbl_saas_companies
+            $companyUpdate = $data;
+            unset($companyUpdate['payment_method']);
             $this->saas_model->_table_name = 'tbl_saas_companies';
             $this->saas_model->_primary_key = 'id';
-            $this->saas_model->save($data, $companies_id);
+            $this->saas_model->save($companyUpdate, $companies_id);
 
 
             $this->saas_model->_table_name = 'tbl_saas_companies_history';

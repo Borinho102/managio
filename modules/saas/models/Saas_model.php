@@ -1920,9 +1920,16 @@ class Saas_model extends App_Model
             $data['trial_period'] = 0;
         }
 
+        // payment_method lives on history/payment tables, not tbl_saas_companies
+        $companyUpdate = $data;
+        unset($companyUpdate['payment_method'], $companyUpdate['package_name'], $companyUpdate['modules'],
+            $companyUpdate['new_module'], $companyUpdate['new_limit'], $companyUpdate['mark_paid'],
+            $companyUpdate['subscription_id'], $companyUpdate['transaction_id'], $companyUpdate['price_id'],
+            $companyUpdate['type'], $companyUpdate['company_id']);
+
         $this->_table_name = 'tbl_saas_companies';
         $this->_primary_key = 'id';
-        $this->save_old($data, $company_id);
+        $this->save_old($companyUpdate, $company_id);
 
         $new_module = $post_data['new_module'];
         $new_limit = $post_data['new_limit'];
@@ -2087,9 +2094,16 @@ class Saas_model extends App_Model
         }
 
 
+        // payment_method lives on history/payment tables, not tbl_saas_companies
+        $companyUpdate = $data;
+        unset($companyUpdate['payment_method'], $companyUpdate['package_name'], $companyUpdate['modules'],
+            $companyUpdate['new_module'], $companyUpdate['new_limit'], $companyUpdate['mark_paid'],
+            $companyUpdate['subscription_id'], $companyUpdate['transaction_id'], $companyUpdate['price_id'],
+            $companyUpdate['type'], $companyUpdate['company_id']);
+
         $this->_table_name = 'tbl_saas_companies';
         $this->_primary_key = 'id';
-        $this->save_old($data, $company_id);
+        $this->save_old($companyUpdate, $company_id);
 
 
         $new_module = (!empty($post_data['new_module'])) ? $post_data['new_module'] : '';
