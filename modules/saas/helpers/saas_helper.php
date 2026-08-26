@@ -273,11 +273,51 @@ function saas_ensure_payin_schema()
 }
 
 /**
- * Apply PayIn schema and, when the module header is ahead of the DB, run the
- * official SaaS migrations without requiring the upgrade prompt.
+ * Default SaaS welcome email body (includes login credentials).
  */
+function saas_welcome_email_message()
+{
+    return 'Dear {name},<br/><br/>
+Thank you for registering on the <b>{companyname}</b> platform. We are happy to have you on board.<br/><br/>
+Please keep your account credentials safe:<br/><br/>
+<b>Company URL:</b> <a href="{company_url}">{company_url}</a><br/>
+<b>Admin URL:</b> <a href="{admin_url}">{admin_url}</a><br/>
+<b>Subdomain:</b> {domain}<br/>
+<b>Email / Username:</b> {email}<br/>
+<b>Password:</b> {password}<br/>
+<b>Phone:</b> {mobile}<br/>
+<b>Package:</b> {package_name}<br/><br/>
+You can log in using the Admin URL above with your email and password.<br/><br/>
+Please let us know if you have any questions or concerns. We are always happy to help.<br/><br/>
+Best regards,<br/>
+{email_signature}<br/>
+(This is an automated email, so please do not reply to this.)';
+}
+
 /**
- * Ensure the SaaS credentials email template exists and is active
+ * Default SaaS credentials email body.
+ */
+function saas_credentials_email_message()
+{
+    return 'Dear {name},<br/><br/>
+Thank you for registering on the <b>{companyname}</b> platform.<br/><br/>
+Here are your account credentials. Please keep them safe:<br/><br/>
+<b>Company URL:</b> <a href="{company_url}">{company_url}</a><br/>
+<b>Admin URL:</b> <a href="{admin_url}">{admin_url}</a><br/>
+<b>Subdomain:</b> {domain}<br/>
+<b>Email / Username:</b> {email}<br/>
+<b>Password:</b> {password}<br/>
+<b>Phone:</b> {mobile}<br/>
+<b>Address:</b> {address}<br/>
+<b>Package:</b> {package_name}<br/><br/>
+You can log in using the Admin URL above with your email and password.<br/><br/>
+Best regards,<br/>
+{email_signature}<br/>
+(This is an automated email, so please do not reply to this.)';
+}
+
+/**
+ * Ensure SaaS welcome/credentials templates exist and are active
  * (works on public registration — no admin Upgrade click required).
  */
 function saas_ensure_credentials_email_template()
@@ -295,49 +335,169 @@ function saas_ensure_credentials_email_template()
         return false;
     }
 
-    $ensured = true;
-
-    $slug = 'saas-credentials-mail';
     $CI = &get_instance();
     $table = db_prefix() . 'emailtemplates';
 
-    $exists = get_row($table, ['slug' => $slug]);
-    if (empty($exists)) {
-        create_email_template(
-            'Your account credentials',
-            'Dear {name},<br/><br/>
-Thank you for registering on the <b>{companyname}</b> platform.<br/><br/>
+    $templates = [
+        'saas-welcome-mail' => [
+            'subject' => 'Welcome aboard',
+            'name'    => 'SaaS Welcome Email',
+            'message' => saas_welcome_email_message(),
+        ],
+        'saas-credentials-mail' => [
+            'subject' => 'Your account credentials',
+            'name'    => 'SaaS Account Credentials',
+            'message' => saas_credentials_email_message(),
+        ],
+    ];
+
+    $ok = true;
+    foreach ($templates as $slug => $tpl) {
+        $exists = get_row($table, ['slug' => $slug, 'language' => 'english']);
+        if (empty($exists)) {
+            $exists = get_row($table, ['slug' => $slug]);
+        }
+        if (empty($exists)) {
+            create_email_template($tpl['subject'], $tpl['message'], 'saas', $tpl['name'], $slug);
+            $exists = get_row($table, ['slug' => $slug]);
+        }
+
+        if (empty($exists)) {
+            log_message('error', '[saas] email template could not be created: ' . $slug);
+            $ok = false;
+            continue;
+        }
+
+        // Older welcome templates omitted login credentials — add them without wiping custom copy.
+        if ($slug === 'saas-welcome-mail' && isset($exists->message) && strpos((string) $exists->message, '{password}') === false) {
+            $CI->db->where('slug', $slug);
+            $CI->db->where('language', $exists->language ?? 'english');
+            $CI->db->update($table, [
+                'message' => rtrim((string) $exists->message) . '<br/><br/>
 Here are your account credentials. Please keep them safe:<br/><br/>
 <b>Company URL:</b> <a href="{company_url}">{company_url}</a><br/>
 <b>Admin URL:</b> <a href="{admin_url}">{admin_url}</a><br/>
 <b>Subdomain:</b> {domain}<br/>
 <b>Email / Username:</b> {email}<br/>
 <b>Password:</b> {password}<br/>
-<b>Phone:</b> {mobile}<br/>
-<b>Address:</b> {address}<br/>
-<b>Package:</b> {package_name}<br/><br/>
-You can log in using the Admin URL above with your email and password.<br/><br/>
-Best regards,<br/>
-{email_signature}<br/>
-(This is an automated email, so please do not reply to this.)',
-            'saas',
-            'SaaS Account Credentials',
-            $slug
-        );
-        $exists = get_row($table, ['slug' => $slug]);
+<b>Package:</b> {package_name}<br/>',
+            ]);
+        }
+
+        $CI->db->where('slug', $slug);
+        $CI->db->where('active', 0);
+        $CI->db->update($table, ['active' => 1]);
     }
 
-    if (empty($exists)) {
-        log_message('error', '[saas] credentials email template could not be created');
+    // Keep Perfex client welcome template active for /authentication/register.
+    if ($CI->db->table_exists($table)) {
+        $CI->db->where('slug', 'new-client-created');
+        $CI->db->where('active', 0);
+        $CI->db->update($table, ['active' => 1]);
+    }
+
+    $ensured = $ok;
+
+    return $ok;
+}
+
+/**
+ * Send welcome + credentials emails after SaaS registration.
+ * Never throws — signup must succeed even if mail fails.
+ *
+ * @param int         $company_id
+ * @param string|null $plain_password
+ * @return bool True if at least one credentials-bearing email was sent
+ */
+function saas_send_signup_emails($company_id, $plain_password = null)
+{
+    $sent = false;
+
+    try {
+        if (function_exists('saas_ensure_credentials_email_template')) {
+            saas_ensure_credentials_email_template();
+        }
+
+        $CI = &get_instance();
+        if (empty($CI->saas_model)) {
+            $CI->load->model('saas/saas_model');
+        }
+
+        if (method_exists($CI->saas_model, 'send_welcome_email')) {
+            $welcome = $CI->saas_model->send_welcome_email($company_id, true, $plain_password);
+            $sent = $sent || (bool) $welcome;
+        }
+
+        if (method_exists($CI->saas_model, 'send_credentials_email')) {
+            $credentials = $CI->saas_model->send_credentials_email($company_id, true, $plain_password);
+            $sent = $sent || (bool) $credentials;
+        }
+
+        if (!$sent) {
+            $sent = saas_send_plain_credentials_email($company_id, $plain_password);
+        }
+    } catch (Throwable $e) {
+        log_message('error', '[saas] saas_send_signup_emails: ' . $e->getMessage());
+        try {
+            $sent = saas_send_plain_credentials_email($company_id, $plain_password);
+        } catch (Throwable $e2) {
+            log_message('error', '[saas] fallback credentials email failed: ' . $e2->getMessage());
+        }
+    }
+
+    return $sent;
+}
+
+/**
+ * Last-resort credentials email that does not depend on Perfex templates.
+ *
+ * @param int|object  $company
+ * @param string|null $plain_password
+ * @return bool
+ */
+function saas_send_plain_credentials_email($company, $plain_password = null)
+{
+    if (is_numeric($company)) {
+        $company = function_exists('get_row') ? get_row('tbl_saas_companies', ['id' => $company]) : null;
+    }
+    if (empty($company) || empty($company->email)) {
+        log_message('error', '[saas] plain credentials email missing company/email');
         return false;
     }
 
-    // Reactivate all language variants — inactive templates silently fail to send
-    $CI->db->where('slug', $slug);
-    $CI->db->where('active', 0);
-    $CI->db->update($table, ['active' => 1]);
+    $CI = &get_instance();
+    $CI->load->config('email');
 
-    return true;
+    $company_url = function_exists('companyUrl') ? companyUrl($company->domain ?? '') : base_url();
+    $admin_url = rtrim($company_url, '/') . '/admin';
+    $password = ($plain_password !== null && $plain_password !== '') ? $plain_password : ($company->password ?? '');
+    $name = $company->name ?? '';
+    $from_email = get_option('smtp_email') ?: get_option('companyname');
+    $from_name = get_option('companyname') ?: 'CRM';
+
+    $message = 'Dear ' . html_escape($name) . ',<br/><br/>'
+        . 'Thank you for registering. Here are your account credentials:<br/><br/>'
+        . '<b>Company URL:</b> <a href="' . html_escape($company_url) . '">' . html_escape($company_url) . '</a><br/>'
+        . '<b>Admin URL:</b> <a href="' . html_escape($admin_url) . '">' . html_escape($admin_url) . '</a><br/>'
+        . '<b>Email / Username:</b> ' . html_escape($company->email) . '<br/>'
+        . '<b>Password:</b> ' . html_escape($password) . '<br/><br/>'
+        . 'You can log in using the Admin URL above with your email and password.<br/><br/>'
+        . 'Best regards,<br/>' . html_escape($from_name);
+
+    $CI->email->clear(true);
+    $CI->email->from($from_email, $from_name);
+    $CI->email->to($company->email);
+    $CI->email->subject('Your account credentials');
+    $CI->email->message($message);
+
+    $ok = (bool) $CI->email->send(true);
+    if (!$ok) {
+        log_message('error', '[saas] plain credentials email failed for ' . $company->email);
+    } else {
+        log_activity('Email Sent To [Email: ' . $company->email . ', Template: SaaS credentials fallback]');
+    }
+
+    return $ok;
 }
 
 function saas_maybe_upgrade_database()

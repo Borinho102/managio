@@ -23,6 +23,7 @@ class Saas_company_merge_fields extends App_merge_fields
             'saas-company-url',
         ];
         $credentials_templates = [
+            'saas-welcome-mail',
             'saas-credentials-mail',
         ];
         $available = ['saas'];
@@ -128,10 +129,12 @@ class Saas_company_merge_fields extends App_merge_fields
         if (!empty($wildcard)) {
             $domain = '';
             $links = all_company_url($company->domain);
-            // get first key from array
-            $first_key = array_key_first($links);
-            $first_link = $links[$first_key];
-            $companyUrl = $first_link;
+            if (is_array($links) && !empty($links)) {
+                $first_key = array_key_first($links);
+                if ($first_key !== null && isset($links[$first_key])) {
+                    $companyUrl = $links[$first_key];
+                }
+            }
         }
         $sub_domain = $companyUrl . 'setup?c=' . url_encode($activation_code) . $domain;
 

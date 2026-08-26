@@ -1455,13 +1455,35 @@ class Saas_model extends App_Model
         }
     }
 
-    public
-    function send_welcome_email($id)
+    public function send_welcome_email($id, $return = false, $plain_password = null)
     {
-        $company_info = $this->company_info($id);
-        $send = send_mail_template('saas_welcome_mail', SaaS_MODULE, $company_info->email, $company_info->id, $company_info);
+        if (function_exists('saas_ensure_credentials_email_template')) {
+            saas_ensure_credentials_email_template();
+        }
+
+        $company_info = $this->get_company_for_email($id, $plain_password);
+        if (empty($company_info) || empty($company_info->email)) {
+            log_message('error', '[saas] send_welcome_email missing company/email for id=' . $id);
+            return false;
+        }
+
+        try {
+            $send = send_mail_template('saas_welcome_mail', SaaS_MODULE, $company_info->email, $company_info->id, $company_info);
+        } catch (Throwable $e) {
+            log_message('error', '[saas] send_welcome_email exception: ' . $e->getMessage());
+            $send = false;
+        }
+
         if (!$send) {
-            $type = "warning";
+            log_message('error', '[saas] send_welcome_email failed for company id=' . $id . ' email=' . $company_info->email);
+        }
+
+        if ($return) {
+            return (bool) $send;
+        }
+
+        if (!$send) {
+            $type = 'warning';
             $message = _l('email_not_sent_please_configure_email_settings');
             set_alert($type, $message);
             redirect('saas/settings/index/email_settings');
@@ -1470,31 +1492,24 @@ class Saas_model extends App_Model
     }
 
     /**
-     * Send account credentials to the tenant after registration (separate from activation email).
+     * Load company row for welcome/credentials mail, with plaintext password and package name.
      *
-     * @param int $id Company id
-     * @param bool $return Whether to return the send result instead of redirecting on failure
-     * @param string|null $plain_password Plaintext password from registration (DB may not be reliable for mail)
-     * @return bool
+     * @param int         $id
+     * @param string|null $plain_password
+     * @return object|null
      */
-    public function send_credentials_email($id, $return = false, $plain_password = null)
+    protected function get_company_for_email($id, $plain_password = null)
     {
-        if (function_exists('saas_ensure_credentials_email_template')) {
-            saas_ensure_credentials_email_template();
-        }
-
-        // Prefer a direct row read — company_info() join can fail before history is consistent
         $company_info = get_row('tbl_saas_companies', ['id' => $id]);
         if (empty($company_info)) {
             try {
                 $company_info = $this->company_info($id);
             } catch (Throwable $e) {
-                log_message('error', '[saas] send_credentials_email company_info failed: ' . $e->getMessage());
+                log_message('error', '[saas] get_company_for_email company_info failed: ' . $e->getMessage());
             }
         }
-        if (empty($company_info) || empty($company_info->email)) {
-            log_message('error', '[saas] send_credentials_email missing company/email for id=' . $id);
-            return false;
+        if (empty($company_info)) {
+            return null;
         }
 
         if ($plain_password !== null && $plain_password !== '') {
@@ -1514,6 +1529,29 @@ class Saas_model extends App_Model
             }
         }
 
+        return $company_info;
+    }
+
+    /**
+     * Send account credentials to the tenant after registration (separate from activation email).
+     *
+     * @param int $id Company id
+     * @param bool $return Whether to return the send result instead of redirecting on failure
+     * @param string|null $plain_password Plaintext password from registration (DB may not be reliable for mail)
+     * @return bool
+     */
+    public function send_credentials_email($id, $return = false, $plain_password = null)
+    {
+        if (function_exists('saas_ensure_credentials_email_template')) {
+            saas_ensure_credentials_email_template();
+        }
+
+        $company_info = $this->get_company_for_email($id, $plain_password);
+        if (empty($company_info) || empty($company_info->email)) {
+            log_message('error', '[saas] send_credentials_email missing company/email for id=' . $id);
+            return false;
+        }
+
         try {
             $send = send_mail_template(
                 'saas_credentials_mail',
@@ -1525,6 +1563,10 @@ class Saas_model extends App_Model
         } catch (Throwable $e) {
             log_message('error', '[saas] send_credentials_email exception: ' . $e->getMessage());
             $send = false;
+        }
+
+        if (!$send && function_exists('saas_send_plain_credentials_email')) {
+            $send = saas_send_plain_credentials_email($company_info, $plain_password);
         }
 
         if (!$send) {

@@ -7,6 +7,11 @@ class Saas_token_activate_account extends Saas_mail_template
     use SaasMailTemplate;
 
     /**
+     * Send immediately on signup — do not wait for the mail queue/cron.
+     */
+    protected $skipQueue = true;
+
+    /**
      * @inheritDoc
      */
     public $rel_type = 'company';

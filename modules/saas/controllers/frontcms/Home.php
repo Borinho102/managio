@@ -581,11 +581,20 @@ class Home extends App_Controller
                     $this->saas_model->create_database($id);
                 }
 
-                // Account credentials (subdomain, email, password, phone, etc.) — separate from verification
-                $this->saas_model->send_credentials_email($id, true, $data['password'] ?? null);
+                // Welcome + credentials (plaintext password; do not block signup if mail fails)
+                if (function_exists('saas_send_signup_emails')) {
+                    saas_send_signup_emails($id, $data['password'] ?? null);
+                } else {
+                    $this->saas_model->send_welcome_email($id, true, $data['password'] ?? null);
+                    $this->saas_model->send_credentials_email($id, true, $data['password'] ?? null);
+                }
 
                 if (empty($disable_email_verification) && $disable_email_verification !== 1) {
-                    $this->saas_model->send_activation_token_email($id);
+                    try {
+                        $this->saas_model->send_activation_token_email($id, true);
+                    } catch (Throwable $e) {
+                        log_message('error', '[saas] send_activation_token_email: ' . $e->getMessage());
+                    }
                 }
 
                 $type = "success";

@@ -266,20 +266,20 @@ function installed()
         'name' => 'SaaS Welcome Email',
         'subject' => 'Welcome aboard',
         'message' => 'Dear {name},<br/><br/>
-    Thank you for registering on the  <b>{companyname}</b> platform. We are happy to have you on board.<br/><br/> 
-    We just wanted to say welcome. We are thrilled to have you on board and look forward to working with you.<br/><br/>
-    Please let us know if you have any questions or concerns. We are always happy to help.<br/><br/>
-    
-   
-    We listed your company details below, make sure you keep them safe your account details
-    <br/><br/>
-    please follow this link:<big><strong><a href="{company_url}">View company url</a></strong></big><br/><br/>
-    link does not work? copy and paste this link into your browser:<br/>
-    <big><strong><a href="{company_url}">{company_url}</a></strong></big><br/><br/>
-   
-    Best regards,<br/>
-    {email_signature}<br/>
-    (This is an automated email, so please do not reply to this.)',
+Thank you for registering on the <b>{companyname}</b> platform. We are happy to have you on board.<br/><br/>
+Please keep your account credentials safe:<br/><br/>
+<b>Company URL:</b> <a href="{company_url}">{company_url}</a><br/>
+<b>Admin URL:</b> <a href="{admin_url}">{admin_url}</a><br/>
+<b>Subdomain:</b> {domain}<br/>
+<b>Email / Username:</b> {email}<br/>
+<b>Password:</b> {password}<br/>
+<b>Phone:</b> {mobile}<br/>
+<b>Package:</b> {package_name}<br/><br/>
+You can log in using the Admin URL above with your email and password.<br/><br/>
+Please let us know if you have any questions or concerns. We are always happy to help.<br/><br/>
+Best regards,<br/>
+{email_signature}<br/>
+(This is an automated email, so please do not reply to this.)',
     ];
 
     $credentials_email = [

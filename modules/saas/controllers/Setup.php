@@ -366,7 +366,7 @@ class Setup extends CI_Controller
             $this->saas_model->save_client($id, $data['password']);
 
 
-            $this->saas_model->send_welcome_email($id);
+            $this->saas_model->send_welcome_email($id, true);
             return true;
         } else {
             return false;

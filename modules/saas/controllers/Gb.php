@@ -1203,12 +1203,21 @@ class Gb extends App_Controller
                 $history_id = $this->saas_model->update_company_history($data);
                 saas_deactivate_other_company_histories($id, $history_id);
 
-                // Account credentials (subdomain, email, password, phone, etc.) — separate from verification
-                $this->saas_model->send_credentials_email($id, true, $data['password'] ?? null);
+                // Welcome + credentials (plaintext password; do not block signup if mail fails)
+                if (function_exists('saas_send_signup_emails')) {
+                    saas_send_signup_emails($id, $data['password'] ?? null);
+                } else {
+                    $this->saas_model->send_welcome_email($id, true, $data['password'] ?? null);
+                    $this->saas_model->send_credentials_email($id, true, $data['password'] ?? null);
+                }
 
                 // send activation email
                 if (empty($disable_email_verification) && $disable_email_verification !== 1) {
-                    $this->saas_model->send_activation_token_email($id, true);
+                    try {
+                        $this->saas_model->send_activation_token_email($id, true);
+                    } catch (Throwable $e) {
+                        log_message('error', '[saas] send_activation_token_email: ' . $e->getMessage());
+                    }
                 }
 
                 if (!empty($saas_need_to_pay_when_register) && $saas_need_to_pay_when_register == 1) {
