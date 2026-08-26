@@ -188,6 +188,11 @@ class Authentication extends ClientsController
 
                 define('CONTACT_REGISTERING', true);
 
+                // Ensure customer welcome/credentials template is active
+                $this->db->where('slug', 'new-client-created');
+                $this->db->where('active', 0);
+                $this->db->update(db_prefix() . 'emailtemplates', ['active' => 1]);
+
                 $clientid = $this->clients_model->add([
                       'billing_street'      => $data['address'],
                       'billing_city'        => $data['city'],

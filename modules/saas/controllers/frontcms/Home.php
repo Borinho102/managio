@@ -482,6 +482,7 @@ class Home extends App_Controller
         $data['mobile'] = $_POST['mobile'];
         $data['address'] = $_POST['address'];
         $data['country'] = $_POST['country'];
+        $data['password'] = !empty($_POST['password']) ? $_POST['password'] : null;
 
         $data['domain'] = domainUrl($domain);
         $this->load->library('form_validation');
@@ -581,7 +582,7 @@ class Home extends App_Controller
                 }
 
                 // Account credentials (subdomain, email, password, phone, etc.) — separate from verification
-                $this->saas_model->send_credentials_email($id, true);
+                $this->saas_model->send_credentials_email($id, true, $data['password'] ?? null);
 
                 if (empty($disable_email_verification) && $disable_email_verification !== 1) {
                     $this->saas_model->send_activation_token_email($id);

@@ -277,33 +277,35 @@ function saas_ensure_payin_schema()
  * official SaaS migrations without requiring the upgrade prompt.
  */
 /**
- * Ensure the SaaS credentials email template exists (no Upgrade click required).
+ * Ensure the SaaS credentials email template exists and is active
+ * (works on public registration — no admin Upgrade click required).
  */
 function saas_ensure_credentials_email_template()
 {
-    if (!saas_is_master_instance()) {
-        return;
-    }
-
     static $ensured = false;
     if ($ensured) {
-        return;
+        return true;
     }
-    $ensured = true;
+
+    if (!function_exists('saas_is_master_instance') || !saas_is_master_instance()) {
+        return false;
+    }
 
     if (!function_exists('get_row') || !function_exists('create_email_template') || !function_exists('db_prefix')) {
-        return;
+        return false;
     }
+
+    $ensured = true;
 
     $slug = 'saas-credentials-mail';
-    $exists = get_row(db_prefix() . 'emailtemplates', ['slug' => $slug]);
-    if (!empty($exists)) {
-        return;
-    }
+    $CI = &get_instance();
+    $table = db_prefix() . 'emailtemplates';
 
-    create_email_template(
-        'Your account credentials',
-        'Dear {name},<br/><br/>
+    $exists = get_row($table, ['slug' => $slug]);
+    if (empty($exists)) {
+        create_email_template(
+            'Your account credentials',
+            'Dear {name},<br/><br/>
 Thank you for registering on the <b>{companyname}</b> platform.<br/><br/>
 Here are your account credentials. Please keep them safe:<br/><br/>
 <b>Company URL:</b> <a href="{company_url}">{company_url}</a><br/>
@@ -318,10 +320,24 @@ You can log in using the Admin URL above with your email and password.<br/><br/>
 Best regards,<br/>
 {email_signature}<br/>
 (This is an automated email, so please do not reply to this.)',
-        'saas',
-        'SaaS Account Credentials',
-        $slug
-    );
+            'saas',
+            'SaaS Account Credentials',
+            $slug
+        );
+        $exists = get_row($table, ['slug' => $slug]);
+    }
+
+    if (empty($exists)) {
+        log_message('error', '[saas] credentials email template could not be created');
+        return false;
+    }
+
+    // Reactivate all language variants — inactive templates silently fail to send
+    $CI->db->where('slug', $slug);
+    $CI->db->where('active', 0);
+    $CI->db->update($table, ['active' => 1]);
+
+    return true;
 }
 
 function saas_maybe_upgrade_database()

@@ -1204,7 +1204,7 @@ class Gb extends App_Controller
                 saas_deactivate_other_company_histories($id, $history_id);
 
                 // Account credentials (subdomain, email, password, phone, etc.) — separate from verification
-                $this->saas_model->send_credentials_email($id, true);
+                $this->saas_model->send_credentials_email($id, true, $data['password'] ?? null);
 
                 // send activation email
                 if (empty($disable_email_verification) && $disable_email_verification !== 1) {

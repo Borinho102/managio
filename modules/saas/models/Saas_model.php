@@ -1474,21 +1474,65 @@ class Saas_model extends App_Model
      *
      * @param int $id Company id
      * @param bool $return Whether to return the send result instead of redirecting on failure
+     * @param string|null $plain_password Plaintext password from registration (DB may not be reliable for mail)
      * @return bool
      */
-    public function send_credentials_email($id, $return = false)
+    public function send_credentials_email($id, $return = false, $plain_password = null)
     {
-        $company_info = $this->company_info($id);
+        if (function_exists('saas_ensure_credentials_email_template')) {
+            saas_ensure_credentials_email_template();
+        }
+
+        // Prefer a direct row read — company_info() join can fail before history is consistent
+        $company_info = get_row('tbl_saas_companies', ['id' => $id]);
         if (empty($company_info)) {
-            $company_info = get_row('tbl_saas_companies', ['id' => $id]);
+            try {
+                $company_info = $this->company_info($id);
+            } catch (Throwable $e) {
+                log_message('error', '[saas] send_credentials_email company_info failed: ' . $e->getMessage());
+            }
         }
         if (empty($company_info) || empty($company_info->email)) {
+            log_message('error', '[saas] send_credentials_email missing company/email for id=' . $id);
             return false;
         }
 
-        $send = send_mail_template('saas_credentials_mail', SaaS_MODULE, $company_info->email, $company_info->id, $company_info);
+        if ($plain_password !== null && $plain_password !== '') {
+            $company_info->password = $plain_password;
+        }
+
+        if (empty($company_info->package_name) && !empty($company_info->package_id)) {
+            $package = get_row('tbl_saas_packages', ['id' => $company_info->package_id]);
+            if (!empty($package->name)) {
+                $company_info->package_name = $package->name;
+            }
+        }
+        if (empty($company_info->package_name)) {
+            $history = get_row('tbl_saas_companies_history', ['companies_id' => $id, 'active' => 1]);
+            if (!empty($history->package_name)) {
+                $company_info->package_name = $history->package_name;
+            }
+        }
+
+        try {
+            $send = send_mail_template(
+                'saas_credentials_mail',
+                SaaS_MODULE,
+                $company_info->email,
+                $company_info->id,
+                $company_info
+            );
+        } catch (Throwable $e) {
+            log_message('error', '[saas] send_credentials_email exception: ' . $e->getMessage());
+            $send = false;
+        }
+
+        if (!$send) {
+            log_message('error', '[saas] send_credentials_email failed for company id=' . $id . ' email=' . $company_info->email);
+        }
+
         if ($return) {
-            return $send;
+            return (bool) $send;
         }
 
         if (!$send) {

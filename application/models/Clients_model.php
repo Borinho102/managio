@@ -476,12 +476,9 @@ class Clients_model extends App_Model
         }
 
         if (defined('CONTACT_REGISTERING')) {
+            // Always send welcome/credentials on self-registration.
+            // Admin confirmation (if enabled) still gates login separately.
             $send_welcome_email = true;
-
-            // Do not send welcome email if confirmation for registration is enabled
-            if (get_option('customers_register_require_confirmation') == '1') {
-                $send_welcome_email = false;
-            }
 
             // If client register set this contact as primary
             $data['is_primary'] = 1;

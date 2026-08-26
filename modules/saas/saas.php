@@ -95,6 +95,7 @@ hooks()->add_action('admin_init', 'saas_seed_tenant_payin_gateway_options', 2);
 hooks()->add_action('admin_init', 'saas_init_menu_items');
 //hooks()->add_action('clients_init', 'saas_init_client_items');
 hooks()->add_action('app_init', 'saas_init');
+hooks()->add_action('app_init', 'saas_ensure_credentials_email_template', 20);
 hooks()->add_action('after_staff_login', 'check_login');
 register_merge_fields('saas/merge_fields/saas_company_merge_fields');
 register_merge_fields('saas/merge_fields/affiliate_merge_fields');
