@@ -1293,31 +1293,32 @@ function ConfigItems($name)
 
 function trial_period($subs)
 {
-    if ($subs->trial_period != 0) {
-        $time = date('Y-m-d H:i', strtotime($subs->expired_date));
-        $to_date = strtotime($time); //Future date.
-        $cur_date = strtotime(date('Y-m-d H:i'));
-        $timeleft = $to_date - $cur_date;
-        $daysleft = round((($timeleft / 24) / 60) / 60);
-        $days = ($daysleft);
-        return $days;
-    } else {
+    if (empty($subs) || !is_object($subs) || empty($subs->trial_period) || $subs->trial_period == 0) {
         return false;
     }
+    if (empty($subs->expired_date) || strtotime($subs->expired_date) === false) {
+        return false;
+    }
+    $time = date('Y-m-d H:i', strtotime($subs->expired_date));
+    $to_date = strtotime($time);
+    $cur_date = strtotime(date('Y-m-d H:i'));
+    $timeleft = $to_date - $cur_date;
+    return round((($timeleft / 24) / 60) / 60);
 }
 
 function running_period($subs = null)
 {
-    if ($subs->trial_period == 0) {
-        $time = date('Y-m-d H:i', strtotime($subs->expired_date));
-        $to_date = strtotime($time); //Future date.
-        $cur_date = strtotime(date('Y-m-d H:i'));
-        $timeleft = $to_date - $cur_date;
-        $daysleft = round((($timeleft / 24) / 60) / 60);
-        return $daysleft;
-    } else {
+    if (empty($subs) || !is_object($subs) || ($subs->trial_period ?? 0) != 0) {
         return false;
     }
+    if (empty($subs->expired_date) || strtotime($subs->expired_date) === false) {
+        return false;
+    }
+    $time = date('Y-m-d H:i', strtotime($subs->expired_date));
+    $to_date = strtotime($time);
+    $cur_date = strtotime(date('Y-m-d H:i'));
+    $timeleft = $to_date - $cur_date;
+    return round((($timeleft / 24) / 60) / 60);
 }
 
 function get_old_result($tbl, $where = array(), $row = 'object')
@@ -1570,25 +1571,37 @@ if (!function_exists('saas_init')) {
 function saas_before_breadcrumb()
 {
     $html = '';
-    if (!empty(subdomain())) {
-        $subs = get_company_subscription(null, 'running');
-        $result = is_account_running($subs, true);
-        if (!empty($result['trial'])) {
-            $trial_period = $result['trial'];
-            $type = 'trial';
-            $b_text = _l('you_are_using_trial_version', $subs->package_name) . ' ' . $trial_period . ' ' . _l('days');
-        } else {
-            $trial_period = $result['running'];
-            $type = 'running';
-            $b_text = _l('your_pricing_plan_will_expired', $subs->package_name) . ' ' . $trial_period . ' ' . _l('days');
+    try {
+        if (!empty(subdomain())) {
+            $subs = get_company_subscription(null, 'running');
+            if (empty($subs) || !is_object($subs)) {
+                echo $html;
+                return;
+            }
+            $result = is_account_running($subs, true);
+            if (!is_array($result)) {
+                $result = [];
+            }
+            if (!empty($result['trial'])) {
+                $trial_period = (int) $result['trial'];
+                $type = 'trial';
+                $b_text = _l('you_are_using_trial_version', $subs->package_name ?? '') . ' ' . $trial_period . ' ' . _l('days');
+            } else {
+                $trial_period = isset($result['running']) ? (int) $result['running'] : null;
+                $type = 'running';
+                $b_text = _l('your_pricing_plan_will_expired', $subs->package_name ?? '') . ' ' . (int) $trial_period . ' ' . _l('days');
+            }
+            if ($trial_period !== null && $trial_period <= 0) {
+                echo $html;
+                return;
+            }
+            if ($type == 'trial' || ($trial_period !== null && $trial_period < 3)) {
+                $html .= '<span class="text-sm text-danger">' . $b_text . '</span>';
+                $html .= '<strong class=""><a href="' . base_url('checkoutPayment') . '"> ' . _l('upgrade') . '</a></strong>';
+            }
         }
-        if ($trial_period <= 0) {
-            redirect('upgrade');
-        }
-        if ($type == 'trial' || $trial_period < 3) {
-            $html .= '<span class="text-sm text-danger">' . $b_text . '</span>';
-            $html .= '<strong class=""><a href="' . base_url('checkoutPayment') . '"> ' . _l('upgrade') . '</a></strong>';
-        }
+    } catch (Throwable $e) {
+        log_message('error', 'saas_before_breadcrumb: ' . $e->getMessage());
     }
     echo $html;
 }
@@ -2136,16 +2149,19 @@ function is_account_running($subs, $detail = null)
 {
     $result = array();
     $total_days = 0;
-    if ($subs->trial_period != 0) {
+    if (empty($subs) || !is_object($subs)) {
+        return !empty($detail) ? $result : $total_days;
+    }
+    $trial = $subs->trial_period ?? 0;
+    if ($trial != 0) {
         $total_days = $result['trial'] = trial_period($subs);
-    } elseif ($subs->trial_period == 0) {
+    } else {
         $total_days = $result['running'] = running_period($subs);
     }
     if (!empty($detail)) {
         return $result;
-    } else {
-        return $total_days;
     }
+    return $total_days;
 }
 
 /**
@@ -3754,8 +3770,11 @@ function disabled_default_modules($domain = null, $mode = "controller")
     $subs = get_company_subscription($domain, 'running');
 
     $modules = [];
-    if (!empty($subs->disabled_modules)) {
+    if (!empty($subs) && is_object($subs) && !empty($subs->disabled_modules)) {
         $modules = unserialize($subs->disabled_modules);
+        if (!is_array($modules)) {
+            $modules = [];
+        }
     }
 
     if ($mode !== "controller") {

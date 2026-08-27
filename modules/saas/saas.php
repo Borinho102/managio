@@ -221,6 +221,9 @@ function saas_sidebar_menu_items($items): array
     if (!empty(subdomain())) {
         $CI = &get_instance();
         $company_info = get_company_subscription(null, 'running');
+        if (empty($company_info) || !is_object($company_info)) {
+            return $items;
+        }
         $usages = get_usages($company_info);
 
         // check $usages array slug  and items array slug if slug is same then add class active
@@ -315,40 +318,65 @@ function saas_sidebar_menu_items($items): array
 }
 
 /**
- * @throws Exception
+ * Trial/plan banner on tenant admin dashboard.
+ * Must never redirect here: this hook runs after the header is already sent,
+ * so redirect()/exit would leave a blank dashboard.
  */
 function saas_dashboard_content()
 {
-    $html = '';
-    if (!empty(subdomain())) {
+    try {
+        if (empty(subdomain())) {
+            return;
+        }
+
         $subs = get_company_subscription(null, 'running');
+        if (empty($subs) || !is_object($subs)) {
+            $subs = get_company_subscription();
+        }
+        if (empty($subs) || !is_object($subs)) {
+            return;
+        }
+
         $result = is_account_running($subs, true);
+        if (!is_array($result)) {
+            $result = [];
+        }
+
         if (!empty($result['trial'])) {
-            $trial_period = $result['trial'];
+            $trial_period = (int) $result['trial'];
             $type = 'trial';
-            $b_text = _l('you_are_using_trial_version', $subs->package_name) . ' ' . $trial_period . ' ' . _l('days');
+            $b_text = _l('you_are_using_trial_version', $subs->package_name ?? '') . ' ' . $trial_period . ' ' . _l('days');
         } else {
-            $trial_period = $result['running'];
+            $trial_period = isset($result['running']) ? (int) $result['running'] : null;
             $type = 'running';
-            $b_text = _l('your_pricing_plan_will_expired', $subs->package_name) . ' ' . $trial_period . ' ' . _l('days');
+            $b_text = _l('your_pricing_plan_will_expired', $subs->package_name ?? '') . ' ' . (int) $trial_period . ' ' . _l('days');
         }
-        if ($trial_period <= 0) {
-            redirect('upgrade');
+
+        $company_id = $subs->companies_id ?? $subs->id ?? '';
+        $upgrade_url = site_url('updatePackage/' . $company_id);
+
+        // Expired or unknown remaining days: warn, but keep rendering widgets.
+        if ($trial_period !== null && $trial_period <= 0) {
+            echo '<div class="col-md-12 mtop20" role="alert">'
+                . '<div class="alert alert-danger" role="alert">'
+                . '<span class="text-sm text-danger">' . _l('your_pricing_plan_will_expired', $subs->package_name ?? '') . ' 0 ' . _l('days') . '</span>'
+                . '<strong class=""><a href="' . $upgrade_url . '"> ' . _l('upgrade') . '</a></strong>'
+                . '</div></div>';
+            return;
         }
-        if ($type == 'trial' || $trial_period < 3) {
-            // make a alert for trial period
-            $html .= '<div class="col-md-12 mtop20" role="alert">';
-            $html .= '<div class="alert alert-danger " role="alert">';
-            $html .= '<span class="text-sm text-danger">' . $b_text . '</span>';
-            $html .= '<strong class=""><a href="' . site_url('updatePackage/' . $subs->companies_id) . '"> ' . _l('upgrade') . '</a></strong>';
-            $html .= '<button type="button" class="close" data-dismiss="alert" aria-label="Close">';
-            $html .= '<span aria-hidden="true">&times;</span>';
-            $html .= '</button>';
-            $html .= '</div>';
-            $html .= '</div>';
+
+        if ($type == 'trial' || ($trial_period !== null && $trial_period < 3)) {
+            echo '<div class="col-md-12 mtop20" role="alert">'
+                . '<div class="alert alert-danger" role="alert">'
+                . '<span class="text-sm text-danger">' . $b_text . '</span>'
+                . '<strong class=""><a href="' . $upgrade_url . '"> ' . _l('upgrade') . '</a></strong>'
+                . '<button type="button" class="close" data-dismiss="alert" aria-label="Close">'
+                . '<span aria-hidden="true">&times;</span>'
+                . '</button></div></div>';
         }
+    } catch (Throwable $e) {
+        log_message('error', 'saas_dashboard_content: ' . $e->getMessage());
     }
-    echo $html;
 }
 
 hooks()->add_action('clients_authentication_constructor', 'saas_clients_authentication_constructor');
