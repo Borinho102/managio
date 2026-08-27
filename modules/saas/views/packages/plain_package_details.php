@@ -32,12 +32,13 @@ echo '<link href="' . module_dir_url(SaaS_MODULE, 'assets/css/style_media.css') 
                     <div class="package_position">
                         <h3 class="packaging-title">
                             <?php
+                            $periodLabel = !empty($type_title) ? _l($type_title) : '';
                             if (!empty($package_info->$other)) {
                                 echo '<del class="pricing_times">' . display_money($package_info->$type, $package_info) . '</del> ' . display_money($package_info->$other, $package_info);
                             } else {
                                 echo display_money($package_info->$type, $package_info);
                             }
-                            echo ' /' . $type_title
+                            echo $periodLabel !== '' ? ' / ' . $periodLabel : '';
                             ?>
                         </h3>
                     </div>

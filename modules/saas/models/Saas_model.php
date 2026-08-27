@@ -2134,7 +2134,10 @@ class Saas_model extends App_Model
         $data['updated_by'] = get_staff_user_id();
         $billing_cycle = $this->input->post('billing_cycle', true);
         if (empty($billing_cycle)) {
-            $billing_cycle = $post_data['frequency'] . '_price';
+            $billing_cycle = $post_data['billing_cycle'] ?? (($post_data['frequency'] ?? 'monthly') . '_price');
+        }
+        if (function_exists('saas_normalize_billing_cycle')) {
+            $billing_cycle = saas_normalize_billing_cycle($billing_cycle);
         }
         $expired_date = $this->input->post('expired_date', true);
         if (empty($expired_date)) {

@@ -43,7 +43,7 @@ class Setup extends CI_Controller
         $this->load->vars($vars);
 
         $is_active = $this->saas_model->is_company_active();
-        if (!empty($is_active)) {
+        if (!empty($is_active) && !empty($is_active->db_name)) {
             redirect('login');
         }
 
@@ -51,138 +51,203 @@ class Setup extends CI_Controller
 
     public function index()
     {
-
         error_reporting(E_ALL ^ E_NOTICE ^ E_DEPRECATED);
         ini_set('max_execution_time', 30000);
-        $data['title'] = _l('welcome_to') . ' ' . get_option('saas_companyname');
-        $data['step'] = 1;
-        // get code from url by get method
+
+        $company_info = $this->resolveSetupCompany();
+        if (empty($company_info) || empty($company_info->id)) {
+            $this->renderSetupError(_l('invalid_activation_code'));
+            return;
+        }
+
+        $company_id = (int) $company_info->id;
+        $activation_token = $company_info->activation_code ?? '';
+        $data['activation_token'] = $activation_token;
+        $data['subs_info'] = get_company_subscription_by_id($company_id);
+        if (empty($data['subs_info'])) {
+            $data['subs_info'] = $company_info;
+        }
+
+        $post_data = $this->input->post();
+        if (!empty($post_data) && !empty($post_data['package_id'])) {
+            $this->handleSetupCheckout($company_info, $data, $post_data);
+            return;
+        }
+
+        $frequency = !empty($data['subs_info']->frequency)
+            ? $data['subs_info']->frequency
+            : 'monthly';
+        $billing_cycle = function_exists('saas_normalize_billing_cycle')
+            ? saas_normalize_billing_cycle($frequency)
+            : (str_replace('_price', '', $frequency) . '_price');
+        $data['frequency'] = str_replace('_price', '', $billing_cycle);
+        $data['package_id'] = $data['subs_info']->package_id ?? $company_info->package_id ?? 0;
+
+        $package_info = get_old_result('tbl_saas_packages', ['id' => $data['package_id']], false);
+        if (empty($package_info)) {
+            $this->renderSetupError(_l('package_not_found') ?: 'Package not found');
+            return;
+        }
+
+        $data['title'] = _l('checkout') . ' ' . _l('payment') . ' ' . _l('for') . ' ' . $package_info->name;
+        $data['package_info'] = $package_info;
+        $data['all_packages'] = get_old_result('tbl_saas_packages', ['status' => 'published']);
+        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
+        $data['requires_payment'] = function_exists('saas_package_requires_payment')
+            ? saas_package_requires_payment($package_info, $billing_cycle)
+            : ((float) ($package_info->monthly_price ?? 0) > 0);
+        $data['url'] = base_url('setup');
+        $data['setup'] = true;
+        $data['subview'] = $this->load->view('saas/packages/checkoutPaymentOpen', $data, true);
+        $this->load->view('_layout_package', $data);
+    }
+
+    /**
+     * Resolve the pending company from activation code, domain query, or subdomain.
+     */
+    private function resolveSetupCompany()
+    {
         $code = $this->input->get('c', true);
-        $domain = $this->input->get('d', true);
+        $token = '';
         if (!empty($code)) {
-            $activation_token = url_decode($code);
-        } else {
-            $activation_token = $this->input->post('activation_token', true);
+            $token = function_exists('url_decode') ? url_decode($code) : $code;
         }
-        $activation_token = '108bde8f-71b8-4845-b03e-13f389c108fe';
-
-        if (!empty($activation_token)) {
-            $data['activation_token'] = $activation_token;
-            $company_info = get_old_result('tbl_saas_companies', array('activation_code' => $activation_token), true);
-
-            $data['subs_info'] = get_company_subscription_by_id($company_info->id);
-            $company_id = $company_info->id;
-
-            $post_data = $this->input->post();
-            if (!empty($post_data)) {
-                if (!empty(is_client_logged_in())) {
-                    $subs_info = get_company_subscription_by_id(null, 'running');
-                } else {
-                    $subs_info = get_company_subscription(null, 'running');
-                }
-                $payment_method = get_old_result('tbl_saas_payment_methods', ['id' => $post_data['paymentmode']], false);
-                if (empty($payment_method)) {
-                    // redirect to previous page
-                    $type = "warning";
-                    $message = _l('payment_method_not_found');
-                    set_alert($type, $message);
-                    redirect($_SERVER['HTTP_REFERER']);
-                }
-                $packageForGateway = get_old_result('tbl_saas_packages', ['id' => $post_data['package_id'] ?? (is_object($subs_info) ? ($subs_info->package_id ?? 0) : 0)], false);
-                saas_assert_package_checkout_gateway($payment_method->gateway_name, $packageForGateway);
-
-                $data['frequency'] = str_replace('_price', '', $post_data['billing_cycle']);
-
-                $gateway_name = $payment_method->gateway_name;
-                $paymentGateway = 'Saas_' . ucfirst($gateway_name);
-                $gateway = new $paymentGateway();
-                $result = $gateway->getPaymentForm($post_data, $subs_info);
-
-                if (!empty($result['paymentForm'])) {
-                    $data['paymentForm'] = $result['paymentForm'];
-                } else {
-
-                    // redirect to previous page
-                    $type = "warning";
-                    $message = _l('payment_method_not_found');
-                    set_alert($type, $message);
-                    redirect($_SERVER['HTTP_REFERER']);
-                }
-                if (!empty(subdomain())) {
-                    $front_end = true;
-                }
-                if (empty($data['package_id']) && !empty(subdomain())) {
-                    $data['package_id'] = $post_data['package_id'];
-                    $data['company_id'] = $post_data['companies_id'];
-                }
-                $package_info = get_old_result('tbl_saas_packages', array('id' => $post_data['package_id']), false);
-                $data['title'] = _l('checkout') . ' ' . _l('payment') . ' ' . _l('for') . ' ' . $package_info->name;
-                $data['package_info'] = $package_info;
-
-                $subview = 'checkoutPaymentPage';
-
-            } else {
-
-                $data['package_id'] = $data['subs_info']->package_id;
-                $data['frequency'] = 'monthly';
-
-                if (empty($data['package_id']) && !empty(subdomain())) {
-                    $data['package_id'] = $data['subs_info']->package_id;
-                    $data['frequency'] = $data['subs_info']->frequency;
-                }
-
-                $package_info = get_old_result('tbl_saas_packages', array('id' => $data['package_id']), false);
-
-                $data['title'] = _l('checkout') . ' ' . _l('payment') . ' ' . _l('for') . ' ' . $package_info->name;
-                $data['package_info'] = $package_info;
-                $data['all_packages'] = get_old_result('tbl_saas_packages', array('status' => 'published'));
-
-                $subview = 'checkoutPaymentOpen';
-                if (!empty(subdomain())) {
-                    $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
-                    $subview = 'checkoutPaymentOpen';
-                } else if (!empty($company_id)) {
-                    $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
-                    $subview = 'checkoutPaymentOpen';
-                }
-
+        if (empty($token)) {
+            $token = $this->input->post('activation_token', true);
+        }
+        if (!empty($token)) {
+            $company = get_old_result('tbl_saas_companies', ['activation_code' => $token], true);
+            if (!empty($company) && !empty($company->id)) {
+                return $company;
             }
-            $data['url'] = base_url('setup');
-            $data['setup'] = true;
-            $data['subview'] = $this->load->view('saas/packages/' . $subview, $data, TRUE);
-            $this->load->view('_layout_package', $data);
-
-//            $this->saas_model->login_as_company($company_info->id);
-
-
-//            if (empty($company_info)) {
-//                $data['step'] = 1;
-//                $this->current_step = 1;
-//                $data['activation_token_error'] = _l('invalid_activation_code');
-//                $data['error'] = _l('invalid_activation_code');
-//            } else {
-//                $data['step'] = (!empty($_POST['step'])) ? $_POST['step'] : 1;
-//
-//                $data['company_info'] = $company_info;
-//                $data['email'] = $company_info->email;
-//                if (empty($data['error']) && isset($_POST['step']) && $_POST['step'] == 1) {
-//                    // update company info and set active
-//                    $this->complete_install($_POST);
-//                    $data['step'] = 2;
-//                    $this->current_step = $data['step'];
-//                } elseif (isset($data['step']) && $data['step'] == 5) {
-//                    redirect('admin');
-//                }
-//            }
         }
-//        $form = new stdClass();
-//        $form->language = get_option('active_language');
-//        $form->recaptcha = 1;
-//        $form->success_submit_msg = _l('success_submit_msg');
-//        $data['form'] = $form;
-//        $data['current_step'] = $this->current_step;
-//        $data['steps'] = $this->steps();
-//        $this->load->view('saas/settings/setup', $data);
+
+        $domain = $this->input->get('d', true);
+        if (empty($domain) && function_exists('subdomain')) {
+            $domain = subdomain();
+        }
+        if (!empty($domain)) {
+            $company = get_old_result('tbl_saas_companies', ['domain' => $domain], true);
+            if (!empty($company) && !empty($company->id)) {
+                return $company;
+            }
+        }
+
+        return null;
+    }
+
+    private function handleSetupCheckout($company_info, array $data, array $post_data)
+    {
+        $company_id = (int) $company_info->id;
+        $package_id = $post_data['package_id'] ?? ($data['subs_info']->package_id ?? 0);
+        $billing_cycle = function_exists('saas_normalize_billing_cycle')
+            ? saas_normalize_billing_cycle($post_data['billing_cycle'] ?? 'monthly')
+            : 'monthly_price';
+        $frequency = str_replace('_price', '', $billing_cycle);
+        $package_info = get_old_result('tbl_saas_packages', ['id' => $package_id], false);
+        if (empty($package_info)) {
+            set_alert('warning', _l('package_not_found') ?: 'Package not found');
+            redirect(base_url('setup'));
+            return;
+        }
+
+        $amount = function_exists('saas_package_cycle_price')
+            ? saas_package_cycle_price($package_info, $billing_cycle)
+            : (float) ($package_info->{$billing_cycle} ?? 0);
+        $requires_payment = function_exists('saas_package_requires_payment')
+            ? saas_package_requires_payment($package_info, $billing_cycle, $amount)
+            : $amount > 0;
+
+        if (!$requires_payment) {
+            try {
+                $result = $this->saas_model->update_company_packages([
+                    'package_id'     => $package_info->id,
+                    'company_id'     => $company_id,
+                    'package_name'   => $package_info->name,
+                    'frequency'      => $frequency,
+                    'billing_cycle'  => $billing_cycle,
+                    'amount'         => $amount,
+                    'expired_date'   => $post_data['expired_date'] ?? null,
+                    'payment_method' => 'free',
+                    'currency'       => function_exists('saas_package_currency') ? saas_package_currency($package_info) : 'XAF',
+                    'mark_paid'      => true,
+                ]);
+                if ($result === false) {
+                    throw new RuntimeException(_l('create_database_error') ?: 'Could not activate this package.');
+                }
+                set_alert('success', _l('account_ready') ?: 'Your account is ready.');
+                $fresh = get_old_result('tbl_saas_companies', ['id' => $company_id], true);
+                $redirect = !empty($fresh->domain) && function_exists('companyUrl')
+                    ? rtrim(companyUrl($fresh->domain), '/') . '/admin'
+                    : base_url('login');
+                redirect($redirect);
+                return;
+            } catch (Throwable $e) {
+                log_message('error', '[setup] free activate: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+                set_alert('danger', $e->getMessage());
+                redirect(base_url('setup'));
+                return;
+            }
+        }
+
+        $payment_method = get_old_result('tbl_saas_payment_methods', ['id' => $post_data['paymentmode'] ?? 0], false);
+        if (empty($payment_method)) {
+            set_alert('warning', _l('payment_method_not_found'));
+            redirect($_SERVER['HTTP_REFERER'] ?? base_url('setup'));
+            return;
+        }
+
+        saas_assert_package_checkout_gateway($payment_method->gateway_name, $package_info);
+
+        $post_data['companies_id'] = $post_data['companies_id'] ?? $company_id;
+        $post_data['billing_cycle'] = $billing_cycle;
+        $post_data['package_id'] = $package_id;
+        $post_data['amount'] = $amount;
+
+        $subs_info = $data['subs_info'];
+        $gateway_name = $payment_method->gateway_name;
+        $paymentGateway = 'Saas_' . ucfirst($gateway_name);
+        if (!class_exists($paymentGateway)) {
+            set_alert('warning', _l('payment_method_not_found'));
+            redirect($_SERVER['HTTP_REFERER'] ?? base_url('setup'));
+            return;
+        }
+
+        try {
+            $gateway = new $paymentGateway();
+            $result = $gateway->getPaymentForm($post_data, $subs_info);
+        } catch (Throwable $e) {
+            log_message('error', '[setup] payment form: ' . $e->getMessage());
+            set_alert('danger', $e->getMessage());
+            redirect($_SERVER['HTTP_REFERER'] ?? base_url('setup'));
+            return;
+        }
+
+        if (empty($result['paymentForm'])) {
+            set_alert('warning', !empty($result['error']) ? $result['error'] : _l('payment_method_not_found'));
+            redirect($_SERVER['HTTP_REFERER'] ?? base_url('setup'));
+            return;
+        }
+
+        $data['frequency'] = $frequency;
+        $data['paymentForm'] = $result['paymentForm'];
+        $data['package_id'] = $package_id;
+        $data['company_id'] = $post_data['companies_id'] ?? $company_id;
+        $data['title'] = _l('checkout') . ' ' . _l('payment') . ' ' . _l('for') . ' ' . $package_info->name;
+        $data['package_info'] = $package_info;
+        $data['url'] = base_url('setup');
+        $data['setup'] = true;
+        $data['subview'] = $this->load->view('saas/packages/checkoutPaymentPage', $data, true);
+        $this->load->view('_layout_package', $data);
+    }
+
+    private function renderSetupError($message)
+    {
+        $data['title'] = _l('welcome_to') . ' ' . get_option('saas_companyname');
+        $data['error'] = $message;
+        $data['activation_token_error'] = $message;
+        log_message('error', '[setup] ' . $message . ' host=' . ($_SERVER['HTTP_HOST'] ?? ''));
+        $this->load->view('saas/settings/domain_not_registered', $data);
     }
 
 
@@ -201,12 +266,12 @@ class Setup extends CI_Controller
         $package_id = $this->input->post('package_id') ?? 2;
         $front = $this->input->post('front');
         $company_id = $this->input->post('company_id', true);
-        $package_type = $this->input->post('package_type');
-        $package_type = (!empty($package_type)) ? $package_type : 'monthly_price';
+        $package_type = function_exists('saas_normalize_billing_cycle')
+            ? saas_normalize_billing_cycle($this->input->post('package_type') ?: 'monthly_price')
+            : 'monthly_price';
 
-        // cut _price from package_type
         $type = str_replace('_price', '', $package_type);
-        $data['type_title'] = _l($type);
+        $data['type_title'] = $type;
         if ($type == 'lifetime') {
             $data['renew_date'] = date('Y-m-d', strtotime('+100 year'));
         } elseif ($type == 'yearly') {
@@ -215,8 +280,12 @@ class Setup extends CI_Controller
             $data['renew_date'] = date('Y-m-d', strtotime('+1 month'));
         }
 
-        $data['type'] = (!empty($package_type)) ? $package_type : 'monthly_price';
+        $data['type'] = $package_type;
         $data['package_info'] = get_old_result('tbl_saas_packages', array('id' => $package_id), false);
+        if (empty($data['package_info'])) {
+            echo json_encode(['error' => _l('package_not_found')]);
+            exit();
+        }
         $data['package_info'] = apply_coupon($data['package_info']);
         $data['options'] = get_active_frequency(true);
         $data['company_id'] = $company_id;
@@ -226,6 +295,9 @@ class Setup extends CI_Controller
         $_data['package_form_group'] = $this->load->view('saas/packages/package_billing', $data, true);
         $_data['package_details'] = $this->load->view('saas/packages/plain_package_details', $data, true);
         $_data['package_info'] = $data['package_info'];
+        $_data['requires_payment'] = function_exists('saas_package_requires_payment')
+            ? saas_package_requires_payment($data['package_info'], $package_type)
+            : ((float) ($data['package_info']->{$package_type} ?? 0) > 0);
         echo json_encode($_data);
         exit();
     }

@@ -1101,11 +1101,30 @@ function saas_package_cycle_price($package, $billing_cycle = 'monthly_price')
     if (empty($package) || empty($billing_cycle)) {
         return 0.0;
     }
+    $billing_cycle = saas_normalize_billing_cycle($billing_cycle);
     if (is_array($package)) {
         return (float) ($package[$billing_cycle] ?? 0);
     }
 
     return (float) ($package->{$billing_cycle} ?? 0);
+}
+
+/**
+ * Normalize monthly / yearly / lifetime (with or without _price suffix).
+ */
+function saas_normalize_billing_cycle($value, $default = 'monthly_price'): string
+{
+    $value = strtolower(trim((string) $value));
+    $value = str_replace('_price', '', $value);
+    $allowed = ['monthly', 'yearly', 'lifetime'];
+    if (!in_array($value, $allowed, true)) {
+        $value = str_replace('_price', '', (string) $default);
+        if (!in_array($value, $allowed, true)) {
+            $value = 'monthly';
+        }
+    }
+
+    return $value . '_price';
 }
 
 function saas_package_requires_payment($package, $billing_cycle = 'monthly_price', $amount = null)
@@ -1517,7 +1536,7 @@ if (!function_exists('is_complete_setup') && function_exists('is_subdomain') && 
 
             if ($domain_available->status == 'pending') {
 
-                $except_url = ['stripePayment', 'paymentCancel', 'paymentSuccess', 'completePaypalPayment'];
+                $except_url = ['stripePayment', 'paymentCancel', 'paymentSuccess', 'completePaypalPayment', 'setup', 'get_package_info_s', 'check_coupon_code'];
 
                 // get current url
                 $current_url = current_url();
@@ -3752,6 +3771,9 @@ function moduleTitle($module)
         $title = $result->module_title;
     } else {
         $title = !empty($module['system_name']) ? $module['headers']['module_name'] : $module;
+    }
+    if (is_string($title) && strpos($title, '_') !== false) {
+        $title = ucwords(str_replace('_', ' ', $title));
     }
     $CI->app_object_cache->add('module-title-' . $moduleName, $title);
     return $title;

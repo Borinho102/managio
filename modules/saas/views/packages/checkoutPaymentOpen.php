@@ -21,7 +21,10 @@ echo form_open($url, array('id' => 'checkoutPayment', 'enctype' => 'multipart/fo
             <div class="col-lg-7 col-md-7 ">
                 <div class="">
                     <input type="hidden" name="companies_id" id="company_id"
-                           value="<?= !empty($subs_info) ? $subs_info->companies_id : '' ?>">
+                           value="<?= !empty($subs_info) ? ($subs_info->companies_id ?? $subs_info->id ?? '') : '' ?>">
+                    <?php if (!empty($activation_token)) { ?>
+                        <input type="hidden" name="activation_token" value="<?= html_escape($activation_token) ?>">
+                    <?php } ?>
                     <div class="form-group">
 
                         <label for="discount_type"
@@ -58,21 +61,24 @@ echo form_open($url, array('id' => 'checkoutPayment', 'enctype' => 'multipart/fo
                     </div>
 
                     <div class="row">
-                        <div class="panel panel-custom">
+                        <?php
+                        $requires_payment = $requires_payment ?? true;
+                        ?>
+                        <div class="panel panel-custom" id="setup-payment-methods" <?= empty($requires_payment) ? 'style="display:none"' : '' ?>>
                             <!-- Default panel contents -->
                             <div class="panel-heading">
                                 <strong><?= _l('select') . ' ' . _l('payment_method') ?></strong>
                             </div>
                             <div class="panel-body">
-                                <?php foreach ($payment_modes as $mode) { ?>
+                                <?php if (!empty($payment_modes)) { foreach ($payment_modes as $mode) { ?>
                                     <div class="radio radio-success online-payment-radio pull-left mright10">
                                         <input type="radio" value="<?php echo $mode['id']; ?>"
-                                               required
+                                               <?= !empty($requires_payment) ? 'required' : '' ?>
                                                id="pm_<?php echo $mode['id']; ?>" name="paymentmode">
                                         <label for="pm_<?php echo $mode['id']; ?>"><?php echo _l($mode['gateway_name']); ?></label>
                                     </div>
                                     <?php
-                                } ?>
+                                } } ?>
                             </div>
                         </div>
                         <div class="">
@@ -112,19 +118,32 @@ if (!empty($setup)){
 
 <script type="text/javascript">
     'use strict';
-    // check package_id is empty or not by name
+    function toggleSetupPaymentMethods(requiresPayment) {
+        var wrap = $('#setup-payment-methods');
+        if (!wrap.length) {
+            return;
+        }
+        var radios = wrap.find('input[name="paymentmode"]');
+        if (requiresPayment) {
+            wrap.show();
+            radios.attr('required', 'required');
+        } else {
+            wrap.hide();
+            radios.removeAttr('required').prop('checked', false);
+        }
+    }
+
     $(document).ready(function () {
         var package_id = $('[name="package_id"]').val();
-        // if package_id is not empty then trigger onchange event
+        var initialType = '<?= htmlspecialchars(function_exists('saas_normalize_billing_cycle') ? saas_normalize_billing_cycle($frequency ?? 'monthly') : 'monthly_price', ENT_QUOTES) ?>';
         if (package_id != '') {
-            get_package_info(package_id, '<?= $frequency?>_price', '<?= $company_id?>');
+            get_package_info(package_id, initialType, '<?= $company_id?>');
         }
+        toggleSetupPaymentMethods(<?= !empty($requires_payment) ? 'true' : 'false' ?>);
     });
 
     function get_package_info(package_id, package_type = 'monthly_price', company_id = '') {
-        // check input mark_paid is checked or not
         var is_coupon = $('input[name="is_coupon"]').is(":checked");
-        // if company_id is empty then get from input
         if (company_id === '') {
             company_id = $('#company_id').val();
         }
@@ -135,9 +154,13 @@ if (!empty($setup)){
             data: {package_id, package_type, company_id},
             dataType: "json",
             success: function (result) {
+                if (result.error) {
+                    return;
+                }
                 $('#billing_cycle').html(result.package_form_group);
                 $('#package_info').html(result.package_details);
                 $('#package_name').html(result.package_info.name);
+                toggleSetupPaymentMethods(result.requires_payment !== false && result.requires_payment !== 0);
                 if (is_coupon) {
                     $('.coupon_code_area').show();
                     $('input[name="is_coupon"]').prop('checked', true);
@@ -153,8 +176,8 @@ if (!empty($setup)){
                         $.ajax({
                             type: "post",
                             url: "<?= base_url() ?>saas/gb/check_coupon_code",
-                            data: formData, // our data object
-                            dataType: 'json', // what type of data do we expect back from the server
+                            data: formData,
+                            dataType: 'json',
                             success: function (data) {
                                 if (data.success == true) {
                                     $('#applied_discount').html(data.applied_discount);

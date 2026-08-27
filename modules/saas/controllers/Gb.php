@@ -53,12 +53,12 @@ class Gb extends App_Controller
         $package_id = $this->input->post('package_id') ?? 2;
         $front = $this->input->post('front');
         $company_id = $this->input->post('company_id', true);
-        $package_type = $this->input->post('package_type');
-        $package_type = (!empty($package_type)) ? $package_type : 'monthly_price';
+        $package_type = function_exists('saas_normalize_billing_cycle')
+            ? saas_normalize_billing_cycle($this->input->post('package_type') ?: 'monthly_price')
+            : (!empty($this->input->post('package_type')) ? $this->input->post('package_type') : 'monthly_price');
 
-        // cut _price from package_type
         $type = str_replace('_price', '', $package_type);
-        $data['type_title'] = _l($type);
+        $data['type_title'] = $type;
         if ($type == 'lifetime') {
             $data['renew_date'] = date('Y-m-d', strtotime('+100 year'));
         } elseif ($type == 'yearly') {
@@ -82,6 +82,9 @@ class Gb extends App_Controller
         $_data['package_form_group'] = $this->load->view('saas/packages/package_billing', $data, true);
         $_data['package_details'] = $this->load->view('saas/packages/plain_package_details', $data, true);
         $_data['package_info'] = $data['package_info'];
+        $_data['requires_payment'] = function_exists('saas_package_requires_payment')
+            ? saas_package_requires_payment($data['package_info'], $package_type)
+            : ((float) ($data['package_info']->{$package_type} ?? 0) > 0);
         echo json_encode($_data);
         exit();
     }

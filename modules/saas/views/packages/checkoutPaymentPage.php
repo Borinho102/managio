@@ -40,7 +40,7 @@
 
         $.ajax({
             type: 'POST',
-            url: '<?= base_url('get_package_info') ?>',
+            url: '<?= !empty($setup) ? base_url('get_package_info_s') : base_url('get_package_info') ?>',
             data: {package_id, package_type, company_id},
             dataType: "json",
             success: function (result) {

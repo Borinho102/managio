@@ -613,10 +613,16 @@ class Saas_Stripe extends Saas_payment
 
         // tbl_saas_gateway_products
         $product = get_old_result('tbl_saas_gateway_products', array('type' => 'package', 'package_id' => $package['package_id'], 'gateway_name' => $this->gateway), false);
+        if (empty($product) || empty($product->price_id)) {
+            return ['error' => 'Stripe is not configured for this package.'];
+        }
         $price_id = json_decode($product->price_id, true);
         $package['product_id'] = $product->product_id;
         $package['frequency'] = str_replace('_price', '', $package['billing_cycle']);
-        $package['priceId'] = $price_id[$package['frequency']]['id'];
+        $package['priceId'] = $price_id[$package['frequency']]['id'] ?? null;
+        if (empty($package['priceId'])) {
+            return ['error' => 'Stripe is not configured for this package.'];
+        }
 
 
         if (empty($stripe_company)) {

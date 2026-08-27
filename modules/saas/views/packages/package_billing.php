@@ -15,13 +15,15 @@
             @
 
             <?php
+            $periodLabel = !empty($type_title) ? _l($type_title) : '';
             if (!empty($package_info->$other)) {
                 echo '<del>', display_money($package_info->$type, $package_info), '</del>' . ' ' . display_money($package_info->$other, $package_info);
             } else {
                 echo display_money($package_info->$type, $package_info);
             }
+            echo $periodLabel !== '' ? ' / ' . $periodLabel : '';
             ?>
-            /<?= _l($type_title) ?></small>
+        </small>
     </div>
 </div>
 <input type="hidden" name="expired_date" value="<?= $renew_date ?>">
