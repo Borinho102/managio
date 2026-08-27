@@ -74,7 +74,10 @@ class Dashboard extends AdminController
         if (! $data['user_dashboard_visibility']) {
             $data['user_dashboard_visibility'] = [];
         } else {
-            $data['user_dashboard_visibility'] = unserialize($data['user_dashboard_visibility']);
+            $data['user_dashboard_visibility'] = @unserialize($data['user_dashboard_visibility']);
+        }
+        if (!is_array($data['user_dashboard_visibility'])) {
+            $data['user_dashboard_visibility'] = [];
         }
         $data['user_dashboard_visibility'] = json_encode($data['user_dashboard_visibility']);
 

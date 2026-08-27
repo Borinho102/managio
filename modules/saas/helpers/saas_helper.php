@@ -3406,13 +3406,24 @@ function db_name($domain = null)
  */
 function subdomain()
 {
-    $is_subdomain = function_exists('is_subdomain') ? is_subdomain() : '';
-    if (empty($is_subdomain)) {
-        // get session company
-        $CI = &get_instance();
-        $is_subdomain = $CI->session->userdata('domain');
+    // Host/path detection only. Do not fall back to session `domain` on the
+    // master instance — leftover tenant session made /admin think it was a
+    // tenant and stripped (or crashed) the dashboard widgets.
+    if (function_exists('is_subdomain')) {
+        try {
+            $fromHost = is_subdomain();
+        } catch (Throwable $e) {
+            log_message('error', 'subdomain(): ' . $e->getMessage());
+            return '';
+        }
+        if (!empty($fromHost)) {
+            return $fromHost;
+        }
+        return '';
     }
-    return $is_subdomain;
+
+    $CI = &get_instance();
+    return $CI->session->userdata('domain');
 }
 
 function get_theme_path_url($domain = ''): array

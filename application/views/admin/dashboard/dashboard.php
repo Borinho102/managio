@@ -14,9 +14,26 @@
     </div>
     <div class="content">
         <div class="row">
-            <?php $this->load->view('admin/includes/alerts'); ?>
+            <?php
+            $dashboardObLevel = ob_get_level();
+            try {
+                $this->load->view('admin/includes/alerts');
+            } catch (Throwable $e) {
+                while (ob_get_level() > $dashboardObLevel) {
+                    @ob_end_clean();
+                }
+                log_message('error', 'Dashboard alerts failed: ' . $e->getMessage());
+            }
 
-            <?php hooks()->do_action('before_start_render_dashboard_content'); ?>
+            try {
+                hooks()->do_action('before_start_render_dashboard_content');
+            } catch (Throwable $e) {
+                while (ob_get_level() > $dashboardObLevel) {
+                    @ob_end_clean();
+                }
+                log_message('error', 'Dashboard content hook failed: ' . $e->getMessage());
+            }
+            ?>
 
             <div class="clearfix"></div>
 

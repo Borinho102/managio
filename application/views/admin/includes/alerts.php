@@ -1,6 +1,6 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed'); ?>
 <?php $_announcements = get_announcements_for_user();
-if (sizeof($_announcements) > 0 && isset($dashboard) && is_staff_member()) { ?>
+if (is_array($_announcements) && count($_announcements) > 0 && isset($dashboard) && is_staff_member()) { ?>
 <div class="col-lg-12 tw-mt-1.5">
     <div>
         <?php foreach ($_announcements as $__announcement) { ?>

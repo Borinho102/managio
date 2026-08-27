@@ -81,94 +81,124 @@ function render_dashboard_widgets($container)
     static $widgets     = null;
     static $widgetsData = null;
 
-    include_once(APPPATH . 'third_party/simple_html_dom.php');
-
     $CI = &get_instance();
 
-    if (!$widgets) {
-        $widgetsData       = [];
-        $widgetsContainers = [];
-        $widgets           = get_dashboard_widgets();
+    if ($widgets === null) {
+        $widgetsData = [];
+        $widgets     = get_dashboard_widgets();
+        if (!is_array($widgets)) {
+            $widgets = [];
+        }
 
         foreach ($widgets as $key => $widget) {
-            $html = str_get_html($CI->load->view($widget['path'], [], true));
-            if ($html) {
-                $widgetContainer = $html->firstChild();
-                if ($widgetContainer) {
-                    $htmlID = $widgetContainer->getAttribute('id');
-
-                    $widgetsData[$htmlID] = [
-                    'widgetIndex'     => $key,
-                    'widgetPath'      => $widget['path'],
-                    'widgetContainer' => $widget['container'],
-                    'html'            => $widgetContainer,
-                ];
-
-                    $widget['widgetID']         = $htmlID;
-                    $widget['html']             = $widgetContainer;
-                    $widgets[$key]['settingID'] = strafter($htmlID, 'widget-');
-                    $widgets[$key]['html']      = $widgetContainer;
-                } else {
-                    // Not compatible widget
-                    unset($widgets[$key]);
-                }
-            } else {
-                // Not compatible widget
+            if (empty($widget['path'])) {
                 unset($widgets[$key]);
+                continue;
             }
+
+            $obLevel = ob_get_level();
+            try {
+                $raw = $CI->load->view($widget['path'], [], true);
+            } catch (Throwable $e) {
+                while (ob_get_level() > $obLevel) {
+                    @ob_end_clean();
+                }
+                log_message('error', 'Dashboard widget failed [' . $widget['path'] . ']: ' . $e->getMessage());
+                unset($widgets[$key]);
+                continue;
+            }
+
+            if (!is_string($raw) || $raw === '') {
+                unset($widgets[$key]);
+                continue;
+            }
+
+            $htmlID = null;
+            if (preg_match('/\sid\s*=\s*["\']([^"\']+)["\']/i', $raw, $m)) {
+                $htmlID = $m[1];
+            }
+            if (empty($htmlID)) {
+                $htmlID = 'widget-' . basename(str_replace('\\', '/', $widget['path']));
+            }
+
+            $settingID = (strpos($htmlID, 'widget-') === 0) ? substr($htmlID, strlen('widget-')) : $htmlID;
+
+            $widgetsData[$htmlID] = [
+                'widgetIndex'     => $key,
+                'widgetPath'      => $widget['path'],
+                'widgetContainer' => $widget['container'] ?? '',
+                'html'            => $raw,
+            ];
+
+            $widgets[$key]['widgetID']   = $htmlID;
+            $widgets[$key]['html']       = $raw;
+            $widgets[$key]['settingID']  = $settingID;
         }
     }
 
-    $staff_dashboard = get_staff_meta(get_staff_user_id(), 'dashboard_widgets_order');
-    $staff_dashboard = !$staff_dashboard ? [] : unserialize($staff_dashboard);
-
-    if (count($staff_dashboard) == 0) {
-        // Default widgets order and containers
-        foreach ($widgets as $widget) {
-            if ($widget['container'] == $container) {
-                $widgetsHtml[$widget['settingID']] = $widget['html'];
-            }
+    try {
+        $staff_dashboard = get_staff_meta(get_staff_user_id(), 'dashboard_widgets_order');
+        $staff_dashboard = !$staff_dashboard ? [] : @unserialize($staff_dashboard);
+        if (!is_array($staff_dashboard)) {
+            $staff_dashboard = [];
         }
-    } else {
-        $widgetsOutputted = [];
-        if (isset($staff_dashboard[$container])) {
-            foreach ($staff_dashboard[$container] as $widget) {
-                if (isset($widgetsData[$widget])) {
-                    array_push($widgetsOutputted, $widget);
-                    $widgetsHtml[$widget] = $widgetsData[$widget]['html'];
+
+        if (count($staff_dashboard) == 0) {
+            foreach ($widgets as $widget) {
+                if (!empty($widget['container']) && $widget['container'] == $container && isset($widget['html'], $widget['settingID'])) {
+                    $widgetsHtml[$widget['settingID']] = $widget['html'];
+                }
+            }
+        } else {
+            if (isset($staff_dashboard[$container]) && is_array($staff_dashboard[$container])) {
+                foreach ($staff_dashboard[$container] as $widget) {
+                    if (isset($widgetsData[$widget])) {
+                        $widgetsHtml[$widget] = $widgetsData[$widget]['html'];
+                    }
+                }
+            }
+
+            foreach ($widgetsData as $wID => $widget) {
+                $applied = [];
+                foreach ($staff_dashboard as $c => $w) {
+                    if (is_array($w) && in_array($wID, $w)) {
+                        $applied[] = $wID;
+                    }
+                }
+
+                if ($widget['widgetContainer'] == $container && !in_array($wID, $applied)) {
+                    $widgetsHtml[$wID] = $widget['html'];
                 }
             }
         }
 
-        foreach ($widgetsData as $wID => $widget) {
-            // Widget exists but not applied in any staff container settings
-            $applied = [];
+        $visibility = get_staff_meta(get_staff_user_id(), 'dashboard_widgets_visibility');
+        $visibility = !$visibility ? [] : @unserialize($visibility);
+        if (!is_array($visibility)) {
+            $visibility = [];
+        }
 
-            foreach ($staff_dashboard as $c => $w) {
-                if (in_array($wID, $w)) {
-                    array_push($applied, $wID);
+        foreach ($widgetsHtml as $widgetID => $widgetHTML) {
+            $html = (string) $widgetHTML;
+            $settingId = strpos((string) $widgetID, 'widget-') === 0
+                ? substr((string) $widgetID, strlen('widget-'))
+                : (string) $widgetID;
+
+            foreach ($visibility as $option) {
+                if (!is_array($option) || !isset($option['id'])) {
+                    continue;
+                }
+                if ($option['id'] == $settingId && (string) ($option['visible'] ?? '1') === '0') {
+                    if ($html !== '' && strpos($html, ' hide') === false) {
+                        $html = preg_replace('/class=(["\'])([^"\']*)\1/', 'class=$1$2 hide$1', $html, 1) ?: $html;
+                    }
                 }
             }
 
-            if ($widget['widgetContainer'] == $container && !in_array($wID, $applied)) {
-                array_push($widgetsOutputted, $wID);
-                $widgetsHtml[$wID] = $widget['html'];
-            }
+            echo $html;
         }
-    }
-
-    $visibility = get_staff_meta(get_staff_user_id(), 'dashboard_widgets_visibility');
-    $visibility = !$visibility ? [] : unserialize($visibility);
-    foreach ($widgetsHtml as $widgetID => $widgetHTML) {
-        foreach ($visibility as $option) {
-            if ($option['id'] == strafter($widgetID, 'widget-') && $option['visible'] == 0) {
-                if (strpos($widgetHTML->class, 'hide') !== true && !empty((string) $widgetHTML)) {
-                    $widgetHTML->class .= ' hide';
-                }
-            }
-        }
-
-        echo $widgetHTML;
+    } catch (Throwable $e) {
+        log_message('error', 'render_dashboard_widgets(' . $container . '): ' . $e->getMessage());
     }
 }
 

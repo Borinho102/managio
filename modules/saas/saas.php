@@ -218,7 +218,13 @@ function saas_insert_data($data)
  */
 function saas_sidebar_menu_items($items): array
 {
-    if (!empty(subdomain())) {
+    try {
+        if (empty(subdomain())) {
+            return $items;
+        }
+        if (!is_array($items)) {
+            return [];
+        }
         $CI = &get_instance();
         $company_info = get_company_subscription(null, 'running');
         if (empty($company_info) || !is_object($company_info)) {
@@ -293,12 +299,20 @@ function saas_sidebar_menu_items($items): array
 
         // Filter disabled feature in dashboard
         hooks()->add_filter('get_dashboard_widgets', function ($widgets) use ($allUses) {
+            if (!is_array($widgets)) {
+                return [];
+            }
             foreach ($widgets as $key => $widget) {
+                if (empty($widget['path'])) {
+                    continue;
+                }
                 $feature = explode('_', basename($widget['path']))[0];
                 if (
                     in_array($feature, $allUses) ||
                     ($feature === 'finance' && in_array('invoices', $allUses) && in_array('estimates', $allUses) && in_array('proposals', $allUses))
-                ) unset($widgets[$key]);
+                ) {
+                    unset($widgets[$key]);
+                }
             }
             return $widgets;
         });
@@ -313,6 +327,9 @@ function saas_sidebar_menu_items($items): array
                 echo '<script src=' . module_dir_url('saas/assets/js/disabled_features.js') . '></script>';
             }
         });
+    } catch (Throwable $e) {
+        log_message('error', 'saas_sidebar_menu_items: ' . $e->getMessage());
+        return is_array($items) ? $items : [];
     }
     return $items;
 }
@@ -584,8 +601,19 @@ function check_login()
 }
 
 
-if (!empty(subdomain())) {
-    $disabled_features = disabled_default_modules(null, "menu");
+$saas_is_tenant_host = false;
+try {
+    $saas_is_tenant_host = function_exists('is_subdomain') && !empty(is_subdomain());
+} catch (Throwable $e) {
+    log_message('error', 'saas tenant host check: ' . $e->getMessage());
+}
+if ($saas_is_tenant_host) {
+    try {
+        $disabled_features = disabled_default_modules(null, "menu");
+    } catch (Throwable $e) {
+        log_message('error', 'saas disabled_default_modules: ' . $e->getMessage());
+        $disabled_features = [];
+    }
 
     $GLOBALS['disabled_features'] = $disabled_features;
     hooks()->add_filter("sidebar_menu_items", "saas_remove_disabled_modules");
@@ -650,8 +678,15 @@ if (!empty(subdomain())) {
     // Bind to staff permission interface for disabled default modules/features
     hooks()->add_filter("staff_can", function ($ret_val, $capability, $feature, $staff_id) use ($disabled_features) {
         if ($feature) {
-            $disabled_features = disabled_default_modules();
-            if (in_array($feature, $disabled_features)) $ret_val = false;
+            try {
+                $disabled_features = disabled_default_modules();
+            } catch (Throwable $e) {
+                log_message('error', 'staff_can disabled_default_modules: ' . $e->getMessage());
+                return $ret_val;
+            }
+            if (is_array($disabled_features) && in_array($feature, $disabled_features)) {
+                $ret_val = false;
+            }
         }
         return $ret_val;
     }, 10, 4);
@@ -682,12 +717,20 @@ if (!empty(subdomain())) {
 
     // Filter disabled feature in dashboard
     hooks()->add_filter('get_dashboard_widgets', function ($widgets) use ($disabled_features) {
+        if (!is_array($widgets) || !is_array($disabled_features)) {
+            return is_array($widgets) ? $widgets : [];
+        }
         foreach ($widgets as $key => $widget) {
+            if (empty($widget['path'])) {
+                continue;
+            }
             $feature = explode('_', basename($widget['path']))[0];
             if (
                 in_array($feature, $disabled_features) ||
                 ($feature === 'finance' && in_array('invoices', $disabled_features) && in_array('estimates', $disabled_features) && in_array('proposals', $disabled_features))
-            ) unset($widgets[$key]);
+            ) {
+                unset($widgets[$key]);
+            }
         }
         return $widgets;
     });
