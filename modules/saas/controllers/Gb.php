@@ -81,16 +81,30 @@ class Gb extends App_Controller
 
         $_data['package_form_group'] = $this->load->view('saas/packages/package_billing', $data, true);
         $_data['package_details'] = $this->load->view('saas/packages/plain_package_details', $data, true);
-        $_data['package_info'] = $data['package_info'];
-        $_data['requires_payment'] = function_exists('saas_package_requires_payment')
+        $_data['package_info'] = [
+            'id'   => $data['package_info']->id ?? 0,
+            'name' => $data['package_info']->name ?? '',
+        ];
+        $_data['requires_payment'] = (function_exists('saas_package_requires_payment')
             ? saas_package_requires_payment($data['package_info'], $package_type)
-            : ((float) ($data['package_info']->{$package_type} ?? 0) > 0);
+            : ((float) ($data['package_info']->{$package_type} ?? 0) > 0)) ? 1 : 0;
         $payment_modes = $this->saas_model->get_payment_modes(false, $data['package_info'], $package_type);
-        $_data['payment_methods_html'] = $this->load->view('saas/packages/payment_methods_radios', [
+        $_data['payment_methods_html'] = (string) $this->load->view('saas/packages/payment_methods_radios', [
             'payment_modes' => $payment_modes,
-            'requires_payment' => $_data['requires_payment'],
+            'requires_payment' => !empty($_data['requires_payment']),
         ], true);
-        echo json_encode($_data);
+        $json = json_encode($_data);
+        if ($json === false) {
+            echo json_encode([
+                'requires_payment' => $_data['requires_payment'],
+                'payment_methods_html' => $_data['payment_methods_html'],
+                'package_form_group' => $_data['package_form_group'],
+                'package_details' => $_data['package_details'],
+                'package_info' => $_data['package_info'],
+            ]);
+            exit();
+        }
+        echo $json;
         exit();
     }
 

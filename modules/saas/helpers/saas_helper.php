@@ -991,6 +991,38 @@ function saas_payment_mode_name_by_id($id): string
     }
 }
 
+function saas_master_option($name)
+{
+    if (function_exists('ConfigItems')) {
+        $val = ConfigItems($name);
+        if ($val !== null && $val !== false && $val !== '') {
+            return $val;
+        }
+    }
+    if (function_exists('get_option')) {
+        $val = get_option($name);
+        if ($val !== false && $val !== null && $val !== '') {
+            return $val;
+        }
+    }
+
+    return null;
+}
+
+function saas_currency_codes_match($left, $right): bool
+{
+    $normalize = static function ($code) {
+        $code = strtoupper(trim((string) $code));
+        if (in_array($code, ['FCFA', 'CFA', 'XAF', 'XOF'], true)) {
+            return 'XAF';
+        }
+
+        return $code;
+    };
+
+    return $normalize($left) !== '' && $normalize($left) === $normalize($right);
+}
+
 function saas_gateway_is_enabled($gatewayName): bool
 {
     $gatewayName = strtolower(trim((string) $gatewayName));
@@ -998,12 +1030,12 @@ function saas_gateway_is_enabled($gatewayName): bool
         return false;
     }
     $key = 'payments_' . $gatewayName . '_status';
-    $val = function_exists('get_option') ? get_option($key) : null;
+    $val = saas_master_option($key);
     if ($val === false || $val === null || $val === '') {
         return true;
     }
 
-    return in_array(strtolower((string) $val), ['1', 'yes', 'true', 'on'], true);
+    return in_array(strtolower((string) $val), ['1', 'yes', 'true', 'on', 'enabled', 'active'], true);
 }
 
 function saas_gateway_supports_package_currency($gatewayName, $package = null): bool
@@ -1021,11 +1053,8 @@ function saas_gateway_supports_package_currency($gatewayName, $package = null): 
         'saas_paymentmethod_' . $gatewayName . '_currencies',
         'paymentmethod_' . $gatewayName . '_checkout_currencies',
     ] as $key) {
-        if (!function_exists('get_option')) {
-            break;
-        }
-        $opt = get_option($key);
-        if ($opt !== false && $opt !== null && $opt !== '') {
+        $opt = saas_master_option($key);
+        if ($opt !== null && $opt !== '') {
             $list = (string) $opt;
             break;
         }
@@ -1033,22 +1062,32 @@ function saas_gateway_supports_package_currency($gatewayName, $package = null): 
 
     if ($list === '') {
         $defaults = [
-            'payin' => ['XAF'],
-            's3p'   => ['XAF'],
+            'payin' => ['XAF', 'XOF', 'FCFA'],
+            's3p'   => ['XAF', 'XOF', 'FCFA'],
         ];
         if (!isset($defaults[$gatewayName])) {
             return true;
         }
+        foreach ($defaults[$gatewayName] as $allowed) {
+            if (saas_currency_codes_match($currency, $allowed)) {
+                return true;
+            }
+        }
 
-        return in_array($currency, $defaults[$gatewayName], true);
+        return false;
     }
 
     $allowed = array_filter(array_map('strtoupper', array_map('trim', explode(',', $list))));
     if (empty($allowed)) {
         return true;
     }
+    foreach ($allowed as $code) {
+        if (saas_currency_codes_match($currency, $code)) {
+            return true;
+        }
+    }
 
-    return in_array($currency, $allowed, true);
+    return false;
 }
 
 function saas_gateway_has_package_product($gatewayName, $package = null): bool
@@ -1112,9 +1151,6 @@ function saas_checkout_gateway_is_available($gatewayName, $package = null, $requ
     if (!saas_gateway_supports_package_currency($gatewayName, $package)) {
         return false;
     }
-    if ($requiresPayment && !saas_gateway_has_package_product($gatewayName, $package)) {
-        return false;
-    }
 
     return true;
 }
@@ -1148,19 +1184,22 @@ function saas_package_allowed_gateways($package = null)
 function saas_package_allows_gateway($package, $gatewayName, $billingCycle = null)
 {
     $gatewayName = saas_map_mode_to_gateway($gatewayName) ?: strtolower(trim((string) $gatewayName));
-    $cycle = $billingCycle ?: 'monthly_price';
-    $requiresPayment = function_exists('saas_package_requires_payment')
-        ? saas_package_requires_payment($package, $cycle)
-        : true;
-    if (!saas_checkout_gateway_is_available($gatewayName, $package, $requiresPayment)) {
+    if ($gatewayName === '') {
         return false;
     }
-    $allowed = saas_package_allowed_gateways($package);
-    if (empty($allowed)) {
-        return true;
+    $methods = function_exists('get_old_result')
+        ? get_old_result('tbl_saas_payment_methods', ['status' => 'active'], 'array')
+        : [];
+    $filtered = saas_filter_checkout_payment_methods($methods, $package, $billingCycle);
+    foreach ($filtered as $method) {
+        $rawName = is_array($method) ? ($method['gateway_name'] ?? '') : ($method->gateway_name ?? '');
+        $name = saas_map_mode_to_gateway($rawName) ?: strtolower(trim((string) $rawName));
+        if ($name === $gatewayName) {
+            return true;
+        }
     }
 
-    return in_array($gatewayName, $allowed, true);
+    return false;
 }
 
 function saas_filter_checkout_payment_methods($methods, $package = null, $billingCycle = null)
@@ -1168,29 +1207,48 @@ function saas_filter_checkout_payment_methods($methods, $package = null, $billin
     if (empty($methods)) {
         return [];
     }
-    $allowed = saas_package_allowed_gateways($package);
     $cycle = $billingCycle ?: 'monthly_price';
     $requiresPayment = function_exists('saas_package_requires_payment')
         ? saas_package_requires_payment($package, $cycle)
         : true;
-    $filtered = [];
+    $active = [];
     foreach ($methods as $method) {
         $rawName = is_array($method) ? ($method['gateway_name'] ?? '') : ($method->gateway_name ?? '');
         $name = saas_map_mode_to_gateway($rawName) ?: strtolower(trim((string) $rawName));
-        if ($name === '') {
-            continue;
-        }
         $status = is_array($method) ? ($method['status'] ?? 'active') : ($method->status ?? 'active');
-        if (strtolower((string) $status) !== 'active') {
+        if ($name === '' || strtolower((string) $status) !== 'active') {
             continue;
         }
-        if (!empty($allowed) && !in_array($name, $allowed, true)) {
+        $active[] = ['method' => $method, 'name' => $name];
+    }
+    if (empty($active)) {
+        return [];
+    }
+
+    $allowed = saas_package_allowed_gateways($package);
+    $activeNames = array_column($active, 'name');
+    if (!empty($allowed) && empty(array_intersect($allowed, $activeNames))) {
+        $allowed = [];
+    }
+
+    $filtered = [];
+    foreach ($active as $row) {
+        if (!empty($allowed) && !in_array($row['name'], $allowed, true)) {
             continue;
         }
-        if (!saas_checkout_gateway_is_available($name, $package, $requiresPayment)) {
+        if (!saas_checkout_gateway_is_available($row['name'], $package, $requiresPayment)) {
             continue;
         }
-        $filtered[] = $method;
+        $filtered[] = $row['method'];
+    }
+    if (!empty($filtered)) {
+        return $filtered;
+    }
+
+    foreach ($active as $row) {
+        if (saas_gateway_class_exists($row['name'])) {
+            $filtered[] = $row['method'];
+        }
     }
 
     return $filtered;

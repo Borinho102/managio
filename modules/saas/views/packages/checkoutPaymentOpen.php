@@ -125,6 +125,9 @@ if (!empty($setup)){
         }
         var radios = wrap.find('input[name="paymentmode"]');
         var hasMethods = radios.length > 0;
+        if (hasMethods && radios.filter(':checked').length === 0) {
+            radios.first().prop('checked', true);
+        }
         var submitBtn = $('#checkoutPayment button[type="submit"]');
         if (requiresPayment && hasMethods) {
             wrap.show();
@@ -167,8 +170,10 @@ if (!empty($setup)){
                 }
                 $('#billing_cycle').html(result.package_form_group);
                 $('#package_info').html(result.package_details);
-                $('#package_name').html(result.package_info.name);
-                var needsPay = result.requires_payment !== false && result.requires_payment !== 0;
+                if (result.package_info && result.package_info.name) {
+                    $('#package_name').html(result.package_info.name);
+                }
+                var needsPay = result.requires_payment !== false && result.requires_payment !== 0 && result.requires_payment !== '0';
                 var methodsHtml = (typeof result.payment_methods_html === 'string')
                     ? result.payment_methods_html
                     : undefined;
