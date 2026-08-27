@@ -2798,7 +2798,7 @@ class Saas_model extends App_Model
         }
     }
 
-    public function get_payment_modes($payment_modes = false, $package = null)
+    public function get_payment_modes($payment_modes = false, $package = null, $billing_cycle = null)
     {
         if (!empty($payment_modes) && !is_object($payment_modes)) {
             $this->load->model('payment_modes_model');
@@ -2809,7 +2809,7 @@ class Saas_model extends App_Model
         }
         $payment_methods = get_old_result('tbl_saas_payment_methods', ['status' => 'active'], 'array');
         if (function_exists('saas_filter_checkout_payment_methods')) {
-            return saas_filter_checkout_payment_methods($payment_methods, $package);
+            return saas_filter_checkout_payment_methods($payment_methods, $package, $billing_cycle);
         }
 
         return $payment_methods;
@@ -3070,7 +3070,10 @@ class Saas_model extends App_Model
             redirect($_SERVER['HTTP_REFERER']);
         }
         $packageForGateway = get_old_result('tbl_saas_packages', ['id' => $data['package_id'] ?? (is_object($subs_info) ? ($subs_info->package_id ?? 0) : 0)], false);
-        saas_assert_package_checkout_gateway($payment_method->gateway_name, $packageForGateway);
+        $billing_cycle = function_exists('saas_normalize_billing_cycle')
+            ? saas_normalize_billing_cycle($data['billing_cycle'] ?? ($subs_info->frequency ?? 'monthly'))
+            : ($data['billing_cycle'] ?? 'monthly_price');
+        saas_assert_package_checkout_gateway($payment_method->gateway_name, $packageForGateway, $billing_cycle);
 
 
         $gateway_name = $payment_method->gateway_name;

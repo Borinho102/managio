@@ -92,7 +92,7 @@ class Setup extends CI_Controller
         $data['title'] = _l('checkout') . ' ' . _l('payment') . ' ' . _l('for') . ' ' . $package_info->name;
         $data['package_info'] = $package_info;
         $data['all_packages'] = get_old_result('tbl_saas_packages', ['status' => 'published']);
-        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
+        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info, $billing_cycle);
         $data['requires_payment'] = function_exists('saas_package_requires_payment')
             ? saas_package_requires_payment($package_info, $billing_cycle)
             : ((float) ($package_info->monthly_price ?? 0) > 0);
@@ -197,7 +197,7 @@ class Setup extends CI_Controller
             return;
         }
 
-        saas_assert_package_checkout_gateway($payment_method->gateway_name, $package_info);
+        saas_assert_package_checkout_gateway($payment_method->gateway_name, $package_info, $billing_cycle);
 
         $post_data['companies_id'] = $post_data['companies_id'] ?? $company_id;
         $post_data['billing_cycle'] = $billing_cycle;
@@ -298,6 +298,11 @@ class Setup extends CI_Controller
         $_data['requires_payment'] = function_exists('saas_package_requires_payment')
             ? saas_package_requires_payment($data['package_info'], $package_type)
             : ((float) ($data['package_info']->{$package_type} ?? 0) > 0);
+        $payment_modes = $this->saas_model->get_payment_modes(false, $data['package_info'], $package_type);
+        $_data['payment_methods_html'] = $this->load->view('saas/packages/payment_methods_radios', [
+            'payment_modes' => $payment_modes,
+            'requires_payment' => $_data['requires_payment'],
+        ], true);
         echo json_encode($_data);
         exit();
     }

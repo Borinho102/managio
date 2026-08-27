@@ -61,7 +61,10 @@ class Gb_client extends ClientsController
 
             $packageForGateway = get_old_result('tbl_saas_packages', ['id' => $post_data['package_id'] ?? $subs_info->package_id], false);
             if (function_exists('saas_assert_package_checkout_gateway')) {
-                saas_assert_package_checkout_gateway($payment_method->gateway_name, $packageForGateway);
+                $billing_cycle = function_exists('saas_normalize_billing_cycle')
+                    ? saas_normalize_billing_cycle($post_data['billing_cycle'] ?? 'monthly')
+                    : ($post_data['billing_cycle'] ?? 'monthly_price');
+                saas_assert_package_checkout_gateway($payment_method->gateway_name, $packageForGateway, $billing_cycle);
             }
 
             $data['frequency'] = str_replace('_price', '', $post_data['billing_cycle'] ?? 'monthly_price');
@@ -98,7 +101,13 @@ class Gb_client extends ClientsController
         $data['package_info'] = $package_info;
         $data['all_packages'] = get_old_result('tbl_saas_packages', array('status' => 'published'));
         $data['subs_info'] = $subs_info;
-        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
+        $billing_cycle = function_exists('saas_normalize_billing_cycle')
+            ? saas_normalize_billing_cycle($data['frequency'])
+            : 'monthly_price';
+        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info, $billing_cycle);
+        $data['requires_payment'] = function_exists('saas_package_requires_payment')
+            ? saas_package_requires_payment($package_info, $billing_cycle)
+            : ((float) ($package_info->monthly_price ?? 0) > 0);
         $data['url'] = site_url('clients/checkoutPayment/' . $data['package_id']);
         $this->set_layout($data, 'packages/checkoutPaymentOpen');
     }
@@ -497,14 +506,26 @@ class Gb_client extends ClientsController
             if (empty($data['subs_info'])) {
                 redirect('clients/subscribe/' . $data['package_id']);
             }
-            $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
+            $billing_cycle = function_exists('saas_normalize_billing_cycle')
+                ? saas_normalize_billing_cycle($data['frequency'] ?? 'monthly')
+                : 'monthly_price';
+            $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info, $billing_cycle);
+            $data['requires_payment'] = function_exists('saas_package_requires_payment')
+                ? saas_package_requires_payment($package_info, $billing_cycle)
+                : ((float) ($package_info->monthly_price ?? 0) > 0);
             $data['url'] = site_url('clients/checkoutPayment/' . $data['package_id']);
             $subview = 'checkoutPaymentOpen';
         } else if (!empty($company_id)) {
             $company_id = url_decode($company_id);
             $data['subs_info'] = $this->saas_model->company_info($company_id);
             $data['subs_info']->companies_id = $company_id;
-            $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info);
+            $billing_cycle = function_exists('saas_normalize_billing_cycle')
+                ? saas_normalize_billing_cycle($data['frequency'] ?? 'monthly')
+                : 'monthly_price';
+            $data['payment_modes'] = $this->saas_model->get_payment_modes(false, $package_info, $billing_cycle);
+            $data['requires_payment'] = function_exists('saas_package_requires_payment')
+                ? saas_package_requires_payment($package_info, $billing_cycle)
+                : ((float) ($package_info->monthly_price ?? 0) > 0);
             $subview = 'checkoutPaymentOpen';
             $data['company_id'] = $company_id;
             $data['front'] = true;

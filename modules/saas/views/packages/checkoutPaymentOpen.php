@@ -65,20 +65,16 @@ echo form_open($url, array('id' => 'checkoutPayment', 'enctype' => 'multipart/fo
                         $requires_payment = $requires_payment ?? true;
                         ?>
                         <div class="panel panel-custom" id="setup-payment-methods" <?= empty($requires_payment) ? 'style="display:none"' : '' ?>>
-                            <!-- Default panel contents -->
                             <div class="panel-heading">
                                 <strong><?= _l('select') . ' ' . _l('payment_method') ?></strong>
                             </div>
-                            <div class="panel-body">
-                                <?php if (!empty($payment_modes)) { foreach ($payment_modes as $mode) { ?>
-                                    <div class="radio radio-success online-payment-radio pull-left mright10">
-                                        <input type="radio" value="<?php echo $mode['id']; ?>"
-                                               <?= !empty($requires_payment) ? 'required' : '' ?>
-                                               id="pm_<?php echo $mode['id']; ?>" name="paymentmode">
-                                        <label for="pm_<?php echo $mode['id']; ?>"><?php echo _l($mode['gateway_name']); ?></label>
-                                    </div>
-                                    <?php
-                                } } ?>
+                            <div class="panel-body" id="setup-payment-methods-list">
+                                <?php
+                                $this->load->view('saas/packages/payment_methods_radios', [
+                                    'payment_modes' => $payment_modes ?? [],
+                                    'requires_payment' => !empty($requires_payment),
+                                ]);
+                                ?>
                             </div>
                         </div>
                         <div class="">
@@ -118,18 +114,30 @@ if (!empty($setup)){
 
 <script type="text/javascript">
     'use strict';
-    function toggleSetupPaymentMethods(requiresPayment) {
+    function toggleSetupPaymentMethods(requiresPayment, html) {
         var wrap = $('#setup-payment-methods');
+        var list = $('#setup-payment-methods-list');
+        if (typeof html === 'string' && list.length) {
+            list.html(html);
+        }
         if (!wrap.length) {
             return;
         }
         var radios = wrap.find('input[name="paymentmode"]');
-        if (requiresPayment) {
+        var hasMethods = radios.length > 0;
+        var submitBtn = $('#checkoutPayment button[type="submit"]');
+        if (requiresPayment && hasMethods) {
             wrap.show();
             radios.attr('required', 'required');
+            submitBtn.prop('disabled', false);
+        } else if (requiresPayment) {
+            wrap.show();
+            radios.removeAttr('required');
+            submitBtn.prop('disabled', true);
         } else {
             wrap.hide();
             radios.removeAttr('required').prop('checked', false);
+            submitBtn.prop('disabled', false);
         }
     }
 
@@ -160,7 +168,11 @@ if (!empty($setup)){
                 $('#billing_cycle').html(result.package_form_group);
                 $('#package_info').html(result.package_details);
                 $('#package_name').html(result.package_info.name);
-                toggleSetupPaymentMethods(result.requires_payment !== false && result.requires_payment !== 0);
+                var needsPay = result.requires_payment !== false && result.requires_payment !== 0;
+                var methodsHtml = (typeof result.payment_methods_html === 'string')
+                    ? result.payment_methods_html
+                    : undefined;
+                toggleSetupPaymentMethods(needsPay, methodsHtml);
                 if (is_coupon) {
                     $('.coupon_code_area').show();
                     $('input[name="is_coupon"]').prop('checked', true);

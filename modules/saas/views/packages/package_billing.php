@@ -94,7 +94,11 @@
                 <select name="payment_method" class="form-control select_box" style="width: 100%">
                     <option value=""><?= _l('dropdown_non_selected_tex') ?></option>
                     <?php
-                    $payment_modes = $this->saas_model->get_payment_modes();
+                    $payment_modes = $this->saas_model->get_payment_modes(
+                        false,
+                        $package_info ?? null,
+                        $type ?? ($package_type ?? null)
+                    );
                     if (!empty($payment_modes)) {
                         foreach ($payment_modes as $mode) {
                             ?>
