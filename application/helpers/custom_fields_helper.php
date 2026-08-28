@@ -35,6 +35,7 @@ function render_custom_fields($belongs_to, $rel_id = false, $where = [], $items_
 
     $CI->db->order_by('field_order', 'asc');
     $fields = $CI->db->get(db_prefix() . 'customfields')->result_array();
+    $fields = hooks()->apply_filters('custom_fields_before_render', $fields, $belongs_to, $rel_id);
 
     $fields_html = '';
 
@@ -347,6 +348,7 @@ function get_custom_fields($field_to, $where = [], $exclude_only_admin = false)
     $CI->db->order_by('field_order', 'asc');
 
     $results = $CI->db->get(db_prefix() . 'customfields')->result_array();
+    $results = hooks()->apply_filters('custom_fields_before_render', $results, $field_to, false);
 
     foreach ($results as $key => $result) {
         $results[$key]['name'] = _maybe_translate_custom_field_name(e($result['name']), $result['slug']);

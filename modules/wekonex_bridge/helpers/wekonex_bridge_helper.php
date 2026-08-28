@@ -51,6 +51,60 @@ function wekonex_bridge_custom_field_names(): array
 }
 
 /**
+ * Indique si un champ personnalisé appartient à l’intégration Wekonex.
+ */
+function wekonex_bridge_is_wekonex_custom_field(array $field): bool
+{
+    $names = wekonex_bridge_custom_field_names();
+    $name = (string) ($field['name'] ?? '');
+    $slug = (string) ($field['slug'] ?? '');
+
+    if (in_array($name, $names, true)) {
+        return true;
+    }
+
+    foreach ($names as $wekonexName) {
+        if ($slug !== '' && strpos($slug, $wekonexName) !== false) {
+            return true;
+        }
+    }
+
+    return $slug !== '' && strpos($slug, 'wekonex_') !== false;
+}
+
+/**
+ * Masque les champs Wekonex si le pont est désactivé ; jamais obligatoires.
+ *
+ * @param array<int, array<string, mixed>> $fields
+ * @return array<int, array<string, mixed>>
+ */
+function wekonex_bridge_filter_custom_fields_before_render(array $fields, string $fieldTo, $relId): array
+{
+    if ($fields === []) {
+        return $fields;
+    }
+
+    $enabled = wekonex_bridge_is_enabled();
+    $filtered = [];
+
+    foreach ($fields as $field) {
+        if (!wekonex_bridge_is_wekonex_custom_field($field)) {
+            $filtered[] = $field;
+            continue;
+        }
+
+        if (!$enabled) {
+            continue;
+        }
+
+        $field['required'] = 0;
+        $filtered[] = $field;
+    }
+
+    return $filtered;
+}
+
+/**
  * Applique le filtre SQL pour retrouver les champs Wekonex (name ou slug).
  */
 function wekonex_bridge_apply_custom_fields_query($db): void
@@ -97,7 +151,7 @@ function wekonex_bridge_sync_custom_fields(): void
 }
 
 /**
- * Retire l’obligation côté navigateur si la base n’a pas encore été alignée.
+ * Retire l’obligation côté navigateur ; masque les champs si le pont est désactivé.
  */
 function wekonex_bridge_custom_fields_ui_fix(): void
 {
@@ -106,7 +160,9 @@ function wekonex_bridge_custom_fields_ui_fix(): void
     }
 
     $names = wekonex_bridge_custom_field_names();
-    echo '<script>(function($){function w(){var n=' . json_encode($names) . ';$(".custom-fields-form-row .form-group").each(function(){var g=$(this),t=g.find("label.control-label").first().text().trim();if(!n.some(function(x){return t===x||t.indexOf(x)>=0;})){return;}g.find("[data-custom-field-required]").removeAttr("data-custom-field-required");g.find("label .req").remove();g.find("input,select,textarea").each(function(){var e=$(this);if(e.rules){try{e.rules("remove","required");}catch(x){}}});});}$(function(){w();setTimeout(w,0);setTimeout(w,500);$("a[data-toggle=tab]").on("shown.bs.tab",w);});})(jQuery);</script>';
+    $enabled = wekonex_bridge_is_enabled() ? 'true' : 'false';
+
+    echo '<script>(function($){var n=' . json_encode($names) . ',e=' . $enabled . ';function w(t){return n.some(function(x){return t===x||t.indexOf(x)>=0;});}function r(){$(".form-group").each(function(){var g=$(this),t=g.find("label.control-label").first().text().replace(/\\s+/g," ").trim();if(!w(t)){return;}if(!e){g.hide();g.find("input,select,textarea").addClass("do-not-validate").prop("disabled",true);}g.find("[data-custom-field-required]").removeAttr("data-custom-field-required");g.find("label .req").remove();g.find("input,select,textarea").each(function(){var i=$(this);i.addClass("do-not-validate");if(i.rules){try{i.rules("remove","required");}catch(x){}}});});}$(function(){r();setTimeout(r,0);setTimeout(r,500);setTimeout(r,1500);$("a[data-toggle=tab]").on("shown.bs.tab",r);});})(jQuery);</script>';
 }
 
 function wekonex_bridge_sso_secret(): string
