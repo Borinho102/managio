@@ -28,6 +28,52 @@ function wekonex_bridge_is_enabled(): bool
     return get_option('wekonex_bridge_enabled') === '1';
 }
 
+/**
+ * Noms des champs personnalisés créés par le module (clients, contacts, factures).
+ *
+ * @return string[]
+ */
+function wekonex_bridge_custom_field_names(): array
+{
+    return [
+        'wekonex_tenant_id',
+        'wekonex_domain',
+        'wekonex_user_id',
+        'wekonex_user_uuid',
+        'wekonex_role',
+        'wekonex_is_alumni',
+        'wekonex_company',
+        'wekonex_job_title',
+        'wekonex_payment_id',
+        'wekonex_payment_uuid',
+        'wekonex_payment_type',
+    ];
+}
+
+/**
+ * Aligne required/active des champs Wekonex sur l’état du pont.
+ * Pont désactivé : plus obligatoires et masqués (création de clients Managio possible).
+ */
+function wekonex_bridge_sync_custom_fields(): void
+{
+    $CI = &get_instance();
+    $table = db_prefix() . 'customfields';
+
+    if (!$CI->db->table_exists($table)) {
+        return;
+    }
+
+    $enabled = wekonex_bridge_is_enabled();
+    $update = ['active' => $enabled ? 1 : 0];
+
+    if (!$enabled) {
+        $update['required'] = 0;
+    }
+
+    $CI->db->where_in('name', wekonex_bridge_custom_field_names());
+    $CI->db->update($table, $update);
+}
+
 function wekonex_bridge_sso_secret(): string
 {
     return (string) get_option('wekonex_bridge_sso_secret');
@@ -265,7 +311,7 @@ function wekonex_bridge_install_custom_fields(): void
     foreach ($definitions as $def) {
         $exists = $CI->db
             ->where('fieldto', $def['fieldto'])
-            ->where('slug', $def['name'])
+            ->where('name', $def['name'])
             ->count_all_results(db_prefix() . 'customfields');
         if ($exists > 0) {
             continue;
@@ -280,4 +326,6 @@ function wekonex_bridge_install_custom_fields(): void
             'only_admin' => 0,
         ]);
     }
+
+    wekonex_bridge_sync_custom_fields();
 }

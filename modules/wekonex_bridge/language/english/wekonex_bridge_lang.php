@@ -4,6 +4,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 
 $lang['wekonex_bridge_settings'] = 'Wekonex Bridge';
 $lang['wekonex_bridge_enabled'] = 'Enable Wekonex integration';
+$lang['wekonex_bridge_enabled_fields_hint'] = 'When disabled, Wekonex custom fields (wekonex_tenant_id, wekonex_domain, …) are no longer required and are hidden on customer, contact and invoice forms.';
 $lang['wekonex_bridge_wekonex_url'] = 'Wekonex base URL';
 $lang['wekonex_bridge_sso_secret'] = 'SSO shared secret (HMAC)';
 $lang['wekonex_bridge_sso_secret_hint'] = 'Must match MANAGIO_SSO_SECRET in Wekonex .env (min. 32 characters recommended).';

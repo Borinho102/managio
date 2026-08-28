@@ -14,6 +14,7 @@
                             <input type="checkbox" name="wekonex_bridge_enabled" id="wekonex_bridge_enabled" value="1" <?php echo get_option('wekonex_bridge_enabled') == '1' ? 'checked' : ''; ?>>
                             <label for="wekonex_bridge_enabled"><?php echo _l('wekonex_bridge_enabled'); ?></label>
                         </div>
+                        <p class="text-muted"><?php echo _l('wekonex_bridge_enabled_fields_hint'); ?></p>
                         <?php echo render_input('wekonex_bridge_wekonex_url', 'wekonex_bridge_wekonex_url', get_option('wekonex_bridge_wekonex_url')); ?>
                         <?php echo render_input('wekonex_bridge_sso_secret', 'wekonex_bridge_sso_secret', get_option('wekonex_bridge_sso_secret'), 'password'); ?>
                         <p class="text-muted"><?php echo _l('wekonex_bridge_sso_secret_hint'); ?></p>

@@ -5,7 +5,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 /*
 Module Name: Wekonex Bridge
 Description: Intégration Wekonex ↔ Managio (SSO, webhooks, journalisation).
-Version: 1.0.0
+Version: 1.0.1
 Requires at least: 3.0.*
 Author: Wekonex
 */
@@ -35,6 +35,8 @@ function wekonex_bridge_run_upgrade(): void
     if (!get_instance()->db->table_exists($table)) {
         require_once __DIR__ . '/upgrade.php';
     }
+
+    wekonex_bridge_sync_custom_fields();
 }
 
 function wekonex_bridge_activation()
@@ -45,6 +47,7 @@ function wekonex_bridge_activation()
 function wekonex_bridge_deactivation()
 {
     update_option('wekonex_bridge_enabled', '0');
+    wekonex_bridge_sync_custom_fields();
 }
 
 function wekonex_bridge_uninstall()
