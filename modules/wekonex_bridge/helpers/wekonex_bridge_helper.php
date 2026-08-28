@@ -56,22 +56,32 @@ function wekonex_bridge_custom_field_names(): array
  */
 function wekonex_bridge_sync_custom_fields(): void
 {
-    $CI = &get_instance();
-    $table = db_prefix() . 'customfields';
-
-    if (!$CI->db->table_exists($table)) {
+    static $synced = false;
+    if ($synced) {
         return;
     }
+    $synced = true;
 
-    $enabled = wekonex_bridge_is_enabled();
-    $update = ['active' => $enabled ? 1 : 0];
+    try {
+        $CI = &get_instance();
+        $table = db_prefix() . 'customfields';
 
-    if (!$enabled) {
-        $update['required'] = 0;
+        if (!$CI->db->table_exists($table)) {
+            return;
+        }
+
+        $enabled = wekonex_bridge_is_enabled();
+        $update = ['active' => $enabled ? 1 : 0];
+
+        if (!$enabled) {
+            $update['required'] = 0;
+        }
+
+        $CI->db->where_in('name', wekonex_bridge_custom_field_names());
+        $CI->db->update($table, $update);
+    } catch (\Throwable $e) {
+        log_message('error', 'wekonex_bridge_sync_custom_fields: ' . $e->getMessage());
     }
-
-    $CI->db->where_in('name', wekonex_bridge_custom_field_names());
-    $CI->db->update($table, $update);
 }
 
 function wekonex_bridge_sso_secret(): string

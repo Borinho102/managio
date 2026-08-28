@@ -61,7 +61,7 @@ function wekonex_bridge_admin_init()
         $CI = &get_instance();
         $CI->app_menu->add_setup_children_item('modules', [
             'slug'     => 'wekonex-bridge-settings',
-            'name'     => _l('wekonex_bridge_settings'),
+            'name'     => 'wekonex_bridge_settings',
             'href'     => admin_url('wekonex_bridge/settings'),
             'position' => 65,
         ]);

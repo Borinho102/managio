@@ -29,7 +29,7 @@ foreach ($setup_menu as $key => $item) {
                 <i
                     class="<?= e($item['icon']); ?> menu-icon"></i>
                 <span class="menu-text">
-                    <?= html_purify(_l($item['name'], '', false)); ?>
+                    <?= e(_l($item['name'], '', false)); ?>
                 </span>
                 <?php if (count($item['children']) > 0) { ?>
                 <span class="fa arrow"></span>
