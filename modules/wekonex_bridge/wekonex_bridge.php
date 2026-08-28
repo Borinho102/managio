@@ -5,7 +5,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 /*
 Module Name: Wekonex Bridge
 Description: Intégration Wekonex ↔ Managio (SSO, webhooks, journalisation).
-Version: 1.0.2
+Version: 1.0.3
 Requires at least: 3.0.*
 Author: Wekonex
 */
@@ -21,19 +21,19 @@ register_activation_hook(WEKONEX_BRIDGE_MODULE, 'wekonex_bridge_activation');
 register_deactivation_hook(WEKONEX_BRIDGE_MODULE, 'wekonex_bridge_deactivation');
 register_uninstall_hook(WEKONEX_BRIDGE_MODULE, 'wekonex_bridge_uninstall');
 
+hooks()->add_action('pre_admin_init', 'wekonex_bridge_sync_custom_fields', 1);
 hooks()->add_action('admin_init', 'wekonex_bridge_admin_init');
 hooks()->add_action('admin_init', 'wekonex_bridge_ensure_options');
 hooks()->add_action('admin_init', 'wekonex_bridge_run_upgrade');
+hooks()->add_action('app_admin_footer', 'wekonex_bridge_custom_fields_ui_fix');
 
 function wekonex_bridge_run_upgrade(): void
 {
-    if (!is_admin()) {
-        return;
-    }
-
-    $table = db_prefix() . 'wekonex_entity_mappings';
-    if (!get_instance()->db->table_exists($table)) {
-        require_once __DIR__ . '/upgrade.php';
+    if (is_admin()) {
+        $table = db_prefix() . 'wekonex_entity_mappings';
+        if (!get_instance()->db->table_exists($table)) {
+            require_once __DIR__ . '/upgrade.php';
+        }
     }
 
     wekonex_bridge_sync_custom_fields();

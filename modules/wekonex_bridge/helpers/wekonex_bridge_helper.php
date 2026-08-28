@@ -51,6 +51,19 @@ function wekonex_bridge_custom_field_names(): array
 }
 
 /**
+ * Applique le filtre SQL pour retrouver les champs Wekonex (name ou slug).
+ */
+function wekonex_bridge_apply_custom_fields_query($db): void
+{
+    $names = wekonex_bridge_custom_field_names();
+
+    $db->group_start();
+    $db->where_in('name', $names);
+    $db->or_like('slug', 'wekonex_', 'both');
+    $db->group_end();
+}
+
+/**
  * Aligne active/required des champs Wekonex sur l’état du pont.
  * Les champs ne sont jamais obligatoires (sync Wekonex les remplit si besoin).
  * Pont désactivé : champs masqués sur les formulaires.
@@ -73,7 +86,7 @@ function wekonex_bridge_sync_custom_fields(): void
 
         $enabled = wekonex_bridge_is_enabled();
 
-        $CI->db->where_in('name', wekonex_bridge_custom_field_names());
+        wekonex_bridge_apply_custom_fields_query($CI->db);
         $CI->db->update($table, [
             'required' => 0,
             'active' => $enabled ? 1 : 0,
@@ -81,6 +94,19 @@ function wekonex_bridge_sync_custom_fields(): void
     } catch (\Throwable $e) {
         log_message('error', 'wekonex_bridge_sync_custom_fields: ' . $e->getMessage());
     }
+}
+
+/**
+ * Retire l’obligation côté navigateur si la base n’a pas encore été alignée.
+ */
+function wekonex_bridge_custom_fields_ui_fix(): void
+{
+    if (!is_staff_logged_in()) {
+        return;
+    }
+
+    $names = wekonex_bridge_custom_field_names();
+    echo '<script>(function($){function w(){var n=' . json_encode($names) . ';$(".custom-fields-form-row .form-group").each(function(){var g=$(this),t=g.find("label.control-label").first().text().trim();if(!n.some(function(x){return t===x||t.indexOf(x)>=0;})){return;}g.find("[data-custom-field-required]").removeAttr("data-custom-field-required");g.find("label .req").remove();g.find("input,select,textarea").each(function(){var e=$(this);if(e.rules){try{e.rules("remove","required");}catch(x){}}});});}$(function(){w();setTimeout(w,0);setTimeout(w,500);$("a[data-toggle=tab]").on("shown.bs.tab",w);});})(jQuery);</script>';
 }
 
 function wekonex_bridge_sso_secret(): string

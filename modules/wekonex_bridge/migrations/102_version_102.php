@@ -35,7 +35,12 @@ class Migration_Version_102 extends App_module_migration
                 'wekonex_payment_type',
             ];
 
-        $CI->db->where_in('name', $names);
+        if (function_exists('wekonex_bridge_apply_custom_fields_query')) {
+            wekonex_bridge_apply_custom_fields_query($CI->db);
+        } else {
+            $CI->db->where_in('name', $names);
+        }
+
         $CI->db->update($table, [
             'required' => 0,
             'active' => $enabled ? 1 : 0,
