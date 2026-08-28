@@ -51,8 +51,9 @@ function wekonex_bridge_custom_field_names(): array
 }
 
 /**
- * Aligne required/active des champs Wekonex sur l’état du pont.
- * Pont désactivé : plus obligatoires et masqués (création de clients Managio possible).
+ * Aligne active/required des champs Wekonex sur l’état du pont.
+ * Les champs ne sont jamais obligatoires (sync Wekonex les remplit si besoin).
+ * Pont désactivé : champs masqués sur les formulaires.
  */
 function wekonex_bridge_sync_custom_fields(): void
 {
@@ -71,14 +72,12 @@ function wekonex_bridge_sync_custom_fields(): void
         }
 
         $enabled = wekonex_bridge_is_enabled();
-        $update = ['active' => $enabled ? 1 : 0];
-
-        if (!$enabled) {
-            $update['required'] = 0;
-        }
 
         $CI->db->where_in('name', wekonex_bridge_custom_field_names());
-        $CI->db->update($table, $update);
+        $CI->db->update($table, [
+            'required' => 0,
+            'active' => $enabled ? 1 : 0,
+        ]);
     } catch (\Throwable $e) {
         log_message('error', 'wekonex_bridge_sync_custom_fields: ' . $e->getMessage());
     }
