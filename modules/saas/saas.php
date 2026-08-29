@@ -107,6 +107,7 @@ hooks()->add_action('before_payment_recorded', 'saas_payment_recorded');
 hooks()->add_action('before_admin_login_form_close', 'saas_admin_login_form_close');
 hooks()->add_action('before_login', 'saas_before_staff_login');
 hooks()->add_action('sidebar_menu_items', 'saas_sidebar_menu_items');
+hooks()->add_filter('sidebar_menu_items', 'saas_ensure_core_crm_menu_items', 1005);
 hooks()->add_action('saas_after_company_database_created', 'saas_after_company_database_created_payin');
 hooks()->add_action('pre_activate_module', 'saas_pre_activate_module');
 hooks()->add_action('pre_deactivate_module', 'saas_pre_deactivate_module');
@@ -256,6 +257,10 @@ function saas_sidebar_menu_items($items): array
         $all_disabled_modules = [];
 
         foreach ($allUses as $key => $feature) {
+            // Clients & Prospects are core CRM — never remove from sidebar via package limits
+            if (in_array($feature, saas_protected_crm_features(), true)) {
+                continue;
+            }
             if (isset($items[$feature]))
                 unset($items[$feature]);
 
@@ -282,6 +287,9 @@ function saas_sidebar_menu_items($items): array
 
         if (!empty($items)) {
             foreach ($items as $key => $item) {
+                if (in_array($item['slug'], saas_protected_crm_features(), true)) {
+                    continue;
+                }
                 if (in_array($item['slug'], $allUses)) {
                     $items[$key]['slug'] = $item['slug'] . ' hidden';
                 }
@@ -331,6 +339,55 @@ function saas_sidebar_menu_items($items): array
         log_message('error', 'saas_sidebar_menu_items: ' . $e->getMessage());
         return is_array($items) ? $items : [];
     }
+    return $items;
+}
+
+/**
+ * Re-add Clients and Prospects if SaaS / Menu Setup removed them.
+ */
+function saas_ensure_core_crm_menu_items($items): array
+{
+    if (!is_array($items)) {
+        return [];
+    }
+
+    try {
+        if (!function_exists('subdomain') || empty(subdomain())) {
+            return $items;
+        }
+    } catch (Throwable $e) {
+        return $items;
+    }
+
+    $canCustomers = is_admin()
+        || staff_can('view', 'customers')
+        || have_assigned_customers()
+        || staff_can('create', 'customers');
+
+    if ($canCustomers && !isset($items['customers'])) {
+        $items['customers'] = [
+            'slug'     => 'customers',
+            'name'     => _l('als_clients'),
+            'href'     => admin_url('clients'),
+            'position' => 5,
+            'icon'     => 'fa-regular fa-user',
+            'badge'    => [],
+            'children' => [],
+        ];
+    }
+
+    if ((is_admin() || is_staff_member()) && !isset($items['leads'])) {
+        $items['leads'] = [
+            'slug'     => 'leads',
+            'name'     => _l('als_leads'),
+            'href'     => admin_url('leads'),
+            'position' => 45,
+            'icon'     => 'fa-solid fa-crosshairs',
+            'badge'    => [],
+            'children' => [],
+        ];
+    }
+
     return $items;
 }
 
@@ -637,6 +694,9 @@ if ($saas_is_tenant_host) {
 
         $disabled_modules = $GLOBALS['disabled_features'];
         foreach ($disabled_modules as $key => $feature) {
+            if (in_array($feature, saas_protected_crm_features(), true)) {
+                continue;
+            }
             if (isset($items[$feature]))
                 unset($items[$feature]);
 

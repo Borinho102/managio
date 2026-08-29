@@ -3290,7 +3290,8 @@ function get_usages($company_info, $slug = ''): array
             'slug' => 'customers',
             'url' => admin_url('clients'),
             'total' => total_rows('clients'),
-            'limit' => get_numeric($company_info->client_no),
+            // Core CRM: empty package limit must not hide Clients (treat as unlimited)
+            'limit' => saas_core_feature_limit($company_info->client_no ?? null),
             'for' => 'client_no',
         ], [
             'name' => _l('projects'),
@@ -3347,7 +3348,8 @@ function get_usages($company_info, $slug = ''): array
             'slug' => 'leads',
             'url' => admin_url('leads'),
             'total' => total_rows('leads'),
-            'limit' => get_numeric($company_info->leads_no),
+            // Core CRM: empty package limit must not hide Prospects (treat as unlimited)
+            'limit' => saas_core_feature_limit($company_info->leads_no ?? null),
             'for' => 'leads_no',
         ], [
             'name' => _l('expenses'),
@@ -3452,6 +3454,33 @@ function get_numeric($key)
             return false;
         }
     }
+}
+
+/**
+ * Limit for core CRM features (clients / leads).
+ * Empty package values used to hide those menus entirely — default to unlimited.
+ *
+ * @param mixed $key
+ * @return mixed
+ */
+function saas_core_feature_limit($key)
+{
+    $limit = get_numeric($key);
+    if ($limit === false || $limit === null) {
+        return get_numeric(0);
+    }
+
+    return $limit;
+}
+
+/**
+ * Menu / permission slugs that must stay available on every tenant.
+ *
+ * @return string[]
+ */
+function saas_protected_crm_features(): array
+{
+    return ['customers', 'leads', 'clients'];
 }
 
 function get_coupon_by_package_type($package_type)
@@ -4031,7 +4060,8 @@ function seed_db()
 
 function get_default_modules(): array
 {
-    $modules = ['leads', 'projects', 'tasks', 'expenses', 'proposals', 'estimates', 'estimate_request', 'tickets', 'reports', 'contracts', 'knowledge_base', 'custom_fields', 'credit_notes', 'subscriptions', 'invoices', 'items', 'payments'];
+    // leads stays listed for UI history but is stripped in disabled_default_modules (core CRM)
+    $modules = ['projects', 'tasks', 'expenses', 'proposals', 'estimates', 'estimate_request', 'tickets', 'reports', 'contracts', 'knowledge_base', 'custom_fields', 'credit_notes', 'subscriptions', 'invoices', 'items', 'payments'];
     asort($modules);
     return $modules;
 }
@@ -4050,6 +4080,12 @@ function disabled_default_modules($domain = null, $mode = "controller")
             $modules = [];
         }
     }
+
+    // Never disable core CRM (Clients / Prospects)
+    $protected = saas_protected_crm_features();
+    $modules = array_values(array_filter($modules, static function ($value) use ($protected) {
+        return $value !== '' && $value !== null && !in_array($value, $protected, true);
+    }));
 
     if ($mode !== "controller") {
         // Adapt for menu and tabs check
