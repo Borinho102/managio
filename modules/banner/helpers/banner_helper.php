@@ -111,6 +111,10 @@ if (!function_exists('banner_ensure_database')) {
         $newsTable   = db_prefix() . 'news_ticker';
 
         if ($CI->db->table_exists($bannerTable) && $CI->db->table_exists($newsTable)) {
+            if (get_option('time_of_banner_presentation') === false || get_option('time_of_banner_presentation') === '') {
+                add_option('time_of_banner_presentation', 10);
+            }
+
             return;
         }
 
@@ -320,6 +324,33 @@ if (!function_exists('getBannerDetails')) {
     }
 }
 
+if (!function_exists('banner_carousel_interval_ms')) {
+    /**
+     * Settings UI stores seconds; Bootstrap carousel needs milliseconds.
+     * Values < 1000 are treated as seconds. Empty/invalid → 10s.
+     */
+    function banner_carousel_interval_ms()
+    {
+        $raw = get_option('time_of_banner_presentation');
+        if ($raw === false || $raw === null || $raw === '') {
+            return 10000;
+        }
+
+        $value = (float) $raw;
+        if ($value <= 0) {
+            return 10000;
+        }
+
+        // Already milliseconds (e.g. 7000)
+        if ($value >= 1000) {
+            return (int) min($value, 120000);
+        }
+
+        // Seconds from settings form (e.g. 7 or 10)
+        return (int) min(max($value * 1000, 3000), 120000);
+    }
+}
+
 if (!function_exists('renderBanner')) {
     function renderBanner($details) {
         $content = '';
@@ -357,12 +388,12 @@ if (!function_exists('renderBanner')) {
                                 </div>';
                 $i++;
             }
-            $interval = get_option('time_of_banner_presentation') ?? '7000';
+            $interval = banner_carousel_interval_ms();
             $preparList .= '</ol>';
             $preparContent .= '</div>';
 
             $content = '<div class="col-md-12 mbot15">';
-            $content .= '<div id="myCarousel" class="carousel slide" data-ride="carousel" data-interval="' . $interval . '">';
+            $content .= '<div id="myCarousel" class="carousel slide" data-ride="carousel" data-interval="' . $interval . '" data-pause="hover">';
             $content .= $preparList;
             $content .= $preparContent;
             if (count($details['banner']) > 1) {
@@ -375,6 +406,16 @@ if (!function_exists('renderBanner')) {
             }
 
             $content .= '</div></div>';
+            $content .= '<script>
+(function(){
+  function initManagioBannerCarousel(){
+    var $c = $("#myCarousel");
+    if (!$c.length || typeof $.fn.carousel !== "function") return;
+    $c.carousel({ interval: ' . (int) $interval . ', pause: "hover", wrap: true });
+  }
+  if (window.jQuery) { $(initManagioBannerCarousel); }
+})();
+</script>';
         }
 
         if (!empty($details['news'])) {

@@ -8,6 +8,7 @@ defined('BASEPATH') || exit('No direct script access allowed');
 
 try {
     add_option('enabled_banner_random_mode', 0);
+    add_option('time_of_banner_presentation', 10);
 
     $CI = get_instance();
     $charset = $CI->db->char_set ?: 'utf8mb4';
