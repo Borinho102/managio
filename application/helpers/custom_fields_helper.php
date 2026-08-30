@@ -49,6 +49,14 @@ function render_custom_fields($belongs_to, $rel_id = false, $where = [], $items_
                 continue;
             }
 
+            if (is_wekonex_integration_custom_field($field) && (!function_exists('wekonex_bridge_is_enabled') || !wekonex_bridge_is_enabled())) {
+                continue;
+            }
+
+            if (is_wekonex_integration_custom_field($field)) {
+                $field['required'] = 0;
+            }
+
             $field['name'] = _maybe_translate_custom_field_name($field['name'], $field['slug']);
 
             $value = '';
@@ -360,6 +368,41 @@ function get_custom_fields($field_to, $where = [], $exclude_only_admin = false)
 function _maybe_translate_custom_field_name($name, $slug)
 {
     return _l('cf_translate_' . $slug, '', false) != 'cf_translate_' . $slug ? _l('cf_translate_' . $slug, '', false) : $name;
+}
+
+/**
+ * Detect Wekonex integration custom fields (works even if wekonex_bridge module is inactive).
+ *
+ * @param array $field
+ */
+function is_wekonex_integration_custom_field(array $field): bool
+{
+    if (function_exists('wekonex_bridge_is_wekonex_custom_field')) {
+        return wekonex_bridge_is_wekonex_custom_field($field);
+    }
+
+    $slug = (string) ($field['slug'] ?? '');
+    $name = (string) ($field['name'] ?? '');
+
+    if ($slug !== '' && strpos($slug, 'wekonex_') !== false) {
+        return true;
+    }
+
+    $known = [
+        'wekonex_tenant_id',
+        'wekonex_domain',
+        'wekonex_user_id',
+        'wekonex_user_uuid',
+        'wekonex_role',
+        'wekonex_is_alumni',
+        'wekonex_company',
+        'wekonex_job_title',
+        'wekonex_payment_id',
+        'wekonex_payment_uuid',
+        'wekonex_payment_type',
+    ];
+
+    return in_array($name, $known, true);
 }
 
 /**

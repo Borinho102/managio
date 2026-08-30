@@ -23,7 +23,7 @@
                     </li>
                     <?php
                   $customer_custom_fields = false;
-if (total_rows(db_prefix() . 'customfields', ['fieldto' => 'customers', 'active' => 1]) > 0) {
+if (total_rows(db_prefix() . 'customfields', ['fieldto' => 'customers', 'active' => 1, 'display_inline' => 0]) > 0) {
     $customer_custom_fields = true; ?>
                     <li role="presentation"
                         class="<?= $this->input->get('tab') == 'custom_fields' ? 'active' : ''; ?>">
@@ -63,7 +63,7 @@ if (total_rows(db_prefix() . 'customfields', ['fieldto' => 'customers', 'active'
                 <div class="row">
                     <div class="col-md-8">
                         <?php $rel_id = (isset($client) ? $client->userid : false); ?>
-                        <?= render_custom_fields('customers', $rel_id); ?>
+                        <?= render_custom_fields('customers', $rel_id, ['display_inline' => 0]); ?>
                     </div>
                 </div>
             </div>
@@ -90,6 +90,8 @@ if (total_rows(db_prefix() . 'customfields', ['fieldto' => 'customers', 'active'
                         <?= render_input('company', 'client_company', $value, 'text', $attrs); ?>
                         <div id="company_exists_info" class="hide"></div>
                         <?php hooks()->do_action('after_customer_profile_company_field', $client ?? null); ?>
+                        <?php $rel_id = (isset($client) ? $client->userid : false); ?>
+                        <?= render_custom_fields('customers', $rel_id, ['display_inline' => 1]); ?>
                         <?php if (get_option('company_requires_vat_number_field') == 1) {
                             $value = (isset($client) ? $client->vat : '');
                             echo render_input('vat', 'client_vat_number', $value);

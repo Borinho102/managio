@@ -5,7 +5,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 /*
 Module Name: Wekonex Bridge
 Description: Intégration Wekonex ↔ Managio (SSO, webhooks, journalisation).
-Version: 1.0.4
+Version: 1.0.5
 Requires at least: 3.0.*
 Author: Wekonex
 */

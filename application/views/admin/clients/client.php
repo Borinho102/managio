@@ -111,11 +111,11 @@
                     <?php if ($group == 'profile') { ?>
                     <div class="panel-footer text-right tw-space-x-1" id="profile-save-section">
                         <?php if (! isset($client)) { ?>
-                        <button class="btn btn-default save-and-add-contact customer-form-submiter">
+                        <button type="button" class="btn btn-default save-and-add-contact customer-form-submiter">
                             <?= _l('save_customer_and_add_contact'); ?>
                         </button>
                         <?php } ?>
-                        <button class="btn btn-primary only-save customer-form-submiter">
+                        <button type="button" class="btn btn-primary only-save customer-form-submiter">
                             <?= _l('submit'); ?>
                         </button>
                     </div>

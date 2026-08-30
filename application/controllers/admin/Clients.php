@@ -107,6 +107,7 @@ class Clients extends AdminController
                     }
                 }
 
+                log_message('error', '[clients] Failed to create client. DB error: ' . json_encode($this->db->error()));
                 set_alert('danger', _l('something_went_wrong'));
             } else {
                 if (staff_cant('edit', 'customers')) {

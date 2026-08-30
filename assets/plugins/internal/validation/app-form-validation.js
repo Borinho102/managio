@@ -116,22 +116,31 @@ if (typeof $.validator == "undefined") {
           $.fn.appFormValidator.internal_options.required_custom_fields_selector
         ),
         function () {
+          var $field = $(this);
+          var $tabPane = $field.closest(
+            "." + $.fn.appFormValidator.internal_options.tab_panel_wrapper
+          );
+
           // for custom fields in tr.main, do not validate those
           if (
-            !$(this).parents("tr.main").length &&
-            !$(this).hasClass("do-not-validate")
+            $field.parents("tr.main").length ||
+            $field.hasClass("do-not-validate") ||
+            ($tabPane.length &&
+              !$tabPane.hasClass("active") &&
+              !$tabPane.is(":visible"))
           ) {
-            $(this).rules("add", { required: true });
-            if ($.fn.appFormValidator.internal_options.on_required_add_symbol) {
-              var label = $(this)
-                .parents(
-                  "." +
-                    $.fn.appFormValidator.internal_options.field_wrapper_class
-                )
-                .find('[for="' + $(this).attr("name") + '"]');
-              if (label.length > 0 && label.find(".req").length === 0) {
-                label.prepend('<small class="req text-danger">* </small>');
-              }
+            return;
+          }
+
+          $field.rules("add", { required: true });
+          if ($.fn.appFormValidator.internal_options.on_required_add_symbol) {
+            var label = $field
+              .parents(
+                "." + $.fn.appFormValidator.internal_options.field_wrapper_class
+              )
+              .find('[for="' + $field.attr("name") + '"]');
+            if (label.length > 0 && label.find(".req").length === 0) {
+              label.prepend('<small class="req text-danger">* </small>');
             }
           }
         }

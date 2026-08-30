@@ -80,13 +80,43 @@ $(function() {
         }, 200);
     });
 
-    $('.customer-form-submiter').on('click', function() {
-        var form = $('.client-form');
+    function prepareClientFormForSubmit(form) {
         if (typeof window.wekonexBridgeNeutralizeClientForm === 'function') {
             window.wekonexBridgeNeutralizeClientForm(form);
         }
-        if (!form.valid()) {
-            var $errorGroup = form.find('.form-group.has-error').first();
+
+        form.find('.tab-pane').each(function() {
+            var $pane = $(this);
+            if ($pane.hasClass('active') && $pane.is(':visible')) {
+                return;
+            }
+
+            $pane.find('input,select,textarea').each(function() {
+                var $el = $(this);
+                $el.removeAttr('data-custom-field-required').addClass('do-not-validate');
+                if ($el.rules) {
+                    try {
+                        $el.rules('remove', 'required');
+                    } catch (e) {}
+                }
+            });
+        });
+    }
+
+    $('.customer-form-submiter').on('click', function(e) {
+        e.preventDefault();
+        var form = $('.client-form');
+        prepareClientFormForSubmit(form);
+
+        if (!form.length) {
+            return false;
+        }
+
+        if (typeof form.valid === 'function' && !form.valid()) {
+            var $errorGroup = form.find('.form-group.has-error, .has-error').first();
+            if (!$errorGroup.length) {
+                $errorGroup = form.find('.tab-validated').first();
+            }
             var $tabPane = $errorGroup.closest('.tab-pane');
             if ($tabPane.length && !$tabPane.is(':visible')) {
                 $('.customer-profile-tabs a[href="#' + $tabPane.attr('id') + '"]').tab('show');
@@ -94,12 +124,13 @@ $(function() {
             alert_float('warning', <?= json_encode(_l('custom_fields') . ' — ' . _l('custom_field_required')); ?>);
             return false;
         }
+
         if ($(this).hasClass('save-and-add-contact')) {
             form.find('.additional').html(hidden_input('save_and_add_contact', 'true'));
         } else {
             form.find('.additional').html('');
         }
-        form.submit();
+        form.trigger('submit');
     });
 
     if (typeof(Dropbox) != 'undefined' && $('#dropbox-chooser').length > 0) {
