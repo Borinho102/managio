@@ -2,6 +2,7 @@
 <div class="row">
     <div class="col-md-12 section-client-dashboard">
         <h3 id="greeting" class="tw-font-semibold tw-mt-0"></h3>
+        <?php hooks()->do_action('display_banner_for_client_area'); ?>
         <?php if (has_contact_permission('projects')) { ?>
         <h3 class="projects-summary-heading tw-text-neutral-700 tw-font-medium tw-text-lg tw-mt-7">
             <?= _l('projects_summary'); ?>

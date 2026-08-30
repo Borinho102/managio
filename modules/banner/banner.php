@@ -72,6 +72,36 @@ if (!function_exists('bannerContent')) {
     }
 }
 
+hooks()->add_action('app_init', 'banner_ensure_client_theme_override', 20);
+hooks()->add_action('admin_init', 'banner_ensure_client_theme_override', 20);
+
+if (!function_exists('banner_ensure_client_theme_override')) {
+    /**
+     * BannerCraft shows client banners via my_home.php theme override.
+     * SaaS / incomplete installs often skip copy — recreate it when missing.
+     */
+    function banner_ensure_client_theme_override()
+    {
+        if (!defined('BANNER_MODULE') || !defined('VIEWPATH')) {
+            return;
+        }
+
+        $themeHome = VIEWPATH . 'themes/perfex/views/my_home.php';
+        $themeHomeSrc = module_dir_path(BANNER_MODULE, 'resources/application/views/themes/perfex/views/my_home.php');
+
+        if (file_exists($themeHome) || !file_exists($themeHomeSrc)) {
+            return;
+        }
+
+        $dir = dirname($themeHome);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        @copy($themeHomeSrc, $themeHome);
+    }
+}
+
 hooks()->add_action('before_start_render_dashboard_content', function () {
     try {
         echo bannerContent('admin_area');
@@ -81,6 +111,12 @@ hooks()->add_action('before_start_render_dashboard_content', function () {
 });
 
 hooks()->add_action('display_banner_for_client_area', function () {
+    static $rendered = false;
+    if ($rendered) {
+        return;
+    }
+    $rendered = true;
+
     try {
         echo '<div class="row">' . bannerContent('clients_area') . '</div>';
     } catch (Throwable $e) {

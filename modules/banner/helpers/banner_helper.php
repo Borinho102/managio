@@ -50,6 +50,7 @@ if (!function_exists('handleBannerImageUpload')) {
                         'title' => $CI->input->post('title'),
                         'start_date' => to_sql_date($postData['start_date']),
                         'end_date' => to_sql_date($postData['end_date']),
+                        'status' => 1,
                         'admin_area' => !empty($adminIds) ? 1 : 0,
                         'clients_area' => !empty($clientIds) ? 1 : 0,
                         'staff_ids' => !empty($adminIds) ? serialize($adminIds) : '',
@@ -94,6 +95,45 @@ if (!function_exists('banner_is_serialized')) {
  *
  * @return array An array containing details of banners with status set to 1.
  */
+if (!function_exists('banner_current_audience_id')) {
+    function banner_current_audience_id($allowArea)
+    {
+        if ('admin_area' === $allowArea) {
+            return get_staff_user_id();
+        }
+
+        // client_ids are tblclients.userid values from the admin select.
+        return get_client_user_id();
+    }
+}
+
+if (!function_exists('banner_audience_matches')) {
+    function banner_audience_matches($serializedIds, $currentId)
+    {
+        if ($currentId === false || $currentId === null || $currentId === '') {
+            return false;
+        }
+
+        if (!banner_is_serialized($serializedIds)) {
+            return false;
+        }
+
+        $ids = unserialize($serializedIds);
+        if (!is_array($ids)) {
+            return false;
+        }
+
+        $currentId = (string) $currentId;
+        foreach ($ids as $id) {
+            if ((string) $id === $currentId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
 if (!function_exists('getBannerDetails')) {
     function getBannerDetails($allowArea) {
         $res = [];
@@ -103,21 +143,24 @@ if (!function_exists('getBannerDetails')) {
         }
 
         $details = $CI->db->get_where(db_prefix().'banner', ['status' => 1])->result_array();
+        $currentId = banner_current_audience_id($allowArea);
 
-        // Filter out banners whose time duration is finished or not available for currently logged-in staff member
-        $filteredData = array_filter($details, function ($value, $key) use ($allowArea) {
-            $today = date('Y-m-d');
-            $isInRange = $today >= $value['start_date'] && $today <= $value['end_date'];
-
-            $ids = ('admin_area' == $allowArea) ? $value['staff_ids'] : $value['client_ids'];
-            if ($isInRange) {
-                if (banner_is_serialized($ids)) {
-                    return in_array(('admin_area' == $allowArea) ? get_staff_user_id() : get_client_user_id(), unserialize($ids));
-                }
+        // Filter out banners whose time duration is finished or not available for currently logged-in user
+        $filteredData = array_filter($details, function ($value) use ($allowArea, $currentId) {
+            if (empty($value[$allowArea])) {
+                return false;
             }
 
-            return false;
-        }, \ARRAY_FILTER_USE_BOTH);
+            $today = date('Y-m-d');
+            $isInRange = $today >= $value['start_date'] && $today <= $value['end_date'];
+            if (!$isInRange) {
+                return false;
+            }
+
+            $ids = ('admin_area' == $allowArea) ? $value['staff_ids'] : $value['client_ids'];
+
+            return banner_audience_matches($ids, $currentId);
+        });
 
         return $filteredData;
     }
@@ -240,21 +283,23 @@ if (!function_exists('getNewsTicker')) {
         }
 
         $news_ticker = $CI->db->get_where(db_prefix().'news_ticker', ['status' => 1])->result_array();
+        $currentId = banner_current_audience_id($allowArea);
 
-        // Filter out banners whose time duration is finished or not available for currently logged-in staff member
-        $filteredData = array_filter($news_ticker, function ($value, $key) use ($allowArea) {
-            $today = date('Y-m-d');
-            $isInRange = $today >= $value['start_date'] && $today <= $value['end_date'];
-
-            $ids = ('admin_area' == $allowArea) ? $value['staff_ids'] : $value['client_ids'];
-            if ($isInRange) {
-                if (banner_is_serialized($ids)) {
-                    return in_array(('admin_area' == $allowArea) ? get_staff_user_id() : get_client_user_id(), unserialize($ids));
-                }
+        $filteredData = array_filter($news_ticker, function ($value) use ($allowArea, $currentId) {
+            if (empty($value[$allowArea])) {
+                return false;
             }
 
-            return false;
-        }, \ARRAY_FILTER_USE_BOTH);
+            $today = date('Y-m-d');
+            $isInRange = $today >= $value['start_date'] && $today <= $value['end_date'];
+            if (!$isInRange) {
+                return false;
+            }
+
+            $ids = ('admin_area' == $allowArea) ? $value['staff_ids'] : $value['client_ids'];
+
+            return banner_audience_matches($ids, $currentId);
+        });
 
         return $filteredData;
     }

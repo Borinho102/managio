@@ -37,7 +37,7 @@ class Banner_model extends App_Model {
     public function changeBannerStatus($id, $status) {
         \modules\banner\core\Apiinit::the_da_vinci_code(BANNER_MODULE);
         // Update the status of the specified banner
-        return $this->db->update('banner', ['status' => $status], ['id' => $id]);
+        return $this->db->update(db_prefix() . 'banner', ['status' => $status], ['id' => $id]);
     }
 
     /**
@@ -53,7 +53,7 @@ class Banner_model extends App_Model {
         $bannerImage = $this->db->get_where(db_prefix().'banner', ['id' => $id])->row();
 
         // Delete the banner from the database
-        $this->db->delete('banner', ['id' => $id]);
+        $this->db->delete(db_prefix() . 'banner', ['id' => $id]);
 
         // If a banner image is found and deleted, unlink the associated file
         if (!empty($bannerImage) && $this->db->affected_rows() > 0) {
