@@ -10,6 +10,38 @@ class Manual_payment_gateway extends AdminController
         $this->load->model('manual_payment_gateway_model');
     }
 
+    /**
+     * @param object $request
+     * @return string
+     */
+    private function format_request_client_name($request)
+    {
+        $contact = $this->clients_model->get_contact($request->user_id);
+        if (!$contact) {
+            return 'N/A';
+        }
+
+        $client = $this->clients_model->get($contact->userid);
+        $company = $client ? $client->company : '';
+
+        return trim($contact->firstname . ' ' . $contact->lastname) . ($company !== '' ? ' (' . $company . ')' : '');
+    }
+
+    /**
+     * @param object $request
+     * @return string
+     */
+    private function format_request_invoice_amount($request)
+    {
+        $this->load->model('invoices_model');
+        $invoice = $this->invoices_model->get($request->invoice_id);
+        if (!$invoice) {
+            return app_format_money($request->amount, get_base_currency()->name);
+        }
+
+        return app_format_money($request->amount, $invoice->currency_name);
+    }
+
     public function index()
     {
         if (!staff_can('view',MANUAL_PAYMENT_GATEWAY_MODULE_NAME))
@@ -200,7 +232,9 @@ class Manual_payment_gateway extends AdminController
         if($id)
         {
             $requestDetails = $this->manual_payment_gateway_model->get_request($id);
-            $invoice = $this->invoices_model->get($requestDetails->invoice_id);
+            if (!$requestDetails) {
+                show_404();
+            }
 
             if($this->input->post())
             {
@@ -258,11 +292,13 @@ class Manual_payment_gateway extends AdminController
             $data['created_at'] = strtoupper(preg_replace('/(\d)(am|pm)/i', '$1 $2', $created_at));
 
             $data['invoice_id'] = format_invoice_number($requestDetails->invoice_id);
-            $data['invoice_amount'] = app_format_money($requestDetails->amount, $invoice->currency_name);
+            $data['invoice_amount'] = $this->format_request_invoice_amount($requestDetails);
 
             $contact = $this->clients_model->get_contact($requestDetails->user_id);
             $client  = $contact ? $this->clients_model->get($contact->userid) : null;
-            $data['customer_name'] = $contact->firstname . ' ' . $contact->lastname . ' (' . $client->company . ')';
+            $data['customer_name'] = $contact
+                ? trim($contact->firstname . ' ' . $contact->lastname) . ($client && $client->company !== '' ? ' (' . $client->company . ')' : '')
+                : 'N/A';
 
             if($requestDetails->status == 1)
             {
@@ -304,16 +340,10 @@ class Manual_payment_gateway extends AdminController
             if($aRow->status == 2)
             {
                 $i++;
-                $this->load->model('invoices_model');
-                $invoice = $this->invoices_model->get($aRow->invoice_id);
-
-                $contact = $this->clients_model->get_contact($aRow->user_id);
-                $client = $contact ? $this->clients_model->get($contact->userid) : null;
-                $client_name = $contact->firstname . ' ' . $contact->lastname . ' (' . $client->company . ')';
-
+                $client_name = $this->format_request_client_name($aRow);
                 $gateway_name = $aRow->gateway_name;
                 $invoice_id = format_invoice_number($aRow->invoice_id);
-                $invoice_amount = app_format_money($aRow->amount, $invoice->currency_name);
+                $invoice_amount = $this->format_request_invoice_amount($aRow);
 
                 $created_at = date('d F Y h:ia', strtotime($aRow->created_at));
                 $created_at = strtoupper(preg_replace('/(\d)(am|pm)/i', '$1 $2', $created_at));
@@ -350,16 +380,10 @@ class Manual_payment_gateway extends AdminController
             if($aRow->status != 2)
             {
                 $i++;
-                $this->load->model('invoices_model');
-                $invoice = $this->invoices_model->get($aRow->invoice_id);
-
-                $contact = $this->clients_model->get_contact($aRow->user_id);
-                $client = $contact ? $this->clients_model->get($contact->userid) : null;
-                $client_name = $contact->firstname . ' ' . $contact->lastname . ' (' . $client->company . ')';
-
+                $client_name = $this->format_request_client_name($aRow);
                 $gateway_name = $aRow->gateway_name;
                 $invoice_id = format_invoice_number($aRow->invoice_id);
-                $invoice_amount = app_format_money($aRow->amount, $invoice->currency_name);
+                $invoice_amount = $this->format_request_invoice_amount($aRow);
 
                 if ($aRow->status == 1) {
                     $status = '<span class="label label-success">' . _l('mpg_payment_approved') . '</span>';

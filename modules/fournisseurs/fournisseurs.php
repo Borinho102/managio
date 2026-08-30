@@ -14,6 +14,7 @@ define('FOURNISSEURS_MODULE_NAME', 'fournisseurs');
 
 hooks()->add_action('admin_init', 'fournisseurs_module_init_menu_items');
 hooks()->add_action('admin_init', 'fournisseurs_permissions');
+hooks()->add_action('admin_init', 'fournisseurs_ensure_database');
 
 register_activation_hook(FOURNISSEURS_MODULE_NAME, 'fournisseurs_module_activation_hook');
 register_uninstall_hook(FOURNISSEURS_MODULE_NAME, 'fournisseurs_module_uninstall_hook');
@@ -29,6 +30,15 @@ function fournisseurs_module_activation_hook()
 function fournisseurs_module_uninstall_hook()
 {
     require_once __DIR__ . '/uninstall.php';
+}
+
+function fournisseurs_ensure_database()
+{
+    $CI = &get_instance();
+
+    if (!$CI->db->table_exists(db_prefix() . 'fournisseurs')) {
+        require_once __DIR__ . '/install.php';
+    }
 }
 
 function fournisseurs_permissions()

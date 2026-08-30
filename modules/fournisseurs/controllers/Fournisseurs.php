@@ -47,6 +47,10 @@ class Fournisseurs extends AdminController
                     set_alert('success', _l('added_successfully', _l('fournisseur')));
                     redirect(admin_url('fournisseurs/fournisseur/' . $newId));
                 }
+
+                log_message('error', '[fournisseurs] Failed to create supplier: ' . json_encode($this->db->error()));
+                set_alert('danger', _l('something_went_wrong'));
+                redirect(admin_url('fournisseurs/fournisseur'));
             } else {
                 if (staff_cant('edit', 'fournisseurs')) {
                     access_denied('fournisseurs');

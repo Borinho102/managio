@@ -93,13 +93,15 @@ hooks()->add_action('admin_init', function () {
             'position' => 1,
         ]);
 
-        $CI->app_menu->add_sidebar_children_item(WALLET_MODULE_NAME, [
-            'slug' => WALLET_MODULE_NAME . '_settings',
-            'name' => _l('settings'),
-            'icon' => '',
-            'href' => admin_url('settings?group=' . WALLET_MODULE_NAME),
-            'position' => 2,
-        ]);
+        if (staff_can('view', 'settings')) {
+            $CI->app_menu->add_sidebar_children_item(WALLET_MODULE_NAME, [
+                'slug' => WALLET_MODULE_NAME . '_settings',
+                'name' => _l('settings'),
+                'icon' => '',
+                'href' => admin_url('settings?group=' . WALLET_MODULE_NAME),
+                'position' => 2,
+            ]);
+        }
     }
 
     // Add wallet tab to client menu

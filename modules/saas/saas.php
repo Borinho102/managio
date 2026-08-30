@@ -188,17 +188,14 @@ function saas_insert_data($data)
 
             if (!empty($usages)) {
                 foreach ($usages as $usage) {
-                    if (!empty($usage['limit'])) {
-                        $limit = $usage['limit'];
-                        $count = $usage['total'];
-                        // check if limit is numeric or string
-                        // if string its means unlimited
-                        // if numeric its means limited then check limit and count
-                        if (is_numeric($usage['limit']) && $limit <= $count) {
-                            set_alert('warning', _l('add_failed_you_have_reached_limit'));
-                            redirect('checkoutPayment');
-                        }
-                    } else {
+                    if (saas_is_unlimited_usage_limit($usage['limit'] ?? false)) {
+                        continue;
+                    }
+
+                    $limit = $usage['limit'];
+                    $count = $usage['total'];
+
+                    if (is_numeric($limit) && (int) $limit <= (int) $count) {
                         set_alert('warning', _l('add_failed_you_have_reached_limit'));
                         redirect('checkoutPayment');
                     }

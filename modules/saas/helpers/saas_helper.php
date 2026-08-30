@@ -3474,6 +3474,28 @@ function saas_core_feature_limit($key)
 }
 
 /**
+ * Whether a SaaS usage limit means "unlimited" (do not block inserts).
+ *
+ * @param mixed $limit
+ */
+function saas_is_unlimited_usage_limit($limit): bool
+{
+    if ($limit === false || $limit === null || $limit === '') {
+        return true;
+    }
+
+    if ($limit === 0 || $limit === '0') {
+        return true;
+    }
+
+    if (is_string($limit) && strpos($limit, 'fa-infinity') !== false) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * Menu / permission slugs that must stay available on every tenant.
  *
  * @return string[]

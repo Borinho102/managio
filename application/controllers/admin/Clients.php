@@ -106,6 +106,8 @@ class Clients extends AdminController
                         redirect(admin_url('clients/client/' . $id . '?group=contacts&new_contact=true'));
                     }
                 }
+
+                set_alert('danger', _l('something_went_wrong'));
             } else {
                 if (staff_cant('edit', 'customers')) {
                     if (!is_customer_admin($id)) {
