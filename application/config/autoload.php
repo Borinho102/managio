@@ -158,6 +158,7 @@ $autoload['helper'] = [
         'sales',
         'themes',
         'pre_query_data_formatters',
+        'accounting_compat',
         'widgets',
         'sms',
         'deprecated',
