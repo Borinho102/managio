@@ -8,6 +8,8 @@ defined('BASEPATH') or exit('No direct script access allowed');
  * and wraps the client profile hook so PHP 8 does not warn on missing properties.
  */
 hooks()->add_action('app_init', 'managio_accounting_compat_bootstrap', 1);
+hooks()->add_filter('before_client_added', 'managio_accounting_format_client_balance_fields');
+hooks()->add_filter('before_client_updated', 'managio_accounting_format_client_balance_fields', 10, 2);
 
 function managio_accounting_module_active()
 {
@@ -70,4 +72,27 @@ function managio_accounting_acc_init_client_profile($client)
     }
 
     acc_init_client_profile($client);
+}
+
+function managio_accounting_format_client_balance_fields($data, $id = null)
+{
+    if (!is_array($data)) {
+        return $data;
+    }
+
+    if (array_key_exists('balance', $data)) {
+        $data['balance'] = $data['balance'] === '' || $data['balance'] === null
+            ? null
+            : (float) str_replace(',', '.', (string) $data['balance']);
+    }
+
+    if (array_key_exists('balance_as_of', $data)) {
+        if ($data['balance_as_of'] === '' || $data['balance_as_of'] === null) {
+            $data['balance_as_of'] = null;
+        } elseif (function_exists('to_sql_date')) {
+            $data['balance_as_of'] = to_sql_date($data['balance_as_of']);
+        }
+    }
+
+    return $data;
 }

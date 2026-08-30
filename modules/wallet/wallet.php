@@ -56,6 +56,8 @@ register_deactivation_hook(WALLET_MODULE_NAME, function () {
  * Handle permissions and admin menu
  */
 hooks()->add_action('admin_init', function () {
+    wallet_ensure_database();
+
     $capabilities = [];
     $capabilities['capabilities'] = [
         'view'   => _l('permission_view') . '(' . _l('permission_global') . ')',

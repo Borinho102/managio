@@ -18,6 +18,19 @@ function wallet_activate_module()
 }
 
 /**
+ * SaaS tenants may activate wallet without running install — ensure tables exist.
+ */
+function wallet_ensure_database()
+{
+    $CI = &get_instance();
+
+    if (!$CI->db->table_exists(db_prefix() . 'wallet')
+        || !$CI->db->table_exists(db_prefix() . 'wallet_transaction')) {
+        require_once __DIR__ . '/../install.php';
+    }
+}
+
+/**
  * Processes a payment identified by the provided payment ID.
  * Will credit the wallet using the payment.
  *

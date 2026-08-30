@@ -1684,15 +1684,11 @@ class Clients_model extends App_Model
      */
     private function filter_client_table_data($data)
     {
-        static $clientFields = null;
-
         if (!is_array($data)) {
             return [];
         }
 
-        if ($clientFields === null) {
-            $clientFields = $this->db->list_fields(db_prefix() . 'clients');
-        }
+        $clientFields = $this->db->list_fields(db_prefix() . 'clients');
 
         $filtered = [];
         foreach ($data as $key => $value) {
