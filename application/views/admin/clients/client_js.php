@@ -82,14 +82,24 @@ $(function() {
 
     $('.customer-form-submiter').on('click', function() {
         var form = $('.client-form');
-        if (form.valid()) {
-            if ($(this).hasClass('save-and-add-contact')) {
-                form.find('.additional').html(hidden_input('save_and_add_contact', 'true'));
-            } else {
-                form.find('.additional').html('');
-            }
-            form.submit();
+        if (typeof window.wekonexBridgeNeutralizeClientForm === 'function') {
+            window.wekonexBridgeNeutralizeClientForm(form);
         }
+        if (!form.valid()) {
+            var $errorGroup = form.find('.form-group.has-error').first();
+            var $tabPane = $errorGroup.closest('.tab-pane');
+            if ($tabPane.length && !$tabPane.is(':visible')) {
+                $('.customer-profile-tabs a[href="#' + $tabPane.attr('id') + '"]').tab('show');
+            }
+            alert_float('warning', <?= json_encode(_l('custom_fields') . ' — ' . _l('custom_field_required')); ?>);
+            return false;
+        }
+        if ($(this).hasClass('save-and-add-contact')) {
+            form.find('.additional').html(hidden_input('save_and_add_contact', 'true'));
+        } else {
+            form.find('.additional').html('');
+        }
+        form.submit();
     });
 
     if (typeof(Dropbox) != 'undefined' && $('#dropbox-chooser').length > 0) {

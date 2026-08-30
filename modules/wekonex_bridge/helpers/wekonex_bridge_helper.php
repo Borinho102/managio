@@ -151,6 +151,32 @@ function wekonex_bridge_sync_custom_fields(): void
 }
 
 /**
+ * IDs des champs personnalisés Wekonex (tous fieldto).
+ *
+ * @return int[]
+ */
+function wekonex_bridge_custom_field_ids(): array
+{
+    try {
+        $CI = &get_instance();
+        $table = db_prefix() . 'customfields';
+
+        if (!$CI->db->table_exists($table)) {
+            return [];
+        }
+
+        wekonex_bridge_apply_custom_fields_query($CI->db);
+        $rows = $CI->db->select('id')->get($table)->result_array();
+
+        return array_map('intval', array_column($rows, 'id'));
+    } catch (\Throwable $e) {
+        log_message('error', 'wekonex_bridge_custom_field_ids: ' . $e->getMessage());
+
+        return [];
+    }
+}
+
+/**
  * Retire l’obligation côté navigateur ; masque les champs si le pont est désactivé.
  */
 function wekonex_bridge_custom_fields_ui_fix(): void
@@ -160,9 +186,10 @@ function wekonex_bridge_custom_fields_ui_fix(): void
     }
 
     $names = wekonex_bridge_custom_field_names();
+    $fieldIds = wekonex_bridge_custom_field_ids();
     $enabled = wekonex_bridge_is_enabled() ? 'true' : 'false';
 
-    echo '<script>(function($){var n=' . json_encode($names) . ',e=' . $enabled . ';function w(t){return n.some(function(x){return t===x||t.indexOf(x)>=0;});}function isWekonexGroup(g){var t=g.find("label.control-label").first().text().replace(/\\s+/g," ").trim();if(w(t)){return true;}return g.find("input,select,textarea").toArray().some(function(el){var id=el.id||"",name=el.name||"";return/id|name/i.test(id+name)&&/wekonex/i.test(id+name);});}function r(){$(".form-group").each(function(){var g=$(this);if(!isWekonexGroup(g)){return;}if(!e){g.hide();g.find("input,select,textarea").addClass("do-not-validate").prop("disabled",true);}g.find("[data-custom-field-required]").removeAttr("data-custom-field-required");g.find("label .req").remove();g.find("input,select,textarea").each(function(){var i=$(this);i.addClass("do-not-validate");if(i.rules){try{i.rules("remove","required");}catch(x){}}});});}$(function(){r();setTimeout(r,0);setTimeout(r,500);setTimeout(r,1500);$("a[data-toggle=tab]").on("shown.bs.tab",r);});})(jQuery);</script>';
+    echo '<script>(function($){var n=' . json_encode($names) . ',ids=' . json_encode($fieldIds) . ',e=' . $enabled . ';function isWekonexEl(el){var $el=$(el),fid=parseInt($el.attr("data-fieldid"),10);if(!isNaN(fid)&&ids.indexOf(fid)!==-1){return true;}var nm=($el.attr("name")||"")+" "+($el.attr("id")||"");return/wekonex/i.test(nm);}function isWekonexGroup(g){var t=g.find("label.control-label").first().text().replace(/\\s+/g," ").trim();if(n.some(function(x){return t===x||t.indexOf(x)>=0;})){return true;}return g.find("input,select,textarea").toArray().some(isWekonexEl);}function neutralize($scope){$scope.find(".form-group").each(function(){var g=$(this);if(!isWekonexGroup(g)){return;}if(!e){g.hide();g.find("input,select,textarea").addClass("do-not-validate").prop("disabled",true);}g.find("[data-custom-field-required]").removeAttr("data-custom-field-required");g.find("label .req").remove();g.find("input,select,textarea").each(function(){var i=$(this);i.addClass("do-not-validate");if(i.rules){try{i.rules("remove","required");}catch(x){}}});});}function run(){neutralize($(document));}window.wekonexBridgeNeutralizeClientForm=function($form){neutralize($form&&$form.length?$form:$(document));};$(function(){run();setTimeout(run,0);setTimeout(run,500);setTimeout(run,1500);$("a[data-toggle=tab]").on("shown.bs.tab",run);$(document).on("app.form-validate",function(ev,form){neutralize($(form));});});})(jQuery);</script>';
 }
 
 function wekonex_bridge_sso_secret(): string
