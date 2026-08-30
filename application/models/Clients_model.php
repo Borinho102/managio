@@ -152,6 +152,8 @@ class Clients_model extends App_Model
             unset($data['contact_phonenumber']);
         }
 
+        $data = $this->filter_client_table_data($data);
+
         $this->db->insert(db_prefix() . 'clients', array_merge($data, [
             'datecreated' => date('Y-m-d H:i:s'),
             'addedfrom'   => is_staff_logged_in() ? get_staff_user_id() : 0,
@@ -242,6 +244,8 @@ class Clients_model extends App_Model
         if (handle_custom_fields_post($id, $custom_fields)) {
             $updated = true;
         }
+
+        $data = $this->filter_client_table_data($data);
 
         $this->db->where('userid', $id);
         $this->db->update(db_prefix() . 'clients', $data);
@@ -1670,6 +1674,34 @@ class Clients_model extends App_Model
         }
 
         return $data;
+    }
+
+    /**
+     * Keep only real tblclients columns (ignore stray POST keys e.g. browser autofill "balance").
+     *
+     * @param array $data
+     * @return array
+     */
+    private function filter_client_table_data($data)
+    {
+        static $clientFields = null;
+
+        if (!is_array($data)) {
+            return [];
+        }
+
+        if ($clientFields === null) {
+            $clientFields = $this->db->list_fields(db_prefix() . 'clients');
+        }
+
+        $filtered = [];
+        foreach ($data as $key => $value) {
+            if (in_array($key, $clientFields, true)) {
+                $filtered[$key] = $value;
+            }
+        }
+
+        return hooks()->apply_filters('client_table_data', $filtered, $data);
     }
 
     public function delete_contact_profile_image($id)

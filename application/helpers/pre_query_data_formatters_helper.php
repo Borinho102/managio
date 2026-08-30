@@ -135,5 +135,6 @@ function _get_client_unused_names()
         'DataTables_Table_0_length', 'DataTables_Table_1_length',
         'onoffswitch', 'passwordr', 'permissions', 'send_set_password_email',
         'donotsendwelcomeemail',
+        'balance', 'save_and_add_contact', 'isedit',
     ];
 }
