@@ -85,6 +85,8 @@ class Clients extends AdminController
                     access_denied('customers');
                 }
 
+                log_message('debug', '[clients] POST create client company=' . ($this->input->post('company') ?? ''));
+
                 $data = $this->input->post();
 
                 $save_and_add_contact = false;
@@ -93,7 +95,7 @@ class Clients extends AdminController
                     $save_and_add_contact = true;
                 }
                 $id = $this->clients_model->add($data);
-                if (staff_cant('view', 'customers')) {
+                if ($id && staff_cant('view', 'customers')) {
                     $assign['customer_admins']   = [];
                     $assign['customer_admins'][] = get_staff_user_id();
                     $this->clients_model->assign_admins($assign, $id);
