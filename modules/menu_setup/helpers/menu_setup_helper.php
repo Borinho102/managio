@@ -26,6 +26,10 @@ function app_admin_setup_menu_custom_positions($items)
 
 function _apply_menu_items_options($items, $options)
 {
+    if (!is_object($options)) {
+        return $items;
+    }
+
     foreach ($items as $key => $item) {
         if (isset($options->{$item['slug']})) {
             if (isset($options->{$item['slug']}->disabled)
@@ -66,50 +70,52 @@ function _apply_menu_items_options($items, $options)
 
 function _apply_menu_items_position($items, $options)
 {
-    if (!is_array($options)) {
-        $CI = &get_instance();
-        // Has applied options
-        $newItems          = [];
-        $newItemsAddedKeys = [];
-
-        foreach ($options as $key => $item) {
-            // Check if the item is found because can be removed
-            if ($newItem = $CI->app_menu->filter_item($items, $item->id)) {
-                $newItems[$key]      = $newItem;
-                $newItemsAddedKeys[] = $key;
-
-                $newItems[$key]['children'] = [];
-
-                if (isset($item->children)) {
-                    foreach ($item->children as $child) {
-                        if (property_exists($child, 'id') && $newChildItem = $CI->app_menu->filter_item($items, $child->id)) {
-                            $newItems[$key]['children'][] = $newChildItem;
-                            $newItemsAddedKeys[]          = $newChildItem['slug'];
-                        }
-                    }
-                }
-            }
-        }
-
-        // Let's check if item is missed from $items to $newItems
-        foreach ($items as $key => $item) {
-            if (!in_array($key, $newItemsAddedKeys)) {
-                $newItems[$key] = $item;
-            }
-
-            if (isset($item['collapse'])) {
-                foreach ($item['children'] as $childKey => $child) {
-                    if (!in_array($child['slug'], $newItemsAddedKeys)) {
-                        $newItems[$key]['children'][] = $child;
-                    }
-                }
-
-                $newItems[$key]['children'] = Arr::uniqueByKey($newItems[$key]['children'], 'slug');
-            }
-        }
-
-        $items = $newItems;
+    if (!is_object($options)) {
+        return $items;
     }
+
+    $CI = &get_instance();
+    // Has applied options
+    $newItems          = [];
+    $newItemsAddedKeys = [];
+
+    foreach ($options as $key => $item) {
+        // Check if the item is found because can be removed
+        if ($newItem = $CI->app_menu->filter_item($items, $item->id)) {
+            $newItems[$key]      = $newItem;
+            $newItemsAddedKeys[] = $key;
+
+            $newItems[$key]['children'] = [];
+
+            if (isset($item->children)) {
+                foreach ($item->children as $child) {
+                    if (property_exists($child, 'id') && $newChildItem = $CI->app_menu->filter_item($items, $child->id)) {
+                        $newItems[$key]['children'][] = $newChildItem;
+                        $newItemsAddedKeys[]          = $newChildItem['slug'];
+                    }
+                }
+            }
+        }
+    }
+
+    // Let's check if item is missed from $items to $newItems
+    foreach ($items as $key => $item) {
+        if (!in_array($key, $newItemsAddedKeys)) {
+            $newItems[$key] = $item;
+        }
+
+        if (isset($item['collapse'])) {
+            foreach ($item['children'] as $childKey => $child) {
+                if (!in_array($child['slug'], $newItemsAddedKeys)) {
+                    $newItems[$key]['children'][] = $child;
+                }
+            }
+
+            $newItems[$key]['children'] = Arr::uniqueByKey($newItems[$key]['children'], 'slug');
+        }
+    }
+
+    $items = $newItems;
 
     // Finally apply the positions
     foreach ($items as $key => $item) {

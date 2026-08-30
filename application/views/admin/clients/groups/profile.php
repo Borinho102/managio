@@ -7,7 +7,7 @@
 <?php } ?>
 
 <div class="row">
-    <?= form_open($this->uri->uri_string(), ['class' => 'client-form', 'autocomplete' => 'off']); ?>
+    <?= form_open($this->uri->uri_string(), ['class' => 'client-form', 'autocomplete' => 'off', 'id' => 'client-profile-form']); ?>
     <div class="additional"></div>
     <div class="col-md-12">
         <div class="horizontal-scrollable-tabs panel-full-width-tabs">

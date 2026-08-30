@@ -7,7 +7,8 @@
 <script>
 Dropzone.options.clientAttachmentsUpload = false;
 var customer_id = $('input[name="userid"]').val();
-var MANAGIO_CLIENT_FORM_DEBUG = 'v3';
+var MANAGIO_CLIENT_FORM_DEBUG = 'v4';
+var MANAGIO_CLIENT_FORM_NATIVE_SUBMIT = false;
 
 function managioClientFormLog() {
     if (typeof console !== 'undefined' && console.log) {
@@ -15,10 +16,21 @@ function managioClientFormLog() {
     }
 }
 
+window.addEventListener('error', function(event) {
+    managioClientFormLog('window.onerror', {
+        message: event.message,
+        source: event.filename,
+        line: event.lineno,
+        col: event.colno,
+    });
+});
+
 managioClientFormLog('client_js loaded', {
     customer_id: customer_id,
     tab_active: typeof tab_active !== 'undefined' ? tab_active : null,
     form_count: $('.client-form').length,
+    form_id: $('#client-profile-form').length ? 'client-profile-form' : 'missing',
+    submitter_buttons: $('.customer-form-submiter').length,
 });
 
 $(function() {
@@ -142,7 +154,7 @@ $(function() {
         var validator = form.data('validator');
         if (!validator) {
             managioClientFormLog('validation: no validator attached to form');
-            return;
+            return [];
         }
 
         managioClientFormLog('validation: failed', {
@@ -150,23 +162,121 @@ $(function() {
             invalidElements: validator.invalidElements(),
         });
 
+        var messages = [];
         $.each(validator.errorList || [], function(i, err) {
+            var label = '';
+            if (err.element) {
+                var $label = $('label[for="' + err.element.id + '"]');
+                label = $label.length ? $label.text().replace(/\s+/g, ' ').trim() : (err.element.name || err.element.id);
+            }
+            messages.push(label + ': ' + err.message);
             managioClientFormLog('validation error #' + (i + 1), {
                 name: err.element ? err.element.name : '',
                 id: err.element ? err.element.id : '',
+                label: label,
                 message: err.message,
                 value: err.element ? $(err.element).val() : '',
                 visible: err.element ? $(err.element).is(':visible') : false,
                 tab: err.element ? $(err.element).closest('.tab-pane').attr('id') : '',
             });
         });
+        return messages;
     }
+
+    function focusFirstInvalidField(form) {
+        var $errorGroup = form.find('.form-group.has-error, .has-error').first();
+        if (!$errorGroup.length) {
+            $errorGroup = form.find('.tab-validated').first();
+        }
+        var $tabPane = $errorGroup.closest('.tab-pane');
+        if ($tabPane.length && !$tabPane.is(':visible')) {
+            var tabId = $tabPane.attr('id');
+            managioClientFormLog('switching to tab with error', tabId);
+            $('.customer-profile-tabs a[href="#' + tabId + '"]').tab('show');
+        }
+    }
+
+    function submitClientForm(form, saveAndAddContact) {
+        prepareClientFormForSubmit(form);
+
+        if (typeof form.valid !== 'function') {
+            managioClientFormLog('warn: form.valid missing — native submit fallback');
+            MANAGIO_CLIENT_FORM_NATIVE_SUBMIT = true;
+            form.get(0).submit();
+            return;
+        }
+
+        if (!form.valid()) {
+            var messages = logClientFormValidationErrors(form);
+            focusFirstInvalidField(form);
+            var alertMsg = messages.length
+                ? messages.slice(0, 3).join(' | ')
+                : <?= json_encode(_l('custom_fields') . ' — ' . _l('custom_field_required')); ?>;
+            alert_float('warning', alertMsg);
+            return false;
+        }
+
+        managioClientFormLog('validation passed — submitting form');
+
+        if (saveAndAddContact) {
+            form.find('.additional').html(hidden_input('save_and_add_contact', 'true'));
+        } else {
+            form.find('.additional').html('');
+        }
+
+        MANAGIO_CLIENT_FORM_NATIVE_SUBMIT = true;
+        form.get(0).submit();
+        return true;
+    }
+
+    var vRules = {};
+    if (app.options.company_is_required == 1) {
+        vRules = {
+            company: 'required',
+        }
+    }
+
+    $('.client-form').appFormValidator({
+        rules: vRules,
+        invalidHandler: function(event, validator) {
+            managioClientFormLog('invalidHandler fired', {
+                errorCount: validator.numberOfInvalids(),
+                errorList: validator.errorList,
+            });
+        },
+        submitHandler: function(form) {
+            managioClientFormLog('submitHandler fired — native POST', {
+                action: form.action,
+                method: form.method,
+                native_bypass: MANAGIO_CLIENT_FORM_NATIVE_SUBMIT,
+            });
+            if (!MANAGIO_CLIENT_FORM_NATIVE_SUBMIT) {
+                return false;
+            }
+            form.submit();
+        },
+    });
+
+    $('.client-form').on('submit', function(e) {
+        if (MANAGIO_CLIENT_FORM_NATIVE_SUBMIT) {
+            managioClientFormLog('form submit event — allowing native POST');
+            return true;
+        }
+
+        e.preventDefault();
+        managioClientFormLog('form submit event intercepted for validation');
+        var $submitter = $(document.activeElement);
+        var saveAndAddContact = $submitter.hasClass('save-and-add-contact');
+        submitClientForm($(this), saveAndAddContact);
+        return false;
+    });
 
     $('.customer-form-submiter').on('click', function(e) {
         e.preventDefault();
         managioClientFormLog('save button clicked', {
             button_class: this.className,
             save_and_add_contact: $(this).hasClass('save-and-add-contact'),
+            form_attr: $(this).attr('form') || null,
         });
 
         var form = $('.client-form');
@@ -176,35 +286,7 @@ $(function() {
             return false;
         }
 
-        prepareClientFormForSubmit(form);
-
-        if (typeof form.valid !== 'function') {
-            managioClientFormLog('warn: form.valid is not a function — submitting without JS validation');
-        } else if (!form.valid()) {
-            logClientFormValidationErrors(form);
-            var $errorGroup = form.find('.form-group.has-error, .has-error').first();
-            if (!$errorGroup.length) {
-                $errorGroup = form.find('.tab-validated').first();
-            }
-            var $tabPane = $errorGroup.closest('.tab-pane');
-            if ($tabPane.length && !$tabPane.is(':visible')) {
-                var tabId = $tabPane.attr('id');
-                managioClientFormLog('switching to tab with error', tabId);
-                $('.customer-profile-tabs a[href="#' + tabId + '"]').tab('show');
-            }
-            alert_float('warning', <?= json_encode(_l('custom_fields') . ' — ' . _l('custom_field_required')); ?>);
-            return false;
-        }
-
-        managioClientFormLog('validation passed — submitting form');
-
-        if ($(this).hasClass('save-and-add-contact')) {
-            form.find('.additional').html(hidden_input('save_and_add_contact', 'true'));
-        } else {
-            form.find('.additional').html('');
-        }
-
-        form.trigger('submit');
+        submitClientForm(form, $(this).hasClass('save-and-add-contact'));
     });
 
     if (typeof(Dropbox) != 'undefined' && $('#dropbox-chooser').length > 0) {
@@ -296,36 +378,11 @@ $(function() {
         undefined, 'undefined',
         <?php echo hooks()->apply_filters('projects_table_default_order', json_encode([5, 'asc'])); ?>);
 
-    var vRules = {};
-    if (app.options.company_is_required == 1) {
-        vRules = {
-            company: 'required',
-        }
+    if (window.location.search.indexOf('managio_debug=1') !== -1) {
+        $('body').prepend(
+            '<div id="managio-client-form-debug" style="position:fixed;bottom:10px;right:10px;z-index:99999;background:#111;color:#0f0;padding:8px 12px;font:12px monospace;border-radius:4px;">managio client-form ' + MANAGIO_CLIENT_FORM_DEBUG + '</div>'
+        );
     }
-
-    $('.client-form').appFormValidator({
-        rules: vRules,
-        invalidHandler: function(event, validator) {
-            managioClientFormLog('invalidHandler fired', {
-                errorCount: validator.numberOfInvalids(),
-                errorList: validator.errorList,
-            });
-        },
-        submitHandler: function(form) {
-            managioClientFormLog('submitHandler fired — native POST', {
-                action: form.action,
-                method: form.method,
-            });
-            form.submit();
-        },
-    });
-
-    $('.client-form').on('submit', function(e) {
-        managioClientFormLog('form submit event', {
-            isDefaultPrevented: e.isDefaultPrevented(),
-            action: this.action,
-        });
-    });
 
     if (typeof(customer_id) == 'undefined') {
         $('#company').on('blur', function() {

@@ -1,4 +1,5 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed'); ?>
+<!-- managio-client-form-build:v4 -->
 <?php init_head(); ?>
 <div id="wrapper" class="customer_profile">
     <div class="content">
@@ -111,11 +112,13 @@
                     <?php if ($group == 'profile') { ?>
                     <div class="panel-footer text-right tw-space-x-1" id="profile-save-section">
                         <?php if (! isset($client)) { ?>
-                        <button type="button" class="btn btn-default save-and-add-contact customer-form-submiter">
+                        <button type="submit" form="client-profile-form"
+                            class="btn btn-default save-and-add-contact customer-form-submiter">
                             <?= _l('save_customer_and_add_contact'); ?>
                         </button>
                         <?php } ?>
-                        <button type="button" class="btn btn-primary only-save customer-form-submiter">
+                        <button type="submit" form="client-profile-form"
+                            class="btn btn-primary only-save customer-form-submiter">
                             <?= _l('submit'); ?>
                         </button>
                     </div>
