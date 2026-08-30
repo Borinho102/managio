@@ -1899,6 +1899,10 @@ class Saas_model extends App_Model
                         $this->db->where('module_name', $module);
                         $this->db->update(db_prefix() . 'modules', ['active' => 1]);
 
+                        if (function_exists('saas_provision_module_database')) {
+                            saas_provision_module_database($module);
+                        }
+
                         $activated[] = $module;
                         log_message('debug', '[active_modules] activated=' . $module);
                     } catch (Throwable $e) {

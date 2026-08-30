@@ -3844,6 +3844,39 @@ function saas_remove_dir($target)
     return false;
 }
 
+/**
+ * Run module install.php and pending migrations on the current DB connection.
+ * Used when SaaS provisions tenants without firing activate_* hooks (license/UI).
+ */
+function saas_provision_module_database($module_name)
+{
+    $CI = &get_instance();
+
+    if (empty($module_name) || !is_string($module_name)) {
+        return false;
+    }
+
+    $mod = $CI->app_modules->get($module_name);
+    if (empty($mod['path'])) {
+        return false;
+    }
+
+    $installFile = rtrim($mod['path'], '/\\') . DIRECTORY_SEPARATOR . 'install.php';
+    if (is_file($installFile)) {
+        require_once $installFile;
+        log_message('debug', '[saas_provision_module_database] install.php module=' . $module_name);
+    }
+
+    if ($CI->app_modules->is_installed($module_name)
+        && $CI->app_modules->is_database_upgrade_required($module_name)) {
+        $migration = new App_module_migration($module_name);
+        $migration->to_latest();
+        log_message('debug', '[saas_provision_module_database] migrations module=' . $module_name);
+    }
+
+    return true;
+}
+
 function saas_db_activate_module($module)
 {
     $CI = &get_instance();

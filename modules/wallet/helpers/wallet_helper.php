@@ -31,6 +31,71 @@ function wallet_ensure_database()
 }
 
 /**
+ * Wallet is contact-based. Resolve primary contact, promote first contact, or auto-create one.
+ *
+ * @param int $client_id
+ * @return int|false
+ */
+function wallet_resolve_client_contact_id($client_id)
+{
+    $CI        = &get_instance();
+    $client_id = (int) $client_id;
+
+    if ($client_id <= 0) {
+        return false;
+    }
+
+    $contact_id = get_primary_contact_user_id($client_id);
+    if ($contact_id) {
+        return (int) $contact_id;
+    }
+
+    $CI->db->where('userid', $client_id);
+    $CI->db->where('active', 1);
+    $CI->db->order_by('is_primary', 'DESC');
+    $CI->db->order_by('id', 'ASC');
+    $CI->db->limit(1);
+    $contact = $CI->db->get(db_prefix() . 'contacts')->row();
+
+    if ($contact) {
+        if ((int) $contact->is_primary !== 1) {
+            $CI->db->where('userid', $client_id);
+            $CI->db->update(db_prefix() . 'contacts', ['is_primary' => 0]);
+            $CI->db->where('id', $contact->id);
+            $CI->db->update(db_prefix() . 'contacts', ['is_primary' => 1]);
+        }
+
+        return (int) $contact->id;
+    }
+
+    if (!is_admin() && !staff_can('create', 'customers')) {
+        return false;
+    }
+
+    $CI->load->model('clients_model');
+    $client = $CI->clients_model->get($client_id);
+    if (!$client) {
+        return false;
+    }
+
+    $company = trim($client->company ?? '');
+    if ($company === '') {
+        $company = 'Contact';
+    }
+
+    $contact_id = $CI->clients_model->add_contact([
+        'firstname'             => $company,
+        'lastname'              => '',
+        'email'                 => '',
+        'phonenumber'           => $client->phonenumber ?? '',
+        'is_primary'            => 1,
+        'donotsendwelcomeemail' => true,
+    ], $client_id, true);
+
+    return $contact_id ? (int) $contact_id : false;
+}
+
+/**
  * Processes a payment identified by the provided payment ID.
  * Will credit the wallet using the payment.
  *
