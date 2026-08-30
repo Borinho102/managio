@@ -74,6 +74,11 @@ if (!function_exists('bannerContent')) {
 
 hooks()->add_action('app_init', 'banner_ensure_client_theme_override', 20);
 hooks()->add_action('admin_init', 'banner_ensure_client_theme_override', 20);
+hooks()->add_action('admin_init', function () {
+    if (function_exists('banner_ensure_database')) {
+        banner_ensure_database();
+    }
+}, 5);
 
 if (!function_exists('banner_ensure_client_theme_override')) {
     /**

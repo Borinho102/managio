@@ -38,3 +38,12 @@ echo render_datatable($tableColumns, 'news-ticker-table');
     </div>
 </div>
 <?php init_tail(); ?>
+<script>
+$(function() {
+  if (typeof initDataTable === 'function') {
+    if ($('.table-news-ticker-table').length && !$.fn.DataTable.isDataTable('.table-news-ticker-table')) {
+      initDataTable('.table-news-ticker-table', admin_url + 'banner/getTableData/news_ticker_table');
+    }
+  }
+});
+</script>

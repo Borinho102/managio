@@ -90,11 +90,69 @@ if (!function_exists('banner_is_serialized')) {
     }
 }
 
-/*
- * Get details of banners with status set to 1 from the database.
- *
- * @return array An array containing details of banners with status set to 1.
- */
+if (!function_exists('banner_ensure_database')) {
+    /**
+     * SaaS tenants may activate Banner without install.php — create tables if missing.
+     */
+    function banner_ensure_database()
+    {
+        static $done = false;
+        if ($done) {
+            return;
+        }
+        $done = true;
+
+        $CI = &get_instance();
+        if (!isset($CI->db)) {
+            return;
+        }
+
+        $bannerTable = db_prefix() . 'banner';
+        $newsTable   = db_prefix() . 'news_ticker';
+
+        if ($CI->db->table_exists($bannerTable) && $CI->db->table_exists($newsTable)) {
+            return;
+        }
+
+        if (function_exists('saas_provision_module_database')) {
+            saas_provision_module_database('banner');
+        }
+
+        if (!$CI->db->table_exists($bannerTable) || !$CI->db->table_exists($newsTable)) {
+            $installFile = module_dir_path(BANNER_MODULE, 'install.php');
+            if (is_file($installFile)) {
+                require_once $installFile;
+            }
+        }
+    }
+}
+
+if (!function_exists('banner_is_tenant_context')) {
+    function banner_is_tenant_context()
+    {
+        return function_exists('is_subdomain') && !empty(is_subdomain());
+    }
+}
+
+if (!function_exists('banner_master_base_url')) {
+    function banner_master_base_url()
+    {
+        $url = config_item('default_url');
+        if (empty($url)) {
+            $url = config_item('main_url');
+        }
+        if (empty($url) && defined('APP_BASE_URL')) {
+            // On tenant hosts APP_BASE_URL is rewritten — prefer default_url.
+            $url = APP_BASE_URL;
+        }
+        if (empty($url)) {
+            return rtrim(site_url(), '/') . '/';
+        }
+
+        return rtrim($url, '/') . '/';
+    }
+}
+
 if (!function_exists('banner_current_audience_id')) {
     function banner_current_audience_id($allowArea)
     {
@@ -102,7 +160,6 @@ if (!function_exists('banner_current_audience_id')) {
             return get_staff_user_id();
         }
 
-        // client_ids are tblclients.userid values from the admin select.
         return get_client_user_id();
     }
 }
@@ -134,35 +191,132 @@ if (!function_exists('banner_audience_matches')) {
     }
 }
 
-if (!function_exists('getBannerDetails')) {
-    function getBannerDetails($allowArea) {
-        $res = [];
-        $CI = get_instance();
-        if (!$CI->db->table_exists(db_prefix() . 'banner')) {
-            return $res;
+if (!function_exists('banner_filter_rows')) {
+    /**
+     * @param array  $details
+     * @param string $allowArea admin_area|clients_area
+     * @param mixed  $currentId
+     * @param bool   $skipAudienceCheck when true (master→tenant admin), show all in-range admin banners
+     * @param string $source local|master
+     */
+    function banner_filter_rows(array $details, $allowArea, $currentId, $skipAudienceCheck = false, $source = 'local')
+    {
+        $today = date('Y-m-d');
+        $out   = [];
+
+        foreach ($details as $value) {
+            if (empty($value[$allowArea])) {
+                continue;
+            }
+            if ($today < $value['start_date'] || $today > $value['end_date']) {
+                continue;
+            }
+
+            if (!$skipAudienceCheck) {
+                $ids = ('admin_area' == $allowArea) ? ($value['staff_ids'] ?? '') : ($value['client_ids'] ?? '');
+                if (!banner_audience_matches($ids, $currentId)) {
+                    continue;
+                }
+            }
+
+            $value['_banner_source'] = $source;
+            if ($source === 'master') {
+                $value['id'] = 'm-' . $value['id'];
+            }
+            $out[] = $value;
         }
 
-        $details = $CI->db->get_where(db_prefix().'banner', ['status' => 1])->result_array();
-        $currentId = banner_current_audience_id($allowArea);
+        return $out;
+    }
+}
 
-        // Filter out banners whose time duration is finished or not available for currently logged-in user
-        $filteredData = array_filter($details, function ($value) use ($allowArea, $currentId) {
-            if (empty($value[$allowArea])) {
-                return false;
+if (!function_exists('banner_fetch_master_rows')) {
+    function banner_fetch_master_rows($table)
+    {
+        if (!banner_is_tenant_context() || !function_exists('saas_master_db')) {
+            return [];
+        }
+
+        try {
+            $db = saas_master_db();
+            if (empty($db) || !is_object($db)) {
+                return [];
             }
 
-            $today = date('Y-m-d');
-            $isInRange = $today >= $value['start_date'] && $today <= $value['end_date'];
-            if (!$isInRange) {
-                return false;
+            $fullTable = db_prefix() . $table;
+            // Master may use same prefix.
+            if (method_exists($db, 'table_exists') && !$db->table_exists($fullTable)) {
+                return [];
             }
 
-            $ids = ('admin_area' == $allowArea) ? $value['staff_ids'] : $value['client_ids'];
+            return $db->get_where($fullTable, ['status' => 1])->result_array();
+        } catch (Throwable $e) {
+            log_message('error', '[banner] master fetch failed: ' . $e->getMessage());
 
-            return banner_audience_matches($ids, $currentId);
-        });
+            return [];
+        }
+    }
+}
 
-        return $filteredData;
+if (!function_exists('banner_master_audience_id')) {
+    /**
+     * On tenants, client-targeted master banners use the SaaS company client userid on master.
+     */
+    function banner_master_audience_id($allowArea)
+    {
+        if ('admin_area' === $allowArea) {
+            return null; // skip staff match for master→tenant admin banners
+        }
+
+        if (function_exists('get_saas_client_id')) {
+            $id = get_saas_client_id();
+            if (!empty($id)) {
+                return $id;
+            }
+        }
+
+        return false;
+    }
+}
+
+/*
+ * Get details of banners with status set to 1 from the database.
+ *
+ * @return array An array containing details of banners with status set to 1.
+ */
+if (!function_exists('getBannerDetails')) {
+    function getBannerDetails($allowArea) {
+        banner_ensure_database();
+
+        $CI = get_instance();
+        $local = [];
+
+        if ($CI->db->table_exists(db_prefix() . 'banner')) {
+            $details = $CI->db->get_where(db_prefix() . 'banner', ['status' => 1])->result_array();
+            $local   = banner_filter_rows(
+                $details,
+                $allowArea,
+                banner_current_audience_id($allowArea),
+                false,
+                'local'
+            );
+        }
+
+        $master = [];
+        if (banner_is_tenant_context()) {
+            $masterRows = banner_fetch_master_rows('banner');
+            if ('admin_area' === $allowArea) {
+                // Platform admin banners → all tenant staff dashboards
+                $master = banner_filter_rows($masterRows, $allowArea, null, true, 'master');
+            } else {
+                $masterClientId = banner_master_audience_id($allowArea);
+                if ($masterClientId) {
+                    $master = banner_filter_rows($masterRows, $allowArea, $masterClientId, false, 'master');
+                }
+            }
+        }
+
+        return array_merge(array_values($master), array_values($local));
     }
 }
 
@@ -192,7 +346,7 @@ if (!function_exists('renderBanner')) {
                 if ($detail['has_action'] == 1) {
                     $preparContent .= '<a href="' . $action_url . '" target="' . $target . '">';
                 }
-                $preparContent .= '<img src="'. site_url().'uploads/banner/' . $detail['detail'] . '" alt="' . $detail['detail'] . '" class="tw-w-full image-slideshow">';
+                $preparContent .= '<img src="'. (($detail['_banner_source'] ?? '') === 'master' ? banner_master_base_url() : site_url()) .'uploads/banner/' . $detail['detail'] . '" alt="' . $detail['detail'] . '" class="tw-w-full image-slideshow">';
 
                 if ($detail['has_action'] == 1) {
                     $preparContent .= '</a>';
@@ -276,32 +430,41 @@ if (!function_exists('get_news_picker')) {
 
 if (!function_exists('getNewsTicker')) {
     function getNewsTicker($allowArea) {
-        $res = [];
+        banner_ensure_database();
+
         $CI = get_instance();
-        if (!$CI->db->table_exists(db_prefix() . 'news_ticker')) {
-            return $res;
+        $local = [];
+
+        if ($CI->db->table_exists(db_prefix() . 'news_ticker')) {
+            $news_ticker = $CI->db->get_where(db_prefix() . 'news_ticker', ['status' => 1])->result_array();
+            $local = banner_filter_rows(
+                $news_ticker,
+                $allowArea,
+                banner_current_audience_id($allowArea),
+                false,
+                'local'
+            );
         }
 
-        $news_ticker = $CI->db->get_where(db_prefix().'news_ticker', ['status' => 1])->result_array();
-        $currentId = banner_current_audience_id($allowArea);
-
-        $filteredData = array_filter($news_ticker, function ($value) use ($allowArea, $currentId) {
-            if (empty($value[$allowArea])) {
-                return false;
+        $master = [];
+        if (banner_is_tenant_context()) {
+            $masterRows = banner_fetch_master_rows('news_ticker');
+            if ('admin_area' === $allowArea) {
+                $master = banner_filter_rows($masterRows, $allowArea, null, true, 'master');
+            } else {
+                $masterClientId = banner_master_audience_id($allowArea);
+                if ($masterClientId) {
+                    $master = banner_filter_rows($masterRows, $allowArea, $masterClientId, false, 'master');
+                }
             }
+        }
 
-            $today = date('Y-m-d');
-            $isInRange = $today >= $value['start_date'] && $today <= $value['end_date'];
-            if (!$isInRange) {
-                return false;
-            }
+        // Prefer a single ticker: local first, else master
+        if (!empty($local)) {
+            return array_values($local);
+        }
 
-            $ids = ('admin_area' == $allowArea) ? $value['staff_ids'] : $value['client_ids'];
-
-            return banner_audience_matches($ids, $currentId);
-        });
-
-        return $filteredData;
+        return array_values($master);
     }
 }
 

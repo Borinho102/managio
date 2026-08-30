@@ -38,3 +38,12 @@ echo render_datatable($tableColumns, 'banner-details');
     </div>
 </div>
 <?php init_tail(); ?>
+<script>
+$(function() {
+  if (typeof initDataTable === 'function') {
+    if ($('.table-banner-details').length && !$.fn.DataTable.isDataTable('.table-banner-details')) {
+      initDataTable('.table-banner-details', admin_url + 'banner/getTableData/banner_details');
+    }
+  }
+});
+</script>

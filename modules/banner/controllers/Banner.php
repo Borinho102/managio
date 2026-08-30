@@ -110,6 +110,37 @@ class Banner extends AdminController {
             return;
         }
 
+        if (function_exists('banner_ensure_database')) {
+            banner_ensure_database();
+        }
+
+        $allowed = ['banner_details', 'news_ticker_table'];
+        if (!in_array($table, $allowed, true)) {
+            header('Content-Type: application/json');
+            echo json_encode(['aaData' => [], 'iTotalRecords' => 0, 'iTotalDisplayRecords' => 0, 'sEcho' => 0]);
+
+            return;
+        }
+
+        $requiredTable = $table === 'news_ticker_table'
+            ? db_prefix() . 'news_ticker'
+            : db_prefix() . 'banner';
+
+        if (!$this->db->table_exists($requiredTable)) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'draw' => (int) $this->input->post('draw'),
+                'recordsTotal' => 0,
+                'recordsFiltered' => 0,
+                'data' => [],
+                'aaData' => [],
+                'iTotalRecords' => 0,
+                'iTotalDisplayRecords' => 0,
+            ]);
+
+            return;
+        }
+
         // Get and display table data using app's get_table_data method
         $this->app->get_table_data(module_views_path(BANNER_MODULE, 'tables/' . $table));
     }
