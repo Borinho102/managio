@@ -3863,7 +3863,23 @@ function saas_provision_module_database($module_name)
 
     $installFile = rtrim($mod['path'], '/\\') . DIRECTORY_SEPARATOR . 'install.php';
     if (is_file($installFile)) {
-        require_once $installFile;
+        if ($module_name === 'accounting') {
+            if (function_exists('managio_accounting_apply_php82_patches')) {
+                managio_accounting_apply_php82_patches();
+            }
+
+            if (function_exists('managio_accounting_run_with_deprecation_suppressed')
+                && function_exists('managio_accounting_is_php82_patch_applied')
+                && !managio_accounting_is_php82_patch_applied()) {
+                managio_accounting_run_with_deprecation_suppressed(function () use ($installFile) {
+                    require_once $installFile;
+                });
+            } else {
+                require_once $installFile;
+            }
+        } else {
+            require_once $installFile;
+        }
         log_message('debug', '[saas_provision_module_database] install.php module=' . $module_name);
     }
 

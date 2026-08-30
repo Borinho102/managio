@@ -7,6 +7,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
  * SaaS tenants may activate the module without running its DB migration — this ensures columns exist,
  * provisions acc_* tables, wraps the client profile hook, and applies PHP 8.2 compatibility patches.
  */
+hooks()->add_action('app_init', 'managio_accounting_prepare_php82_compat', 0);
 hooks()->add_action('app_init', 'managio_accounting_compat_bootstrap', 1);
 hooks()->add_action('admin_init', 'managio_accounting_compat_bootstrap', 0);
 hooks()->add_filter('before_client_added', 'managio_accounting_format_client_balance_fields');
@@ -23,15 +24,63 @@ function managio_accounting_module_active()
     return is_dir(FCPATH . 'modules/accounting');
 }
 
+function managio_accounting_prepare_php82_compat()
+{
+    if (!managio_accounting_module_active()) {
+        return;
+    }
+
+    managio_accounting_apply_php82_patches();
+
+    if (!managio_accounting_is_php82_patch_applied()) {
+        managio_accounting_register_deprecation_shield();
+    }
+}
+
+function managio_accounting_is_accounting_path($file)
+{
+    $normalized = str_replace('\\', '/', (string) $file);
+
+    return strpos($normalized, '/modules/accounting/') !== false;
+}
+
+function managio_accounting_register_deprecation_shield()
+{
+    static $registered = false;
+
+    if ($registered) {
+        return;
+    }
+
+    $registered = true;
+
+    static $previousHandler = null;
+    $previousHandler = set_error_handler(
+        static function ($severity, $message, $file, $line) use (&$previousHandler) {
+            if ($severity === E_DEPRECATED && managio_accounting_is_accounting_path($file)) {
+                return true;
+            }
+
+            if ($previousHandler) {
+                return $previousHandler($severity, $message, $file, $line);
+            }
+
+            return false;
+        },
+        E_DEPRECATED
+    );
+}
+
 function managio_accounting_compat_bootstrap()
 {
     if (!managio_accounting_module_active()) {
         return;
     }
 
+    // Must run before install.php loads Accounting_model (PHP 8.2 dynamic properties).
+    managio_accounting_apply_php82_patches();
     managio_accounting_ensure_client_columns();
     managio_accounting_ensure_database();
-    managio_accounting_apply_php82_patches();
     managio_accounting_wrap_client_profile_hook();
 }
 
@@ -66,22 +115,33 @@ function managio_accounting_ensure_database()
         return;
     }
 
-    if (function_exists('saas_provision_module_database')) {
-        saas_provision_module_database('accounting');
-        return;
-    }
+    managio_accounting_apply_php82_patches();
 
-    $installFile = FCPATH . 'modules/accounting/install.php';
-    if (is_file($installFile)) {
-        require_once $installFile;
-        log_message('info', '[accounting_compat] ran install.php');
-    }
+    $provision = function () use ($CI) {
+        if (function_exists('saas_provision_module_database')) {
+            saas_provision_module_database('accounting');
 
-    if ($CI->app_modules->is_installed('accounting')
-        && $CI->app_modules->is_database_upgrade_required('accounting')) {
-        $migration = new App_module_migration('accounting');
-        $migration->to_latest();
-        log_message('info', '[accounting_compat] ran accounting migrations');
+            return;
+        }
+
+        $installFile = FCPATH . 'modules/accounting/install.php';
+        if (is_file($installFile)) {
+            require_once $installFile;
+            log_message('info', '[accounting_compat] ran install.php');
+        }
+
+        if ($CI->app_modules->is_installed('accounting')
+            && $CI->app_modules->is_database_upgrade_required('accounting')) {
+            $migration = new App_module_migration('accounting');
+            $migration->to_latest();
+            log_message('info', '[accounting_compat] ran accounting migrations');
+        }
+    };
+
+    if (managio_accounting_is_php82_patch_applied()) {
+        $provision();
+    } else {
+        managio_accounting_run_with_deprecation_suppressed($provision);
     }
 }
 
@@ -90,31 +150,100 @@ function managio_accounting_ensure_database()
  */
 function managio_accounting_apply_php82_patches()
 {
+    $modelsDir = FCPATH . 'modules/accounting/models/';
+    $patched   = false;
+
+    if (is_dir($modelsDir)) {
+        foreach (glob($modelsDir . '*.php') ?: [] as $modelFile) {
+            $baseName  = basename($modelFile, '.php');
+            $className = ucfirst($baseName);
+            if (managio_accounting_patch_model_file($modelFile, $className)) {
+                $patched = true;
+            }
+        }
+    }
+
     $modelFile = FCPATH . 'modules/accounting/models/Accounting_model.php';
-    if (!is_readable($modelFile) || !is_writable($modelFile)) {
-        return;
+    if (is_file($modelFile) && managio_accounting_patch_model_file($modelFile, 'Accounting_model')) {
+        $patched = true;
+    }
+
+    return $patched;
+}
+
+function managio_accounting_is_php82_patch_applied()
+{
+    $modelFile = FCPATH . 'modules/accounting/models/Accounting_model.php';
+
+    if (!is_readable($modelFile)) {
+        return false;
     }
 
     $content = file_get_contents($modelFile);
-    if ($content === false || strpos($content, 'AllowDynamicProperties') !== false) {
-        return;
+
+    return $content !== false
+        && (strpos($content, 'AllowDynamicProperties') !== false || strpos($content, 'public $db') !== false);
+}
+
+function managio_accounting_patch_model_file($modelFile, $className)
+{
+    if (!is_readable($modelFile)) {
+        return false;
     }
 
-    if (strpos($content, 'class Accounting_model') === false) {
-        return;
+    $content = file_get_contents($modelFile);
+    if ($content === false || strpos($content, 'class ' . $className) === false) {
+        return false;
+    }
+
+    if (strpos($content, 'AllowDynamicProperties') !== false || strpos($content, 'public $db') !== false) {
+        return true;
     }
 
     $patched = preg_replace(
-        '/(<\?php\s+defined\([\'"]BASEPATH[\'"]\)\s+or\s+exit\([\'"]No direct script access allowed[\'"]\);\s*\?>?)/',
-        "$1\n\n#[\\AllowDynamicProperties]",
+        '/class\s+' . preg_quote($className, '/') . '\b/',
+        "#[\\AllowDynamicProperties]\nclass {$className}",
         $content,
         1
     );
 
-    if (is_string($patched) && $patched !== $content) {
-        file_put_contents($modelFile, $patched);
-        log_message('info', '[accounting_compat] applied AllowDynamicProperties to Accounting_model');
+    if (!is_string($patched) || $patched === $content) {
+        $patched = preg_replace(
+            '/(class\s+' . preg_quote($className, '/') . '[^\{]*\{)/',
+            "$1\n    /** @var CI_DB_query_builder */\n    public \$db;",
+            $content,
+            1
+        );
     }
+
+    if (!is_string($patched) || $patched === $content) {
+        log_message('error', '[accounting_compat] could not build PHP 8.2 patch for ' . basename($modelFile));
+
+        return false;
+    }
+
+    if (!is_writable($modelFile)) {
+        log_message('error', '[accounting_compat] cannot write PHP 8.2 patch (check permissions): ' . $modelFile);
+
+        return false;
+    }
+
+    if (file_put_contents($modelFile, $patched) === false) {
+        log_message('error', '[accounting_compat] failed writing PHP 8.2 patch: ' . $modelFile);
+
+        return false;
+    }
+
+    log_message('info', '[accounting_compat] applied PHP 8.2 patch to ' . basename($modelFile));
+
+    return true;
+}
+
+function managio_accounting_run_with_deprecation_suppressed(callable $callback)
+{
+    managio_accounting_register_deprecation_shield();
+
+    return $callback();
 }
 
 function managio_accounting_wrap_client_profile_hook()
@@ -391,4 +520,8 @@ function managio_accounting_format_client_balance_fields($data, $id = null)
     }
 
     return $data;
+}
+
+if (managio_accounting_module_active()) {
+    managio_accounting_prepare_php82_compat();
 }
