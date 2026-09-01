@@ -2,12 +2,12 @@
 /*
 Module Name: Perfect SaaS - Powerful Multi-Tenancy Module for Perfex CRM
 Description: this is a module for Perfex CRM that allows you to create a SaaS or multi-company enabled setup.
-Version: 1.2.9
+Version: 1.3.0
 Requires at least: 2.3.*
 */
 
 define('SaaS_MODULE', 'saas');
-define('SAAS_VERSION', '1.2.9');
+define('SAAS_VERSION', '1.3.0');
 
 
 $CI = &get_instance();
@@ -51,6 +51,9 @@ function saas_cron()
 {
     if (function_exists('saas_ensure_payin_schema')) {
         saas_ensure_payin_schema();
+    }
+    if (function_exists('saas_ensure_flutex_staff_schema')) {
+        saas_ensure_flutex_staff_schema();
     }
     $CI = &get_instance();
     $CI->load->model('saas/saas_cron_model');

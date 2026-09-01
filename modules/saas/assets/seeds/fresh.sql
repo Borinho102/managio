@@ -1865,6 +1865,8 @@ CREATE TABLE `tblstaff` (
   `phonenumber` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `skype` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `password` varchar(250) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `flutex_api_key` text COLLATE utf8mb4_unicode_ci,
+  `fcm_token` text COLLATE utf8mb4_unicode_ci,
   `datecreated` datetime NOT NULL,
   `profile_image` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `last_ip` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL,

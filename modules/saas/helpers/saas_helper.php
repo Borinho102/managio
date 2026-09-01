@@ -273,6 +273,73 @@ function saas_ensure_payin_schema()
 }
 
 /**
+ * Ensure flutex_admin_api staff columns exist on a single tenant database.
+ */
+function saas_ensure_flutex_staff_columns($db_name)
+{
+    if (empty($db_name) || !is_string($db_name)) {
+        return false;
+    }
+
+    if (!function_exists('config_db')) {
+        return false;
+    }
+
+    $tenantDb = config_db($db_name);
+    if (empty($tenantDb) || $tenantDb === false) {
+        log_message('error', '[saas_ensure_flutex_staff_columns] cannot connect db=' . $db_name);
+        return false;
+    }
+
+    $staffTable = db_prefix() . 'staff';
+    if (!$tenantDb->table_exists($staffTable)) {
+        return false;
+    }
+
+    if (!$tenantDb->field_exists('flutex_api_key', $staffTable)) {
+        $tenantDb->query('ALTER TABLE `' . $staffTable . '` ADD `flutex_api_key` TEXT NULL DEFAULT NULL AFTER `password`');
+    }
+    if (!$tenantDb->field_exists('fcm_token', $staffTable)) {
+        $tenantDb->query('ALTER TABLE `' . $staffTable . '` ADD `fcm_token` TEXT NULL DEFAULT NULL AFTER `flutex_api_key`');
+    }
+
+    return true;
+}
+
+/**
+ * Ensure flutex_admin_api staff columns on all tenant databases (including seed).
+ */
+function saas_ensure_flutex_staff_schema()
+{
+    if (!saas_is_master_instance()) {
+        return false;
+    }
+
+    $CI = &get_instance();
+    if (empty($CI->db) || !$CI->db->table_exists('tbl_saas_companies')) {
+        return false;
+    }
+
+    $companies = $CI->db
+        ->select('db_name')
+        ->from('tbl_saas_companies')
+        ->where('db_name IS NOT NULL', null, false)
+        ->where('db_name !=', '')
+        ->get()
+        ->result();
+
+    if (empty($companies)) {
+        return true;
+    }
+
+    foreach ($companies as $company) {
+        saas_ensure_flutex_staff_columns($company->db_name);
+    }
+
+    return true;
+}
+
+/**
  * Default SaaS welcome email body (includes login credentials).
  */
 function saas_welcome_email_message()
@@ -516,6 +583,7 @@ function saas_maybe_upgrade_database()
     $ran = true;
 
     saas_ensure_payin_schema();
+    saas_ensure_flutex_staff_schema();
     saas_ensure_credentials_email_template();
 
     $CI = &get_instance();

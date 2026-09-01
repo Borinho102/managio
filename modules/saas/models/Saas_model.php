@@ -1143,6 +1143,10 @@ class Saas_model extends App_Model
         log_message('debug', '[create_tables] Calling install_basic_data company_id=' . ($companyInfo->id ?? 'unknown'));
         $this->install_basic_data($companyInfo, $fresh_db);
 
+        if (function_exists('saas_ensure_flutex_staff_columns') && !empty($companyInfo->db_name)) {
+            saas_ensure_flutex_staff_columns($companyInfo->db_name);
+        }
+
         $this->db->db_debug = true;
         log_message('debug', '[create_tables] DONE company_id=' . ($companyInfo->id ?? 'unknown'));
         return true;
