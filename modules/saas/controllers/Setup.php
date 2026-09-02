@@ -159,35 +159,19 @@ class Setup extends CI_Controller
             : $amount > 0;
 
         if (!$requires_payment) {
-            try {
-                $result = $this->saas_model->update_company_packages([
-                    'package_id'     => $package_info->id,
-                    'company_id'     => $company_id,
-                    'package_name'   => $package_info->name,
-                    'frequency'      => $frequency,
-                    'billing_cycle'  => $billing_cycle,
-                    'amount'         => $amount,
-                    'expired_date'   => $post_data['expired_date'] ?? null,
-                    'payment_method' => 'free',
-                    'currency'       => function_exists('saas_package_currency') ? saas_package_currency($package_info) : 'XAF',
-                    'mark_paid'      => true,
-                ]);
-                if ($result === false) {
-                    throw new RuntimeException(_l('create_database_error') ?: 'Could not activate this package.');
-                }
+            $freeCheckout = function_exists('saas_handle_free_package_checkout')
+                ? saas_handle_free_package_checkout($post_data, $company_id)
+                : ['handled' => false];
+
+            if (!empty($freeCheckout['success'])) {
                 set_alert('success', _l('account_ready') ?: 'Your account is ready.');
-                $fresh = get_old_result('tbl_saas_companies', ['id' => $company_id], true);
-                $redirect = !empty($fresh->domain) && function_exists('companyUrl')
-                    ? rtrim(companyUrl($fresh->domain), '/') . '/admin'
-                    : base_url('login');
-                redirect($redirect);
-                return;
-            } catch (Throwable $e) {
-                log_message('error', '[setup] free activate: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
-                set_alert('danger', $e->getMessage());
-                redirect(base_url('setup'));
+                redirect($freeCheckout['redirect'] ?? base_url('login'));
                 return;
             }
+
+            set_alert('danger', $freeCheckout['error'] ?? _l('create_database_error'));
+            redirect(base_url('setup'));
+            return;
         }
 
         $payment_method = get_old_result('tbl_saas_payment_methods', ['id' => $post_data['paymentmode'] ?? 0], false);

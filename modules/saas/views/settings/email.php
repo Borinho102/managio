@@ -266,12 +266,25 @@
         <hr/>
         <h4><?php echo _l('settings_send_test_email_heading'); ?></h4>
         <p class="text-muted"><?php echo _l('settings_send_test_email_subheading'); ?></p>
+        <p class="text-muted"><small><?php echo _l('smtp_test_uses_form_values'); ?></small></p>
+        <?php
+        $defaultTestEmail = '';
+        if (function_exists('get_staff') && !empty(get_staff_user_id())) {
+            $staff = get_staff(get_staff_user_id());
+            if (!empty($staff->email)) {
+                $defaultTestEmail = $staff->email;
+            }
+        }
+        ?>
         <div class="form-group">
             <div class="input-group">
-                <input type="email" class="form-control" name="test_email" data-ays-ignore="true"
+                <input type="email" class="form-control" name="test_email" id="saas_test_email" data-ays-ignore="true"
+                       value="<?php echo html_escape($defaultTestEmail); ?>"
                        placeholder="<?php echo _l('settings_send_test_email_string'); ?>">
                 <div class="input-group-btn">
-                    <button type="button" class="btn btn-info test_email">Test</button>
+                    <button type="button" class="btn btn-info test_email" id="saas_test_email_btn">
+                        <i class="fa fa-paper-plane"></i> <?php echo _l('smtp_send_test_email'); ?>
+                    </button>
                 </div>
             </div>
         </div>
@@ -313,18 +326,42 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     onProtocolChange();
 
-    var testBtn = document.querySelector('.test_email');
-    if (testBtn) {
-        testBtn.addEventListener('click', function () {
-            var emailInput = document.querySelector('input[name="test_email"]');
-            var email = emailInput ? emailInput.value : '';
-            if (email !== '') {
-                testBtn.disabled = true;
-                var formData = new FormData();
-                formData.append('test_email', email);
-                fetch(admin_url + 'emails/sent_smtp_test_email', { method: 'POST', body: formData })
-                    .then(function () { window.location.reload(); });
+    var runTest = function () {
+        var emailInput = document.getElementById('saas_test_email');
+        var email = emailInput ? emailInput.value.trim() : '';
+        if (email === '') {
+            if (typeof alert_float === 'function') {
+                alert_float('warning', '<?php echo _l('settings_send_test_email_string'); ?>');
             }
+            return;
+        }
+
+        var btn = document.getElementById('saas_test_email_btn');
+        if (btn) {
+            btn.disabled = true;
+        }
+
+        var form = document.getElementById('settings-form');
+        var payload = (form && typeof jQuery !== 'undefined') ? jQuery(form).serialize() : ('test_email=' + encodeURIComponent(email));
+
+        jQuery.post(admin_url + 'saas/settings/sent_smtp_test_email', payload)
+            .done(function () {
+                window.location.reload();
+            })
+            .fail(function () {
+                if (btn) {
+                    btn.disabled = false;
+                }
+                if (typeof alert_float === 'function') {
+                    alert_float('danger', '<?php echo _l('smtp_test_email_failed'); ?>');
+                }
+            });
+    };
+
+    if (typeof jQuery !== 'undefined') {
+        jQuery(document).on('click', '.test_email', function (e) {
+            e.preventDefault();
+            runTest();
         });
     }
 });

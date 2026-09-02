@@ -58,6 +58,11 @@ class Settings extends AdminController
         } else {
             unset($post_data['settings']['saas_smtp_password']);
         }
+        if (isset($post_data['settings']['smtp_password']) && $post_data['settings']['smtp_password'] !== '') {
+            $post_data['settings']['smtp_password'] = $tmpData['settings']['smtp_password'];
+        } else {
+            unset($post_data['settings']['smtp_password']);
+        }
         if (!empty($post_data['settings']['zeptomail_api_key'])) {
             $post_data['settings']['zeptomail_api_key'] = encrypt($post_data['settings']['zeptomail_api_key']);
         } else {
@@ -156,58 +161,35 @@ class Settings extends AdminController
 
 
     /* Since version 1.0.1 - test your smtp settings */
-    public
-    function sent_smtp_test_email()
+    public function sent_smtp_test_email()
     {
-        if ($this->input->post()) {
-            $this->load->config('email');
-            // Simulate fake template to be parsed
-            $template = new StdClass();
-            $template->message = get_option('email_header') . 'This is test SMTP email. <br />If you received this message that means that your SMTP settings is set correctly.' . get_option('email_footer');
-            $template->fromname = get_option('companyname') != '' ? get_option('companyname') : 'TEST';
-            $template->subject = 'SMTP Setup Testing';
-
-            $template = parse_email_template($template);
-
-            hooks()->do_action('before_send_test_smtp_email');
-            $this->email->initialize();
-            if (get_option('mail_engine') == 'phpmailer') {
-                $this->email->set_debug_output(function ($err) {
-                    if (!isset($GLOBALS['debug'])) {
-                        $GLOBALS['debug'] = '';
-                    }
-                    $GLOBALS['debug'] .= $err . '<br />';
-
-                    return $err;
-                });
-
-                $this->email->set_smtp_debug(3);
-            }
-
-            $this->email->set_newline(config_item('newline'));
-            $this->email->set_crlf(config_item('crlf'));
-
-            $this->email->from(get_option('smtp_email'), $template->fromname);
-            $this->email->to($this->input->post('test_email'));
-
-            $systemBCC = get_option('bcc_emails');
-
-            if ($systemBCC != '') {
-                $this->email->bcc($systemBCC);
-            }
-
-            $this->email->subject($template->subject);
-            $this->email->message($template->message);
-
-            if ($this->email->send(true)) {
-                set_alert('success', 'Seems like your SMTP settings is set correctly. Check your email now.');
-                hooks()->do_action('smtp_test_email_success');
-            } else {
-                set_debug_alert('<h1>Your SMTP settings are not set correctly here is the debug log.</h1><br />' . $this->email->print_debugger() . (isset($GLOBALS['debug']) ? $GLOBALS['debug'] : ''));
-
-                hooks()->do_action('smtp_test_email_failed');
-            }
+        if (!$this->input->post()) {
+            redirect('saas/settings/index/email_settings');
         }
+
+        $testEmail = trim((string) $this->input->post('test_email'));
+        if ($testEmail === '') {
+            set_alert('warning', _l('settings_send_test_email_string'));
+            redirect('saas/settings/index/email_settings');
+        }
+
+        $postedSettings = $this->input->post('settings');
+        if (!is_array($postedSettings)) {
+            $postedSettings = null;
+        }
+
+        $result = function_exists('saas_send_smtp_test_email')
+            ? saas_send_smtp_test_email($testEmail, $postedSettings)
+            : ['success' => false, 'debug' => 'Test email helper not available.'];
+
+        if (!empty($result['success'])) {
+            set_alert('success', _l('smtp_test_email_success') ?: 'SMTP test email sent. Please check your inbox.');
+        } else {
+            $debug = $result['debug'] ?? 'Unknown error';
+            set_debug_alert('<h1>' . (_l('smtp_test_email_failed') ?: 'SMTP test failed') . '</h1><br />' . $debug);
+        }
+
+        redirect('saas/settings/index/email_settings');
     }
 
     public

@@ -53,6 +53,21 @@ class Gb_client extends ClientsController
 
         $post_data = $this->input->post();
         if (!empty($post_data)) {
+            if (function_exists('saas_handle_free_package_checkout')) {
+                $freeCheckout = saas_handle_free_package_checkout(
+                    $post_data,
+                    (int) ($post_data['companies_id'] ?? $subs_info->companies_id ?? 0)
+                );
+                if (!empty($freeCheckout['handled'])) {
+                    if (!empty($freeCheckout['success'])) {
+                        set_alert('success', _l('account_ready') ?: 'Your account is ready.');
+                        redirect($freeCheckout['redirect'] ?? site_url('clients/dashboard'));
+                    }
+                    set_alert('warning', $freeCheckout['error'] ?? _l('payment_method_not_found'));
+                    redirect($_SERVER['HTTP_REFERER'] ?? site_url('clients/billings'));
+                }
+            }
+
             $payment_method = get_old_result('tbl_saas_payment_methods', ['id' => $post_data['paymentmode'] ?? 0], false);
             if (empty($payment_method)) {
                 set_alert('warning', _l('payment_method_not_found'));

@@ -7,6 +7,11 @@ class Saas_inactive_company_email extends Saas_mail_template
     use SaasMailTemplate;
 
     /**
+     * Send immediately — do not wait for the mail queue/cron.
+     */
+    protected $skipQueue = true;
+
+    /**
      * @inheritDoc
      */
     public $rel_type = 'company';

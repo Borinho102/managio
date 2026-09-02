@@ -49,6 +49,18 @@ class Gb_admin extends AdminController
         $post_data = $this->input->post();
         if (!empty($post_data)) {
 
+            if (function_exists('saas_handle_free_package_checkout')) {
+                $freeCheckout = saas_handle_free_package_checkout($post_data);
+                if (!empty($freeCheckout['handled'])) {
+                    if (!empty($freeCheckout['success'])) {
+                        set_alert('success', _l('account_ready') ?: 'Your account is ready.');
+                        redirect($freeCheckout['redirect'] ?? base_url('login'));
+                    }
+                    set_alert('warning', $freeCheckout['error'] ?? _l('payment_method_not_found'));
+                    redirect($_SERVER['HTTP_REFERER'] ?? base_url());
+                }
+            }
+
             if (!empty(is_client_logged_in())) {
                 $subs_info = get_company_subscription_by_id();
             } else {

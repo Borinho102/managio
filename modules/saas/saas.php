@@ -2,12 +2,12 @@
 /*
 Module Name: Perfect SaaS - Powerful Multi-Tenancy Module for Perfex CRM
 Description: this is a module for Perfex CRM that allows you to create a SaaS or multi-company enabled setup.
-Version: 1.3.0
+Version: 1.3.1
 Requires at least: 2.3.*
 */
 
 define('SaaS_MODULE', 'saas');
-define('SAAS_VERSION', '1.3.0');
+define('SAAS_VERSION', '1.3.1');
 
 
 $CI = &get_instance();
@@ -55,6 +55,9 @@ function saas_cron()
     if (function_exists('saas_ensure_flutex_staff_schema')) {
         saas_ensure_flutex_staff_schema();
     }
+    if (function_exists('saas_ensure_credentials_email_template')) {
+        saas_ensure_credentials_email_template();
+    }
     $CI = &get_instance();
     $CI->load->model('saas/saas_cron_model');
     $CI->saas_cron_model->init();
@@ -99,6 +102,7 @@ hooks()->add_action('admin_init', 'saas_init_menu_items');
 //hooks()->add_action('clients_init', 'saas_init_client_items');
 hooks()->add_action('app_init', 'saas_init');
 hooks()->add_action('app_init', 'saas_ensure_credentials_email_template', 20);
+hooks()->add_action('app_init', 'saas_ensure_tenant_email_settings', 25);
 hooks()->add_action('after_staff_login', 'check_login');
 register_merge_fields('saas/merge_fields/saas_company_merge_fields');
 register_merge_fields('saas/merge_fields/affiliate_merge_fields');
@@ -112,6 +116,7 @@ hooks()->add_action('before_login', 'saas_before_staff_login');
 hooks()->add_action('sidebar_menu_items', 'saas_sidebar_menu_items');
 hooks()->add_filter('sidebar_menu_items', 'saas_ensure_core_crm_menu_items', 1005);
 hooks()->add_action('saas_after_company_database_created', 'saas_after_company_database_created_payin');
+hooks()->add_action('saas_after_company_database_created', 'saas_after_company_database_created_email');
 hooks()->add_action('pre_activate_module', 'saas_pre_activate_module');
 hooks()->add_action('pre_deactivate_module', 'saas_pre_deactivate_module');
 hooks()->add_action('pre_uninstall_module', 'saas_pre_uninstall_module');
@@ -590,6 +595,17 @@ function saas_pre_activate_module($module)
         }
     }
 
+}
+
+function saas_after_company_database_created_email($companyInfo)
+{
+    if (empty($companyInfo) || empty($companyInfo->db_name) || !empty($companyInfo->for_seed)) {
+        return;
+    }
+
+    if (function_exists('saas_sync_master_email_settings_to_tenant')) {
+        saas_sync_master_email_settings_to_tenant($companyInfo->db_name, true);
+    }
 }
 
 function saas_after_company_database_created_payin($companyInfo)

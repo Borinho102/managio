@@ -7,6 +7,11 @@ class Saas_assign_new_package extends Saas_mail_template
     use SaasMailTemplate;
 
     /**
+     * Send immediately — do not wait for the mail queue/cron.
+     */
+    protected $skipQueue = true;
+
+    /**
      * @inheritDoc
      */
     public $rel_type = 'company';

@@ -416,6 +416,43 @@ function saas_ensure_credentials_email_template()
             'name'    => 'SaaS Account Credentials',
             'message' => saas_credentials_email_message(),
         ],
+        'saas-token-activate-account' => [
+            'subject' => 'Activate your account',
+            'name'    => 'SaaS Token Activate Account',
+            'message' => 'Dear {name},<br/><br/>
+Thank you for registering on the <b>{companyname}</b> platform. We are happy to have you on board.<br/><br/>
+To verify your account please use activation code: {activation_token}<br/><br/>
+<a href="{activation_url}">Activate your account</a><br/><br/>
+Best regards,<br/>
+{email_signature}',
+        ],
+        'saas-assign-new-package' => [
+            'subject' => 'New Package',
+            'name'    => 'SaaS Assign New Package',
+            'message' => 'Dear {name},<br/><br/>
+We have assigned a new package to your account.<br/><br/>
+<b>Package:</b> {package_name}<br/><br/>
+Best regards,<br/>
+{email_signature}',
+        ],
+        'saas-company-expiration-email' => [
+            'subject' => '[Attention needed] - Company Expiration Reminder',
+            'name'    => 'Company Expiration Email',
+            'message' => 'Dear {name},<br/><br/>
+Your company will expire on {expiration_date}. Please renew to avoid interruption.<br/><br/>
+<a href="{company_url}">Renew your company</a><br/><br/>
+Best regards,<br/>
+{email_signature}',
+        ],
+        'saas-inactive-company-email' => [
+            'subject' => '[Attention] - your company is inactive',
+            'name'    => 'Inactive Company Email',
+            'message' => 'Dear {name},<br/><br/>
+Your company expired on {expiration_date} and is now inactive. Please renew to restore access.<br/><br/>
+<a href="{company_url}">Renew your company</a><br/><br/>
+Best regards,<br/>
+{email_signature}',
+        ],
     ];
 
     $ok = true;
@@ -539,7 +576,11 @@ function saas_send_plain_credentials_email($company, $plain_password = null)
     $admin_url = rtrim($company_url, '/') . '/admin';
     $password = ($plain_password !== null && $plain_password !== '') ? $plain_password : ($company->password ?? '');
     $name = $company->name ?? '';
-    $from_email = get_option('smtp_email') ?: get_option('companyname');
+    $from_email = get_option('smtp_email');
+    if (empty($from_email) || (function_exists('valid_email') && !valid_email($from_email))) {
+        log_message('error', '[saas] plain credentials email: smtp_email is not configured on master');
+        return false;
+    }
     $from_name = get_option('companyname') ?: 'CRM';
 
     $message = 'Dear ' . html_escape($name) . ',<br/><br/>'
@@ -565,6 +606,398 @@ function saas_send_plain_credentials_email($company, $plain_password = null)
     }
 
     return $ok;
+}
+
+/**
+ * Email option keys copied from master to tenant databases.
+ */
+function saas_master_email_option_keys()
+{
+    return [
+        'mail_engine',
+        'email_protocol',
+        'smtp_host',
+        'smtp_port',
+        'smtp_email',
+        'smtp_username',
+        'smtp_password',
+        'smtp_encryption',
+        'smtp_email_charset',
+        'microsoft_mail_client_id',
+        'microsoft_mail_client_secret',
+        'microsoft_mail_azure_tenant_id',
+        'microsoft_mail_refresh_token',
+        'google_mail_client_id',
+        'google_mail_client_secret',
+        'google_mail_refresh_token',
+        'zeptomail_api_key',
+        'email_header',
+        'email_footer',
+        'email_signature',
+        'bcc_emails',
+    ];
+}
+
+/**
+ * Build mailer config from posted SMTP settings (for test sends without saving).
+ *
+ * @param array $settings Posted settings[...] from the email form
+ * @return array|null
+ */
+function saas_build_email_config_from_post(array $settings)
+{
+    if (empty($settings)) {
+        return null;
+    }
+
+    $CI = &get_instance();
+    $pick = static function ($key, $fallback = '') use ($settings) {
+        if (array_key_exists($key, $settings) && $settings[$key] !== null && $settings[$key] !== '') {
+            return $settings[$key];
+        }
+
+        return get_option($key) ?: $fallback;
+    };
+
+    $mailEngine = $pick('mail_engine', 'phpmailer');
+    $protocol   = $pick('email_protocol', 'smtp');
+
+    $config = [
+        'useragent' => $mailEngine,
+        'protocol'  => $protocol === 'zeptomail' ? 'smtp' : $protocol,
+        'mailpath'  => '/usr/bin/sendmail',
+        'wordwrap'  => true,
+        'mailtype'  => 'html',
+        'validate'  => false,
+        'priority'  => 3,
+        'newline'   => "\r\n",
+        'crlf'      => "\r\n",
+        'encoding'  => '8bit',
+        'smtp_timeout' => 30,
+        'smtp_debug'   => 0,
+        'smtp_auto_tls' => false,
+        'smtp_conn_options' => [
+            'ssl' => [
+                'verify_peer'       => false,
+                'verify_peer_name'  => false,
+                'allow_self_signed' => true,
+            ],
+        ],
+    ];
+
+    $charset = strtoupper((string) $pick('smtp_email_charset', 'utf-8'));
+    if ($charset === '' || strcasecmp($charset, 'utf8') === 0) {
+        $charset = 'utf-8';
+    }
+    $config['charset'] = $charset;
+
+    if ($protocol === 'zeptomail') {
+        $config['smtp_host']   = 'smtp.zeptomail.com';
+        $config['smtp_port']   = 587;
+        $config['smtp_user']   = 'emailapikey';
+        $config['smtp_crypto'] = 'tls';
+        $rawKey = array_key_exists('zeptomail_api_key', $settings) && $settings['zeptomail_api_key'] !== ''
+            ? $settings['zeptomail_api_key']
+            : get_option('zeptomail_api_key');
+        if (array_key_exists('zeptomail_api_key', $settings) && $settings['zeptomail_api_key'] !== '') {
+            $config['smtp_pass'] = $settings['zeptomail_api_key'];
+        } else {
+            $decKey = !empty($rawKey) ? $CI->encryption->decrypt($rawKey) : '';
+            $config['smtp_pass'] = ($decKey !== false && $decKey !== '') ? $decKey : $rawKey;
+        }
+        $config['zeptomail_api_key'] = $config['smtp_pass'];
+    } else {
+        $config['smtp_host'] = trim((string) $pick('smtp_host'));
+        $config['smtp_port'] = trim((string) $pick('smtp_port'));
+        $config['smtp_crypto'] = $pick('smtp_encryption');
+        $username = trim((string) $pick('smtp_username'));
+        $config['smtp_user'] = $username !== '' ? $username : trim((string) $pick('smtp_email'));
+
+        if (array_key_exists('smtp_password', $settings) && $settings['smtp_password'] !== '') {
+            $config['smtp_pass'] = $settings['smtp_password'];
+        } else {
+            $stored = get_option('smtp_password');
+            $config['smtp_pass'] = !empty($stored) ? $CI->encryption->decrypt($stored) : '';
+        }
+
+        $config['zeptomail_api_key'] = $CI->encryption->decrypt(get_option('zeptomail_api_key'));
+    }
+
+    if ($protocol === 'microsoft') {
+        $config['client_id']     = $pick('microsoft_mail_client_id');
+        if (array_key_exists('microsoft_mail_client_secret', $settings) && $settings['microsoft_mail_client_secret'] !== '') {
+            $config['client_secret'] = $settings['microsoft_mail_client_secret'];
+        } else {
+            $config['client_secret'] = $CI->encryption->decrypt(get_option('microsoft_mail_client_secret'));
+        }
+        $config['tenant_id']     = $pick('microsoft_mail_azure_tenant_id');
+        $config['refresh_token'] = $pick('microsoft_mail_refresh_token');
+    }
+
+    if ($protocol === 'google') {
+        $config['client_id']     = $pick('google_mail_client_id');
+        if (array_key_exists('google_mail_client_secret', $settings) && $settings['google_mail_client_secret'] !== '') {
+            $config['client_secret'] = $settings['google_mail_client_secret'];
+        } else {
+            $config['client_secret'] = $CI->encryption->decrypt(get_option('google_mail_client_secret'));
+        }
+        $config['refresh_token'] = $pick('google_mail_refresh_token');
+    }
+
+    return $config;
+}
+
+/**
+ * Send a test email using current or posted SMTP settings.
+ *
+ * @param string     $to
+ * @param array|null $postedSettings
+ * @return array{success:bool,debug?:string}
+ */
+function saas_send_smtp_test_email($to, $postedSettings = null)
+{
+    $CI = &get_instance();
+    if (empty($to) || (function_exists('valid_email') && !valid_email($to))) {
+        return ['success' => false, 'debug' => 'Invalid recipient email address.'];
+    }
+
+    $header  = array_key_exists('email_header', (array) $postedSettings)
+        ? ($postedSettings['email_header'] ?? '')
+        : get_option('email_header');
+    $footer  = array_key_exists('email_footer', (array) $postedSettings)
+        ? ($postedSettings['email_footer'] ?? '')
+        : get_option('email_footer');
+    $fromEmail = !empty($postedSettings['smtp_email'])
+        ? $postedSettings['smtp_email']
+        : get_option('smtp_email');
+    if (empty($fromEmail) || (function_exists('valid_email') && !valid_email($fromEmail))) {
+        return ['success' => false, 'debug' => 'SMTP email address (From) is not configured.'];
+    }
+
+    $template = new StdClass();
+    $template->message  = $header . 'This is a test SMTP email from Managio.<br />If you received this message, your SMTP settings are configured correctly.' . $footer;
+    $template->fromname = get_option('companyname') !== '' ? get_option('companyname') : 'Managio';
+    $template->subject  = 'SMTP Setup Testing';
+    $template          = parse_email_template($template);
+
+    hooks()->do_action('before_send_test_smtp_email');
+
+    $CI->load->config('email');
+    $config = is_array($postedSettings) ? saas_build_email_config_from_post($postedSettings) : null;
+    if (!empty($config)) {
+        $CI->email->initialize($config);
+    } else {
+        $CI->email->initialize();
+    }
+
+    $GLOBALS['debug'] = '';
+    if (get_option('mail_engine') === 'phpmailer' || (!empty($config['useragent']) && $config['useragent'] === 'phpmailer')) {
+        $CI->email->set_debug_output(function ($err) {
+            if (!isset($GLOBALS['debug'])) {
+                $GLOBALS['debug'] = '';
+            }
+            $GLOBALS['debug'] .= $err . '<br />';
+            return $err;
+        });
+        $CI->email->set_smtp_debug(3);
+    }
+
+    $CI->email->clear(true);
+    $CI->email->set_newline(config_item('newline'));
+    $CI->email->set_crlf(config_item('crlf'));
+    $CI->email->from($fromEmail, $template->fromname);
+    $CI->email->to($to);
+
+    $bcc = !empty($postedSettings['bcc_emails']) ? $postedSettings['bcc_emails'] : get_option('bcc_emails');
+    if (!empty($bcc)) {
+        $CI->email->bcc($bcc);
+    }
+
+    $CI->email->subject($template->subject);
+    $CI->email->message($template->message);
+
+    $sent = (bool) $CI->email->send(true);
+    if ($sent) {
+        hooks()->do_action('smtp_test_email_success');
+        return ['success' => true];
+    }
+
+    hooks()->do_action('smtp_test_email_failed');
+    $debug = $CI->email->print_debugger() . (isset($GLOBALS['debug']) ? $GLOBALS['debug'] : '');
+
+    return ['success' => false, 'debug' => $debug];
+}
+
+/**
+ * Copy master SMTP/email settings into a tenant database.
+ */
+function saas_sync_master_email_settings_to_tenant($db_name = null, $only_if_empty = true)
+{
+    $CI = &get_instance();
+
+    if (empty($db_name)) {
+        if (function_exists('is_subdomain') && is_subdomain() && !empty($CI->db->database)) {
+            $db_name = $CI->db->database;
+        } else {
+            return false;
+        }
+    }
+
+    if (!function_exists('config_db')) {
+        return false;
+    }
+
+    $masterDb = config_db(null, true);
+    if (empty($masterDb)) {
+        return false;
+    }
+
+    $tenantDb = (!empty($CI->db->database) && $CI->db->database === $db_name)
+        ? $CI->db
+        : config_db($db_name);
+    if (empty($tenantDb)) {
+        return false;
+    }
+
+    $optionsTable = db_prefix() . 'options';
+    if (!$tenantDb->table_exists($optionsTable)) {
+        return false;
+    }
+
+    $synced = 0;
+    foreach (saas_master_email_option_keys() as $name) {
+        $masterRow = $masterDb->get_where($optionsTable, ['name' => $name])->row();
+        if (empty($masterRow) || $masterRow->value === '' || $masterRow->value === null) {
+            continue;
+        }
+
+        $tenantRow = $tenantDb->get_where($optionsTable, ['name' => $name])->row();
+        if (empty($tenantRow)) {
+            $tenantDb->insert($optionsTable, [
+                'name'     => $name,
+                'value'    => $masterRow->value,
+                'autoload' => 1,
+            ]);
+            $synced++;
+        } elseif (!$only_if_empty || empty($tenantRow->value)) {
+            $tenantDb->where('name', $name)->update($optionsTable, ['value' => $masterRow->value]);
+            $synced++;
+        }
+    }
+
+    return $synced > 0;
+}
+
+/**
+ * On tenant requests, inherit master SMTP when tenant mail is not configured.
+ */
+function saas_ensure_tenant_email_settings()
+{
+    static $ran = false;
+    if ($ran) {
+        return;
+    }
+    $ran = true;
+
+    if (!function_exists('is_subdomain') || !is_subdomain()) {
+        return;
+    }
+
+    if (!empty(get_option('smtp_host')) && !empty(get_option('smtp_email'))) {
+        return;
+    }
+
+    saas_sync_master_email_settings_to_tenant(null, true);
+}
+
+/**
+ * Activate a free (0-price) package at checkout without a payment gateway.
+ *
+ * @param array    $post_data
+ * @param int|null $company_id
+ * @return array{handled:bool,success?:bool,redirect?:string,error?:string}
+ */
+function saas_handle_free_package_checkout($post_data, $company_id = null)
+{
+    $package_id = (int) ($post_data['package_id'] ?? 0);
+    if ($package_id <= 0) {
+        return ['handled' => false];
+    }
+
+    $billing_cycle = function_exists('saas_normalize_billing_cycle')
+        ? saas_normalize_billing_cycle($post_data['billing_cycle'] ?? 'monthly')
+        : 'monthly_price';
+    $package_info = get_old_result('tbl_saas_packages', ['id' => $package_id], false);
+    if (empty($package_info)) {
+        return ['handled' => false];
+    }
+
+    $amount = function_exists('saas_package_cycle_price')
+        ? saas_package_cycle_price($package_info, $billing_cycle)
+        : (float) ($package_info->{$billing_cycle} ?? 0);
+    $requires_payment = function_exists('saas_package_requires_payment')
+        ? saas_package_requires_payment($package_info, $billing_cycle, $amount)
+        : $amount > 0;
+
+    if ($requires_payment) {
+        return ['handled' => false];
+    }
+
+    $company_id = (int) ($company_id ?: ($post_data['companies_id'] ?? 0));
+    if ($company_id <= 0) {
+        return [
+            'handled' => true,
+            'success' => false,
+            'error'   => _l('company_not_found'),
+        ];
+    }
+
+    $company_before = get_old_result('tbl_saas_companies', ['id' => $company_id], true);
+    $was_pending = !empty($company_before) && ($company_before->status ?? '') === 'pending';
+
+    $CI = &get_instance();
+    $CI->load->model('saas/saas_model');
+
+    try {
+        $result = $CI->saas_model->update_company_packages([
+            'package_id'     => $package_info->id,
+            'company_id'     => $company_id,
+            'package_name'   => $package_info->name,
+            'frequency'      => str_replace('_price', '', $billing_cycle),
+            'billing_cycle'  => $billing_cycle,
+            'amount'         => $amount,
+            'expired_date'   => $post_data['expired_date'] ?? null,
+            'payment_method' => 'free',
+            'currency'       => function_exists('saas_package_currency') ? saas_package_currency($package_info) : 'XAF',
+            'mark_paid'      => true,
+        ]);
+
+        if ($result === false) {
+            throw new RuntimeException(_l('create_database_error') ?: 'Could not activate this package.');
+        }
+
+        if ($was_pending && function_exists('saas_send_signup_emails')) {
+            saas_send_signup_emails($company_id);
+        }
+
+        $fresh = get_old_result('tbl_saas_companies', ['id' => $company_id], true);
+        $redirect = !empty($fresh->domain) && function_exists('companyUrl')
+            ? rtrim(companyUrl($fresh->domain), '/') . '/admin'
+            : base_url('login');
+
+        return [
+            'handled'  => true,
+            'success'  => true,
+            'redirect' => $redirect,
+        ];
+    } catch (Throwable $e) {
+        log_message('error', '[saas] free checkout: ' . $e->getMessage());
+        return [
+            'handled' => true,
+            'success' => false,
+            'error'   => $e->getMessage(),
+        ];
+    }
 }
 
 function saas_maybe_upgrade_database()
