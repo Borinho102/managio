@@ -825,7 +825,38 @@ function saas_send_smtp_test_email($to, $postedSettings = null)
     hooks()->do_action('smtp_test_email_failed');
     $debug = $CI->email->print_debugger() . (isset($GLOBALS['debug']) ? $GLOBALS['debug'] : '');
 
-    return ['success' => false, 'debug' => $debug];
+    return [
+        'success' => false,
+        'debug'   => $debug,
+        'hint'    => saas_smtp_test_error_hint($debug),
+    ];
+}
+
+/**
+ * Human-readable hint for common SMTP test failures (Zoho, Gmail, etc.).
+ */
+function saas_smtp_test_error_hint($debug)
+{
+    $debug = strip_tags((string) $debug);
+    $lower = strtolower($debug);
+
+    if (strpos($lower, 'unusual sending activity') !== false || strpos($lower, 'unblockme') !== false) {
+        return _l('smtp_test_hint_zoho_blocked');
+    }
+
+    if (strpos($lower, 'authentication failed') !== false || strpos($lower, '535') !== false) {
+        return _l('smtp_test_hint_auth_failed');
+    }
+
+    if (strpos($lower, 'could not connect') !== false || strpos($lower, 'connection refused') !== false) {
+        return _l('smtp_test_hint_connection_failed');
+    }
+
+    if (strpos($lower, 'data not accepted') !== false && strpos($lower, 'authentication successful') !== false) {
+        return _l('smtp_test_hint_provider_rejected');
+    }
+
+    return _l('smtp_test_hint_generic');
 }
 
 /**

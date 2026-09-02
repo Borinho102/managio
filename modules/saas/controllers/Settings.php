@@ -186,7 +186,11 @@ class Settings extends AdminController
             set_alert('success', _l('smtp_test_email_success') ?: 'SMTP test email sent. Please check your inbox.');
         } else {
             $debug = $result['debug'] ?? 'Unknown error';
-            set_debug_alert('<h1>' . (_l('smtp_test_email_failed') ?: 'SMTP test failed') . '</h1><br />' . $debug);
+            $hint  = $result['hint'] ?? (_l('smtp_test_hint_generic') ?: '');
+            $body  = '<div class="alert alert-warning tw-mb-3"><strong>' . _l('smtp_test_email_failed') . '</strong><br/>' . $hint . '</div>';
+            $body .= '<details><summary style="cursor:pointer;font-weight:600;">' . _l('smtp_test_show_debug_log') . '</summary>';
+            $body .= '<div class="tw-mt-2" style="max-height:400px;overflow:auto;font-size:12px;">' . $debug . '</div></details>';
+            set_debug_alert($body);
         }
 
         redirect('saas/settings/index/email_settings');
