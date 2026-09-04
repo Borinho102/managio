@@ -469,22 +469,55 @@ class Packages extends AdminController
         $this->saas_package_module_prices_model->delete_by_module($module_id);
         if (!empty($posted_prices) && is_array($posted_prices)) {
             $to_save = [];
-            foreach ($posted_prices as $currency_code => $cycles) {
-                $currency_code = strtoupper(trim($currency_code));
-                if (!is_array($cycles)) {
-                    continue;
-                }
-                foreach ($cycles as $cycle => $amt) {
-                    if ($amt === '' || $amt === null) {
+            foreach ($posted_prices as $currency_code => $entry) {
+                $currency_code = strtoupper(trim((string) ($entry['currency'] ?? $currency_code)));
+
+                if (!is_array($entry)) {
+                    $amount = $entry;
+                    $billing_cycle = null;
+                    if ($amount === '' || $amount === null) {
                         continue;
                     }
-                    $billing_cycle = $cycle === 'default' ? null : $cycle;
                     $to_save[] = [
                         'currency' => $currency_code,
                         'billing_cycle' => $billing_cycle,
-                        'amount' => floatval($amt),
+                        'amount' => floatval($amount),
                     ];
+                    continue;
                 }
+
+                if (isset($entry['amount'])) {
+                    $amount = $entry['amount'];
+                    $billing_cycle = null;
+                } elseif (isset($entry['default'])) {
+                    $amount = $entry['default'];
+                    $billing_cycle = null;
+                } else {
+                    $amount = null;
+                    $billing_cycle = null;
+                    foreach ($entry as $cycle => $amt) {
+                        if ($amt === '' || $amt === null) {
+                            continue;
+                        }
+                        $billing_cycle = ($cycle === 'default' || $cycle === 'default_currency') ? null : $cycle;
+                        $to_save[] = [
+                            'currency' => $currency_code,
+                            'billing_cycle' => $billing_cycle,
+                            'amount' => floatval($amt),
+                        ];
+                    }
+                    continue;
+                }
+
+                if ($amount === '' || $amount === null) {
+                    continue;
+                }
+
+                $to_save[] = [
+                    'currency' => $currency_code,
+                    'billing_cycle' => $billing_cycle,
+                    'amount' => floatval($amount),
+                ];
             }
             if (!empty($to_save)) {
                 $this->saas_package_module_prices_model->save_prices_bulk($module_id, $to_save);

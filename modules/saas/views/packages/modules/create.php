@@ -103,7 +103,7 @@
                     </div>
                 </div>
 
-                <?php // Per-currency price inputs: show available currencies with billing cycle columns (monthly/yearly/lifetime)
+                <?php // Per-currency pricing: one amount per selected currency, without monthly/yearly/lifetime splits.
                 if (!empty($currencies) && is_array($currencies)) { ?>
                     <div class="form-group">
                         <label class="control-label"><?= _l('per_currency_prices') ?></label>
@@ -112,24 +112,36 @@
                                 <thead>
                                 <tr>
                                     <th><?= _l('currency') ?></th>
-                                    <th><?= _l('monthly') ?></th>
-                                    <th><?= _l('yearly') ?></th>
-                                    <th><?= _l('lifetime') ?></th>
+                                    <th><?= _l('price') ?></th>
                                 </tr>
                                 </thead>
                                 <tbody>
                                 <?php foreach ($currencies as $cur) {
-                                    // currencies_model->get() returns array elements with keys (id,name,symbol,...)
                                     $code = is_array($cur) ? strtoupper($cur['name']) : strtoupper($cur->name);
-                                    $monthly = isset($module_prices[strtoupper($code)]['monthly']) ? $module_prices[strtoupper($code)]['monthly'] : '';
-                                    $yearly = isset($module_prices[strtoupper($code)]['yearly']) ? $module_prices[strtoupper($code)]['yearly'] : '';
-                                    $lifetime = isset($module_prices[strtoupper($code)]['lifetime']) ? $module_prices[strtoupper($code)]['lifetime'] : '';
+                                    $symbol = is_array($cur) ? $cur['symbol'] : $cur->symbol;
+                                    $value = '';
+                                    if (!empty($module_prices[strtoupper($code)])) {
+                                        $currency_prices = $module_prices[strtoupper($code)];
+                                        if (is_array($currency_prices)) {
+                                            $value = $currency_prices['default'] ?? $currency_prices['monthly'] ?? $currency_prices['yearly'] ?? $currency_prices['lifetime'] ?? '';
+                                        }
+                                    }
                                     ?>
                                     <tr>
-                                        <td><?= $code ?> (<?= is_array($cur) ? $cur['symbol'] : $cur->symbol ?>)</td>
-                                        <td><input type="number" step="0.01" class="form-control" name="prices[<?= $code ?>][monthly]" value="<?= $monthly ?>"/></td>
-                                        <td><input type="number" step="0.01" class="form-control" name="prices[<?= $code ?>][yearly]" value="<?= $yearly ?>"/></td>
-                                        <td><input type="number" step="0.01" class="form-control" name="prices[<?= $code ?>][lifetime]" value="<?= $lifetime ?>"/></td>
+                                        <td>
+                                            <select class="form-control" name="prices[<?= $code ?>][currency]">
+                                                <?php foreach ($currencies as $currency_option) {
+                                                    $option_code = is_array($currency_option) ? strtoupper($currency_option['name']) : strtoupper($currency_option->name);
+                                                    $option_symbol = is_array($currency_option) ? $currency_option['symbol'] : $currency_option->symbol;
+                                                    $selected = ($option_code === $code) ? 'selected' : '';
+                                                    ?>
+                                                    <option value="<?= $option_code ?>" <?= $selected ?>><?= $option_code ?> (<?= $option_symbol ?>)</option>
+                                                <?php } ?>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.01" class="form-control" name="prices[<?= $code ?>][amount]" value="<?= $value ?>" placeholder="<?= _l('price') ?>"/>
+                                        </td>
                                     </tr>
                                 <?php } ?>
                                 </tbody>
