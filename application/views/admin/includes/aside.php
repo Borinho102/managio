@@ -103,7 +103,7 @@
                             class="<?= e($submenu['icon']); ?> menu-icon"></i>
                         <?php } ?>
                         <span class="sub-menu-text">
-                            <?= _l($submenu['name'], '', false); ?>
+                            <?= e(_l($submenu['name'], '', false)); ?>
                         </span>
                     </a>
                     <?php if (isset($submenu['badge'], $submenu['badge']['value']) && ! empty($submenu['badge'])) {?>

@@ -20,7 +20,7 @@
                     <?php echo _attributes_to_string(isset($item['href_attributes']) ? $item['href_attributes'] : []); ?>>
                     <i class="<?php echo $item['icon']; ?> menu-icon"></i>
                     <span class="menu-text">
-                    <?php echo _l($item['name'], '', false); ?>
+                    <?php echo e(_l($item['name'], '', false)); ?>
                 </span>
                     <?php if (count($item['children']) > 0) { ?>
                         <span class="fa arrow pleft5"></span>
@@ -46,7 +46,7 @@
                                         <i class="<?php echo $submenu['icon']; ?> menu-icon"></i>
                                     <?php } ?>
                                     <span class="sub-menu-text">
-                            <?php echo _l($submenu['name'], '', false); ?>
+                            <?php echo e(_l($submenu['name'], '', false)); ?>
                         </span>
                                 </a>
                                 <?php if (isset($submenu['badge'], $submenu['badge']['value']) && !empty($submenu['badge'])) { ?>

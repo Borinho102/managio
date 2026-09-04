@@ -16,7 +16,7 @@
                     echo '  style="opacity:0.5"';
                 } ?>>
                     <div class="dd-handle dd3-handle"></div>
-                    <div class="dd3-content"><?php echo _l($item['name'], '', false); ?>
+                    <div class="dd3-content"><?php echo e(_l($item['name'], '', false)); ?>
                         <a href="#" class="text-muted toggle-menu-options main-item-options pull-right"><i
                                     class="fa fa-cog"></i></a>
                     </div>
@@ -44,7 +44,7 @@
                                     echo '  style="opacity:0.5"';
                                 } ?>>
                                     <div class="dd-handle dd3-handle"></div>
-                                    <div class="dd3-content"><?php echo _l($submenu['name'], '', false); ?>
+                                    <div class="dd3-content"><?php echo e(_l($submenu['name'], '', false)); ?>
                                         <a href="#" class="text-muted toggle-menu-options sub-item-options pull-right">
                                             <i class="fa fa-cog"></i></a>
                                     </div>
