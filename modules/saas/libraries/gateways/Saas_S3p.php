@@ -452,7 +452,7 @@ class Saas_S3p extends Saas_payment
         $subscription_data = [
             'quoteId'                  => $quote['quoteId'],
             'trid'                     => $trid,
-            'currency'                 => $quote['currency'] ?? $this->currency,
+            'currency'          => $data['price_currency'] ?? $quote['currency'] ?? $this->currency,
             'amount'                   => $amount,
             'gateway_subscription_id'  => $s3p_company->id ?? null,
         ];
@@ -529,7 +529,7 @@ class Saas_S3p extends Saas_payment
                 'billing_cycle'     => $package['billing_cycle'] ?? 'monthly_price',
                 'frequency'         => $frequency,
                 'amount'            => 0,
-                'currency'          => $this->currency,
+                'currency'          => $package['price_currency'] ?? $package['currency'] ?? $this->currency,
                 'package_module_id' => $package['package_module_id'] ?? '',
                 'type'              => 'package',
                 'zero_price'        => '1',
@@ -563,7 +563,7 @@ class Saas_S3p extends Saas_payment
             'billing_cycle'     => $package['billing_cycle'] ?? 'monthly_price',
             'frequency'         => $frequency,
             'amount'            => $amount,
-            'currency'          => $quote['currency'] ?? $this->currency,
+            'currency'          => $package['price_currency'] ?? $quote['currency'] ?? $this->currency,
             'package_module_id' => $package['package_module_id'] ?? '',
             'type'              => 'package',
         ];
@@ -606,7 +606,7 @@ class Saas_S3p extends Saas_payment
                 'billing_cycle'     => 'monthly_price',
                 'frequency'         => 'monthly',
                 'amount'            => 0,
-                'currency'          => $this->currency,
+                'currency'          => $data['price_currency'] ?? $data['currency'] ?? $this->currency,
                 'package_module_id' => $package_module_id,
                 'type'              => 'module',
                 'zero_price'        => '1',
@@ -639,7 +639,7 @@ class Saas_S3p extends Saas_payment
             'billing_cycle'     => 'monthly_price',
             'frequency'         => 'monthly',
             'amount'            => $amount,
-            'currency'          => $quote['currency'] ?? $this->currency,
+            'currency'          => $data['price_currency'] ?? $quote['currency'] ?? $this->currency,
             'package_module_id' => $package_module_id,
             'type'              => 'module',
         ];

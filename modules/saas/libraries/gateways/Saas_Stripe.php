@@ -451,7 +451,7 @@ class Saas_Stripe extends Saas_payment
             // create lifetime subscription
             $paymentIntent = $this->provider->paymentIntents->create([
                 'amount' => $post['amount'] * 100,
-                'currency' => $this->currency,
+                'currency' => $post['price_currency'] ?? $post['currency'] ?? $this->currency,
                 'automatic_payment_methods' => [
                     'enabled' => true,
                 ],
@@ -596,7 +596,7 @@ class Saas_Stripe extends Saas_payment
             'gateway_subscription_id' => $stripe_company->id,
             'client_secret'           => $client_secret,
             'trial'                   => $package->trial_period != 0,
-            'currency'                => $this->currency,
+            'currency'                => $post['price_currency'] ?? $post['currency'] ?? $this->currency,
             'amount'                  => $post['amount'] * 100,
         ];
     }
@@ -654,7 +654,7 @@ class Saas_Stripe extends Saas_payment
                 'company_id' => $package['companies_id'],
                 'priceId' => $package['priceId'],
                 'amount' => $package['amount'],
-                'currency' => $this->currency,
+                'currency' => $package['price_currency'] ?? $package['currency'] ?? $this->currency,
                 'client_secret' => $subscription['client_secret'],
             ];
             $p['gateway_id'] = encrypt($subscription['gateway_subscription_id']);
@@ -716,7 +716,7 @@ class Saas_Stripe extends Saas_payment
                 'company_id' => $data['companies_id'],
                 'priceId' => $data['priceId'],
                 'amount' => $data['amount'],
-                'currency' => $this->currency,
+                'currency' => $data['price_currency'] ?? $data['currency'] ?? $this->currency,
                 'client_secret' => $subscription['client_secret'],
             ];
             $p['gateway_id'] = encrypt($subscription['gateway_subscription_id']);

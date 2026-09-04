@@ -3094,6 +3094,7 @@ class Saas_model extends App_Model
 
         $data['total'] = $data['price'];
         $data['subtotal'] = $data['price'];
+        $data['currency'] = $data['price_currency'] ?? '';
         $data['discount_total_type_selected'] = '%';
         $data['discount_percent'] = '0';
         $data['new_module'] = [$data['module_name'] => $data['price']];

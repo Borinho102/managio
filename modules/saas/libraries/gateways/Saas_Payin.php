@@ -9,6 +9,12 @@ class Saas_Payin extends Saas_payment
 
     protected function resolveCurrency($context = null): string
     {
+        if (is_array($context) && !empty($context['price_currency'])) {
+            return saas_normalize_currency_code($context['price_currency']);
+        }
+        if (is_array($context) && !empty($context['currency'])) {
+            return saas_normalize_currency_code($context['currency']);
+        }
         $package = null;
         if (is_object($context) && isset($context->monthly_price)) {
             $package = $context;
