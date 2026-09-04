@@ -11,7 +11,7 @@ if (!empty(subdomain())) {
 } else if (!empty(is_super_admin())) {
     $back_url = base_url('saas/packages/modules');
 }
-$module_title = (!empty($module->module_title)) ? saas_pick_localized($module->module_title) : ($module_name['headers']['module_name'] ?? '');
+$module_title = (!empty($module->module_title)) ? saas_pick_localized($module->module_title, $tenant_locale ?? null) : ($module_name['headers']['module_name'] ?? '');
 echo form_open($mUrl . 'proceedPayment');
 ?>
 <div class="row">

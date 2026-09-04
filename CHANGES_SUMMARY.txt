@@ -1,0 +1,75 @@
+TENANT LOCALE AND CURRENCY IMPLEMENTATION
+==========================================
+
+URL: https://invest-logistic.managio.africa/admin/get_modules/42
+
+CHANGES MADE:
+-------------
+
+1. modules/saas/controllers/Gb_admin.php
+   - Updated get_modules($company_id = null) to accept tenant company ID
+   - Updated module_details($module, $company_id = null) to accept tenant company ID
+   - Both functions now load tenant-specific company info using get_company_subscription_by_id()
+   - Extract tenant locale with fallback: company->language || company->locale || 'en'
+   - Extract tenant currency with fallback: company->currency || saas_default_currency()
+   - Pass tenant_locale and tenant_currency to views
+
+2. modules/saas/views/packages/modules/get_modules.php
+   - Updated saas_pick_localized() calls to use $tenant_locale parameter
+   - Updated display_money() call to use $tenant_currency parameter
+   - Module titles and descriptions now use tenant's language
+   - Prices now display in tenant's currency
+
+3. modules/saas/views/packages/modules/module_details.php
+   - Updated saas_pick_localized() call to use $tenant_locale parameter
+   - Module titles now use tenant's language
+
+4. modules/saas/config/my_routes.php
+   - Added route: admin/module_details/(:any)/(:num) for module details with company ID
+
+HOW IT WORKS:
+-------------
+
+When accessing admin/get_modules/42:
+1. Route maps to saas/gb_admin/get_modules(42)
+2. Controller loads company #42 info via get_company_subscription_by_id(42)
+3. Extracts tenant locale: 42->language || 42->locale || 'en'
+4. Extracts tenant currency: 42->currency || saas_default_currency()
+5. View uses tenant_locale for localized module titles/descriptions
+6. View uses tenant_currency for price display
+7. saas_pick_localized() handles fallback automatically (tries tenant locale, then 'en', then first available)
+
+FALLBACK BEHAVIOR:
+------------------
+
+Locale Fallback:
+- Tenant company->language (e.g., 'fr')
+- Tenant company->locale (e.g., 'fr_FR')
+- Default: 'en'
+
+Currency Fallback:
+- Tenant company->currency (e.g., 'XAF')
+- System default via saas_default_currency()
+
+Localized Content Fallback (saas_pick_localized):
+- Requested locale (e.g., 'fr')
+- English ('en')
+- First available locale
+- Original string
+
+BACKWARD COMPATIBILITY:
+-----------------------
+✅ admin/get_modules (no company_id) - uses current context
+✅ admin/module_details/{module} (no company_id) - uses current context
+✅ All existing routes preserved
+
+FILES MODIFIED:
+---------------
+- modules/saas/controllers/Gb_admin.php
+- modules/saas/views/packages/modules/get_modules.php
+- modules/saas/views/packages/modules/module_details.php
+- modules/saas/config/my_routes.php
+
+DOCUMENTATION:
+--------------
+See IMPLEMENTATION_SUMMARY.md for detailed documentation

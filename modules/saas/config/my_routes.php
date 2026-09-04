@@ -133,6 +133,7 @@ $route['admin/netim-requests'] = 'saas/netim_domains/requests';
 $route['admin/netim-settings'] = 'saas/netim_domains/settings';
 $route['admin/get_modules'] = 'saas/gb_admin/get_modules';
 $route['admin/get_modules/(:any)'] = 'saas/gb_admin/get_modules/$1';
+$route['admin/module_details/(:any)/(:num)'] = 'saas/gb_admin/module_details/$1/$2';
 $route['admin/module_details/(:any)'] = 'saas/gb_admin/module_details/$1';
 $route['admin/custom_domain/(:any)/(:any)'] = 'saas/gb_admin/custom_domain/$1/$2';
 $route['admin/domainList/(:any)'] = 'saas/gb_admin/domainList/$1';

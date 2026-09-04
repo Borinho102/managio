@@ -445,17 +445,34 @@ class Gb_admin extends AdminController
         return $renew_date;
     }
 
-    public function get_modules()
+    public function get_modules($company_id = null)
     {
         $data['title'] = _l('modules');
+        
+        // Load tenant-specific company info if company_id is provided
+        if (!empty($company_id)) {
+            $companyInfo = get_company_subscription_by_id($company_id);
+        } else {
+            $companyInfo = get_company_subscription();
+        }
+        
+        $data['companyInfo'] = $companyInfo;
         $data['all_modules'] = get_old_result('tbl_saas_package_module', array('status' => 'published'));
-        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => get_company_subscription()->package_id ?? 0], false));
-        $data['companyInfo'] = get_company_subscription();
+        
+        // Get package info for payment modes
+        $package_id = !empty($companyInfo->package_id) ? $companyInfo->package_id : 0;
+        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => $package_id], false));
+        
+        // Pass tenant locale and currency to view with fallback support
+        // Use tenant company locale/currency directly from company data, with fallback to defaults
+        $data['tenant_locale'] = !empty($companyInfo->language) ? $companyInfo->language : (!empty($companyInfo->locale) ? $companyInfo->locale : 'en');
+        $data['tenant_currency'] = !empty($companyInfo->currency) ? strtoupper($companyInfo->currency) : saas_default_currency();
+        
         $data['subview'] = $this->load->view('packages/modules/get_modules', $data, TRUE);
         $this->load->view('_layout_open', $data); //page load
     }
 
-    public function module_details($module)
+    public function module_details($module, $company_id = null)
     {
 
         $data['title'] = _l('customize_packages');
@@ -464,8 +481,23 @@ class Gb_admin extends AdminController
             set_alert('warning', _l('404_error'));
             redirect('admin/dashboard');
         }
-        $data['companyInfo'] = get_company_subscription();
-        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => $data['companyInfo']->package_id ?? 0], false));
+        
+        // Load tenant-specific company info if company_id is provided
+        if (!empty($company_id)) {
+            $companyInfo = get_company_subscription_by_id($company_id);
+        } else {
+            $companyInfo = get_company_subscription();
+        }
+        
+        $data['companyInfo'] = $companyInfo;
+        $package_id = !empty($companyInfo->package_id) ? $companyInfo->package_id : 0;
+        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => $package_id], false));
+        
+        // Pass tenant locale and currency to view with fallback support
+        // Use tenant company locale/currency directly from company data, with fallback to defaults
+        $data['tenant_locale'] = !empty($companyInfo->language) ? $companyInfo->language : (!empty($companyInfo->locale) ? $companyInfo->locale : 'en');
+        $data['tenant_currency'] = !empty($companyInfo->currency) ? strtoupper($companyInfo->currency) : saas_default_currency();
+        
         $data['subview'] = $this->load->view('packages/modules/module_details', $data, TRUE);
         $this->load->view('_layout_open', $data); //page load
     }

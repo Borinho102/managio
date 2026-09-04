@@ -17,10 +17,11 @@
                         echo form_open($mUrl . 'proceedPayment');
 
                         $module_name = $this->app_modules->get($module->module_name);
-                        $module_title = (!empty($module->module_title)) ? saas_pick_localized($module->module_title) : ($module_name['headers']['module_name'] ?? '');
+                        // Use tenant locale for localized content with fallback
+                        $module_title = (!empty($module->module_title)) ? saas_pick_localized($module->module_title, $tenant_locale ?? null) : ($module_name['headers']['module_name'] ?? '');
                         // after 100 characters add ... to the description
                         $length = 350;
-                        $raw_descr = !empty($module->descriptions) ? saas_pick_localized($module->descriptions) : '';
+                        $raw_descr = !empty($module->descriptions) ? saas_pick_localized($module->descriptions, $tenant_locale ?? null) : '';
                         $description = strlen($raw_descr) > $length ? substr($raw_descr, 0, $length) . '...' : $raw_descr;
                         $description = strip_tags($description);
 
@@ -53,7 +54,7 @@
                                          src="<?= $preview_image ?>"
                                          alt="<?= $module_title ?>"/>
                                     <div class="label label-primary product-price">
-                                        <?= display_money($module->price) ?>
+                                        <?= display_money($module->price, $tenant_currency ?? null) ?>
                                     </div>
                                 </div>
                                 <div class="product-content">
