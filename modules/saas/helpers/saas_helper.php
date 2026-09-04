@@ -4739,26 +4739,6 @@ function login_to_client($company_id)
     redirect(current_url());
 }
 
-function moduleTitle($module)
-{
-    $moduleName = !empty($module['system_name']) ? $module['system_name'] : $module;
-    $CI = &get_instance();
-    if ($title = $CI->app_object_cache->get('module-title-' . $moduleName)) {
-        return $title;
-    }
-    $result = get_old_any_field('tbl_saas_package_module', array('module_name' => $moduleName), 'module_title');
-    if (!empty($result->module_title)) {
-        $title = $result->module_title;
-    } else {
-        $title = !empty($module['system_name']) ? $module['headers']['module_name'] : $module;
-    }
-    if (is_string($title) && strpos($title, '_') !== false) {
-        $title = ucwords(str_replace('_', ' ', $title));
-    }
-    $CI->app_object_cache->add('module-title-' . $moduleName, $title);
-    return $title;
-}
-
 function seed_db()
 {
     $company_seed = get_old_result('tbl_saas_companies', array('for_seed' => 'yes', 'domain' => 'company_seed'), true);
