@@ -132,12 +132,11 @@ if (!empty($companyInfo)) {
                     if (in_array($module->module_name, $allowed_modules)) {
                         continue;
                     }
-                    $module_title = (!empty($module->module_title)) ? $module->module_title : $module_name['headers']['module_name'];
-
-//                    $module_title = moduleTitle($description);
+                    $module_title = (!empty($module->module_title)) ? saas_pick_localized($module->module_title) : ($module_name['headers']['module_name'] ?? '');
 
                     $length = 350;
-                    $description = strlen($module->descriptions) > $length ? substr($module->descriptions, 0, $length) . '...' : $module->descriptions;
+                    $raw_descr = !empty($module->descriptions) ? saas_pick_localized($module->descriptions) : '';
+                    $description = strlen($raw_descr) > $length ? substr($raw_descr, 0, $length) . '...' : $raw_descr;
                     $description = strip_tags($description);
 
                     $preview_image = '';

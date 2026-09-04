@@ -1410,6 +1410,85 @@ function saas_package_currency($package = null)
 }
 
 /**
+ * Decode a localized field stored as JSON {"en":"...","fr":"..."} or return the
+ * original plain string when decoding fails.
+ */
+function saas_pick_localized($value, $preferredLocale = null)
+{
+    $CI = &get_instance();
+    // Determine preferred locale: session -> config -> default 'en'
+    if (empty($preferredLocale)) {
+        $preferredLocale = $CI->session->userdata('locale') ?: $CI->config->item('language') ?: 'en';
+    }
+    // Normalize to two-letter code
+    $preferredLocale = strtolower(substr($preferredLocale, 0, 2));
+
+    if (!is_string($value)) {
+        return $value;
+    }
+
+    $decoded = json_decode($value, true);
+    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+        // Try exact locale, then fallbacks
+        $keys = array_map('strtolower', array_keys($decoded));
+        if (isset($decoded[$preferredLocale])) {
+            return $decoded[$preferredLocale];
+        }
+        // try 'en' then first available
+        if (isset($decoded['en'])) {
+            return $decoded['en'];
+        }
+        if (!empty($decoded)) {
+            return reset($decoded);
+        }
+    }
+
+    // Not JSON or no matching locale — return original string
+    return $value;
+}
+
+/**
+ * Human-friendly list of locales supported in module title/description editing.
+ */
+function saas_available_locales()
+{
+    return [
+        'en' => 'English',
+        'fr' => 'Français',
+    ];
+}
+
+/**
+ * Helper to render a module's title safely respecting localized storage.
+ * Accepts either a module object/array or a plain module_name string.
+ */
+function moduleTitle($module)
+{
+    $CI = &get_instance();
+    // If module is an array/object with module_title property
+    if (is_object($module) || is_array($module)) {
+        $title = is_array($module) ? ($module['module_title'] ?? null) : ($module->module_title ?? null);
+        if (!empty($title)) {
+            return saas_pick_localized($title);
+        }
+        // fallback to module headers if available
+        $moduleName = is_array($module) ? ($module['module_name'] ?? null) : ($module->module_name ?? null);
+        if (!empty($moduleName)) {
+            $description = $CI->app_modules->get($moduleName);
+            return $description['headers']['module_name'] ?? $moduleName;
+        }
+    }
+
+    // If module is a string (system name), try to load module headers
+    if (is_string($module) && $module !== '') {
+        $description = $CI->app_modules->get($module);
+        return $description['headers']['module_name'] ?? $module;
+    }
+
+    return '';
+}
+
+/**
  * Prefer the package (or SaaS default) currency over Perfex base currency,
  * so subscriptions never render as "$" when the package is XAF/FCFA/etc.
  */

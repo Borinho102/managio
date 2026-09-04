@@ -53,13 +53,40 @@
                     <label for="field-1" class="control-label"><?= _l('title') ?>
                         <span class="text-danger">*</span></label>
                     <div class="">
-                        <input required type="text" name="module_title"
+                        <?php // Locale switcher for module title/description editing ?>
+                        <div class="mbot10">
+                            <label class="control-label">Locale</label>
+                            <select id="module-locale-switcher" class="form-control input-sm" style="width:150px; display:inline-block; margin-left:8px;">
+                                <?php foreach (saas_available_locales() as $loc => $label) { ?>
+                                    <option value="<?= $loc ?>" <?= ($loc === 'en' ? 'selected' : '') ?>><?= $label ?></option>
+                                <?php } ?>
+                            </select>
+                        </div>
+
+                        <input required type="text" name="module_title" id="module_title_plain"
                                placeholder="<?= _l('enter') . ' ' . _l('module') . ' ' . _l('title') ?>"
                                class="form-control" value="<?php
+                        // Populate plain field for backwards compatibility and quick edits
                         if (!empty($module_info->module_title)) {
-                            echo $module_info->module_title;
+                            // If stored as localized JSON, prefer English in the plain field
+                            $plain = saas_pick_localized($module_info->module_title, 'en');
+                            echo $plain;
                         }
                         ?>"/>
+
+                        <?php // Localized title inputs (hidden by switcher) ?>
+                        <?php foreach (saas_available_locales() as $loc => $label) {
+                            $val = '';
+                            if (!empty($module_info->module_title)) {
+                                $maybe = saas_pick_localized($module_info->module_title, $loc);
+                                if (!empty($maybe)) {
+                                    $val = $maybe;
+                                }
+                            }
+                            ?>
+                            <input type="text" class="form-control localized-module-title localized-title-<?= $loc ?>" data-locale="<?= $loc ?>" name="module_title_locales[<?= $loc ?>]" value="<?= html_escape($val) ?>" style="margin-top:8px; display:none;" placeholder="<?= $label ?> <?= _l('title') ?>">
+                        <?php } ?>
+
                     </div>
                 </div>
                 <div class="form-group">
@@ -193,13 +220,75 @@
 
                 <div class="form-group mtop20">
                     <?php
-                    $descriptions = '';
+                    // Prepare localized descriptions
+                    $descriptions_plain = '';
+                    $descriptions_locales = [];
                     if (!empty($module_info->descriptions)) {
-                        $descriptions = $module_info->descriptions;
+                        $descriptions_plain = saas_pick_localized($module_info->descriptions, 'en');
+                        foreach (saas_available_locales() as $loc => $label) {
+                            $descriptions_locales[$loc] = saas_pick_localized($module_info->descriptions, $loc);
+                        }
                     }
                     ?>
-                    <?php echo render_textarea('descriptions', _l('descriptions'), $descriptions, [], [], '', 'tinymce'); ?>
+
+                    <?php echo render_textarea('descriptions', _l('descriptions'), $descriptions_plain, [], [], '', 'tinymce'); ?>
+
+                    <?php // Localized description editors (hidden by switcher) ?>
+                    <?php foreach (saas_available_locales() as $loc => $label) { ?>
+                        <label class="localized-description-label localized-desc-<?= $loc ?>" style="display:none; margin-top:10px;"><?= $label ?> <?= _l('descriptions') ?></label>
+                        <textarea style="display:none;" class="localized-description localized-desc-<?= $loc ?> tinymce" name="descriptions_locales[<?= $loc ?>]"><?= html_escape($descriptions_locales[$loc] ?? '') ?></textarea>
+                    <?php } ?>
                 </div>
+
+                <script>
+                    (function ($) {
+                        $(function () {
+                            function showLocale(locale) {
+                                // Titles
+                                $('.localized-module-title').hide();
+                                $('.localized-module-title[data-locale="' + locale + '"]').show();
+                                // Descriptions
+                                $('.localized-description, .localized-description-label').hide();
+                                $('.localized-desc-' + locale).show();
+                                // Optionally hide plain fields when localized editing is active
+                                if (locale !== 'en') {
+                                    $('#module_title_plain').hide();
+                                } else {
+                                    $('#module_title_plain').show();
+                                }
+                            }
+
+                            var $switcher = $('#module-locale-switcher');
+                            $switcher.on('change', function () {
+                                showLocale($(this).val());
+                            });
+                            // Initialize
+                            showLocale($switcher.val());
+
+                            // Sync visible TinyMCE editors into hidden localized textareas on submit
+                            $('#module_form').on('submit', function () {
+                                // If TinyMCE is available, copy content
+                                if (typeof tinyMCE !== 'undefined') {
+                                    Object.keys(tinyMCE.editors).forEach(function (id) {
+                                        try {
+                                            var ed = tinyMCE.editors[id];
+                                            var $ta = $('#' + id);
+                                            if ($ta.length && $ta.attr('name') && $ta.closest('.localized-description').length) {
+                                                $ta.closest('.localized-description').val(ed.getContent());
+                                            }
+                                        } catch (e) {
+                                        }
+                                    });
+                                }
+
+                                // Additionally, copy the main descriptions field into the en locale if localized not provided
+                                if ($('textarea[name="descriptions_locales[en]"]').val() === '') {
+                                    $('textarea[name="descriptions_locales[en]"]').val($('textarea[name="descriptions"]').val());
+                                }
+                            });
+                        });
+                    })(jQuery);
+                </script>
 
                 <div class="btn-bottom-toolbar text-right">
                     <button type="submit"

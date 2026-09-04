@@ -10,10 +10,11 @@
                 if (!empty($all_modules)) {
                     foreach ($all_modules as $module) {
                         $module_name = $this->app_modules->get($module->module_name);
-                        $module_title = (!empty($module->module_title)) ? $module->module_title : $module_name['headers']['module_name'];
+                        $module_title = (!empty($module->module_title)) ? saas_pick_localized($module->module_title) : ($module_name['headers']['module_name'] ?? '');
                         // after 100 characters add ... to the description
                         $length = 350;
-                        $description = strlen($module->descriptions) > $length ? substr($module->descriptions, 0, $length) . '...' : $module->descriptions;
+                        $raw_descr = !empty($module->descriptions) ? saas_pick_localized($module->descriptions) : '';
+                        $description = strlen($raw_descr) > $length ? substr($raw_descr, 0, $length) . '...' : $raw_descr;
                         $description = strip_tags($description);
 
                         $preview_image = '';

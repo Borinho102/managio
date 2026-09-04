@@ -420,7 +420,31 @@ class Packages extends AdminController
             }
         }
         $data['preview_video_url'] = $preview_video_url ?: null;
-        $data['descriptions'] = html_purify($this->input->post('descriptions', false));
+        // Support localized descriptions and titles: accept arrays posted as descriptions_locales[en], descriptions_locales[fr]
+        $descriptions_locales = $this->input->post('descriptions_locales', false);
+        if (is_array($descriptions_locales) && !empty($descriptions_locales)) {
+            // Sanitize each locale value
+            $clean = [];
+            foreach ($descriptions_locales as $loc => $val) {
+                $clean[$loc] = html_purify($val);
+            }
+            $data['descriptions'] = json_encode($clean, JSON_UNESCAPED_UNICODE);
+        } else {
+            $data['descriptions'] = html_purify($this->input->post('descriptions', false));
+        }
+
+        // Localized titles
+        $titles_locales = $this->input->post('module_title_locales', true);
+        if (is_array($titles_locales) && !empty($titles_locales)) {
+            $clean_titles = [];
+            foreach ($titles_locales as $loc => $val) {
+                $clean_titles[$loc] = trim($val);
+            }
+            $data['module_title'] = json_encode($clean_titles, JSON_UNESCAPED_UNICODE);
+        } else {
+            // fallback to single title field
+            $data['module_title'] = $this->input->post('module_title', true);
+        }
 
         $this->saas_model->_table_name = "tbl_saas_package_module"; // table name
         $this->saas_model->_primary_key = "package_module_id"; // $id
@@ -594,7 +618,7 @@ class Packages extends AdminController
                     continue;
                 }
                 $name = null;
-                $name .= '<a href="' . base_url() . 'saas/module_details/' . $row->module_name . '" title="' . _l('details') . '">' . (!empty($row->module_title) ? $row->module_title : $description['headers']['module_name']) . '</a>  ';
+                $name .= '<a href="' . base_url() . 'saas/module_details/' . $row->module_name . '" title="' . _l('details') . '">' . ( !empty($row->module_title) ? saas_pick_localized($row->module_title) : ($description['headers']['module_name'] ?? $row->module_name) ) . '</a>  ';
 
                 $name .= '<div class="row-options">';
                 if (!empty($access)) {

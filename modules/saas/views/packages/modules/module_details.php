@@ -11,7 +11,7 @@ if (!empty(subdomain())) {
 } else if (!empty(is_super_admin())) {
     $back_url = base_url('saas/packages/modules');
 }
-$module_title = (!empty($module->module_title)) ? $module->module_title : $module_name['headers']['module_name'];
+$module_title = (!empty($module->module_title)) ? saas_pick_localized($module->module_title) : ($module_name['headers']['module_name'] ?? '');
 echo form_open($mUrl . 'proceedPayment');
 ?>
 <div class="row">
@@ -139,8 +139,7 @@ echo form_open($mUrl . 'proceedPayment');
                 </div>
                 <div class="p-description">
                     <h3><?= _l('description') ?></h3>
-                    <p><?= $description = ($module->descriptions);
-                        check_for_links($description); ?></p>
+                    <p><?php $description_text = saas_pick_localized($module->descriptions); echo check_for_links($description_text); ?></p>
                     <?php
                     if (!empty($module->preview_video_url)) {
                         $preview_video_url = $module->preview_video_url;

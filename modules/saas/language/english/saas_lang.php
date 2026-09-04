@@ -98,6 +98,7 @@ $lang['saas_sslcommerz_enable_test_mode'] = 'SSLCommerz Enable Test Mode';
 $lang['server_settings'] = 'Server Settings';
 $lang['payments_settings'] = 'Payments Settings';
 $lang['currencyList'] = 'Currency List';
+$lang['per_currency_prices'] = 'Per-currency prices';
 $lang['assign_package'] = 'Assign Package';
 $lang['test_connection'] = 'Test Connection';
 $lang['manually_active'] = 'Manually Active';
