@@ -244,18 +244,22 @@
                     (function ($) {
                         $(function () {
                             function showLocale(locale) {
-                                // Titles
+                                var isEnglish = (locale === 'en');
+
+                                // Default locale: keep the legacy/default English fields visible and hide
+                                // the extra locale-specific English clones to avoid duplicate inputs.
+                                $('#module_title_plain').toggle(isEnglish);
+                                $('textarea[name="descriptions"]').closest('.form-group').toggle(isEnglish);
+                                $('textarea[name="descriptions"]').toggle(isEnglish);
                                 $('.localized-module-title').hide();
-                                $('.localized-module-title[data-locale="' + locale + '"]').show();
-                                // Descriptions
                                 $('.localized-description, .localized-description-label').hide();
-                                $('.localized-desc-' + locale).show();
-                                // Optionally hide plain fields when localized editing is active
-                                if (locale !== 'en') {
-                                    $('#module_title_plain').hide();
-                                } else {
-                                    $('#module_title_plain').show();
+
+                                if (isEnglish) {
+                                    return;
                                 }
+
+                                $('.localized-module-title[data-locale="' + locale + '"]').show();
+                                $('.localized-desc-' + locale).show();
                             }
 
                             var $switcher = $('#module-locale-switcher');
