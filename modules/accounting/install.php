@@ -285,6 +285,20 @@ if (!$CI->db->field_exists('payslip_type' ,db_prefix() . 'acc_account_history'))
     ADD COLUMN `payslip_type` VARCHAR(45) NULL;');
 }
 
+if (!function_exists('acc_account_exists')) {
+    function acc_account_exists($key_name)
+    {
+        $CI = &get_instance();
+        if (!isset($CI->db) || !$CI->db->table_exists(db_prefix() . 'acc_accounts')) {
+            return false;
+        }
+
+        $account = $CI->db->where('key_name', $key_name)->get(db_prefix() . 'acc_accounts')->row();
+
+        return $account ? $account->id : false;
+    }
+}
+
 if (!acc_account_exists('acc_opening_balance_equity')) {
   $CI->db->query("INSERT INTO `". db_prefix() ."acc_accounts` (`name`, `key_name`, `account_type_id`, `account_detail_type_id`, `default_account`, `active`) VALUES ('', 'acc_opening_balance_equity', '10', '71', '1', '1');");
 }
@@ -1012,7 +1026,7 @@ if (!$CI->db->field_exists('balance' ,db_prefix() . 'clients')) {
   ADD COLUMN `balance_as_of` DATE NULL');
 }
 
-if (!$CI->db->field_exists('balance' ,db_prefix() . 'pur_vendor')) {
+if ($CI->db->table_exists(db_prefix() . 'pur_vendor') && !$CI->db->field_exists('balance' ,db_prefix() . 'pur_vendor')) {
     $CI->db->query('ALTER TABLE `' . db_prefix() . 'pur_vendor`
   ADD COLUMN `balance` DECIMAL(15,2) NULL,
   ADD COLUMN `balance_as_of` DATE NULL');

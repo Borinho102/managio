@@ -4400,14 +4400,30 @@ function saas_provision_module_database($module_name)
                 managio_accounting_apply_php82_patches();
             }
 
-            if (function_exists('managio_accounting_run_with_deprecation_suppressed')
-                && function_exists('managio_accounting_is_php82_patch_applied')
-                && !managio_accounting_is_php82_patch_applied()) {
-                managio_accounting_run_with_deprecation_suppressed(function () use ($installFile) {
-                    require_once $installFile;
-                });
-            } else {
+            if (function_exists('managio_accounting_register_install_fallbacks')) {
+                managio_accounting_register_install_fallbacks();
+            }
+
+            $requireInstall = function () use ($installFile) {
                 require_once $installFile;
+            };
+
+            try {
+                if (function_exists('managio_accounting_run_with_deprecation_suppressed')
+                    && function_exists('managio_accounting_is_php82_patch_applied')
+                    && !managio_accounting_is_php82_patch_applied()) {
+                    managio_accounting_run_with_deprecation_suppressed($requireInstall);
+                } else {
+                    $requireInstall();
+                }
+            } catch (Throwable $e) {
+                log_message(
+                    'error',
+                    '[saas_provision_module_database] accounting install.php failed: '
+                    . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine()
+                );
+
+                return false;
             }
         } else {
             require_once $installFile;

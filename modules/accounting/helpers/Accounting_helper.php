@@ -26,26 +26,28 @@ if(!function_exists('acc_get_status_modules')){
  * @param  string $key_name 
  * @return boolean or integer           
  */
-function acc_account_exists($key_name){
-	$CI             = &get_instance();
+if (!function_exists('acc_account_exists')) {
+	function acc_account_exists($key_name){
+		$CI             = &get_instance();
 
-	$CI->load->model('accounting/accounting_model');
+		$CI->load->model('accounting/accounting_model');
 
-	if(get_option('acc_add_default_account') == 0){
-        $CI->accounting_model->add_default_account();
-    }
+		if(get_option('acc_add_default_account') == 0){
+	        $CI->accounting_model->add_default_account();
+	    }
 
-    if(get_option('acc_add_default_account_new') == 0){
-        $CI->accounting_model->add_default_account_new();
-    }
+	    if(get_option('acc_add_default_account_new') == 0){
+	        $CI->accounting_model->add_default_account_new();
+	    }
 
-	$sql = 'select * from '.db_prefix().'acc_accounts where key_name = "'.$key_name.'"';
-	$account = $CI->db->query($sql)->row();
+		$sql = 'select * from '.db_prefix().'acc_accounts where key_name = "'.$key_name.'"';
+		$account = $CI->db->query($sql)->row();
 
-	if($account){
-		return $account->id;
-	}else{
-		return false;
+		if($account){
+			return $account->id;
+		}else{
+			return false;
+		}
 	}
 }
 

@@ -103,11 +103,59 @@ function managio_accounting_ensure_client_columns()
     }
 }
 
-function managio_accounting_ensure_database()
+function managio_accounting_is_frontcms_request()
 {
     $CI = &get_instance();
 
-    if (!isset($CI->db)) {
+    if (!isset($CI->router)) {
+        return false;
+    }
+
+    $directory = str_replace('\\', '/', (string) $CI->router->fetch_directory());
+    $module    = method_exists($CI->router, 'fetch_module') ? (string) $CI->router->fetch_module() : '';
+    $class     = strtolower((string) $CI->router->fetch_class());
+
+    return stripos($directory, 'frontcms') !== false
+        || ($module === 'saas' && $class === 'home');
+}
+
+/**
+ * install.php calls acc_account_exists() which lives in Accounting_helper.
+ * SaaS front CMS and tenant provision can require install.php before the
+ * accounting module init file has loaded that helper.
+ */
+function managio_accounting_register_install_fallbacks()
+{
+    if (function_exists('acc_account_exists')) {
+        return;
+    }
+
+    function acc_account_exists($key_name)
+    {
+        $CI = &get_instance();
+
+        if (!isset($CI->db)) {
+            return false;
+        }
+
+        $table = db_prefix() . 'acc_accounts';
+        if (!$CI->db->table_exists($table)) {
+            return false;
+        }
+
+        $account = $CI->db->where('key_name', $key_name)->get($table)->row();
+
+        return $account ? $account->id : false;
+    }
+}
+
+function managio_accounting_ensure_database()
+{
+    static $attempted = false;
+
+    $CI = &get_instance();
+
+    if ($attempted || !isset($CI->db)) {
         return;
     }
 
@@ -115,7 +163,17 @@ function managio_accounting_ensure_database()
         return;
     }
 
+    // Public tenant landing pages must not run the 1.9k-line accounting installer.
+    // invest-logistic already has acc_class so it never hit this path; other
+    // tenants were 500'ing on every Home.php request.
+    if (managio_accounting_is_frontcms_request()) {
+        return;
+    }
+
+    $attempted = true;
+
     managio_accounting_apply_php82_patches();
+    managio_accounting_register_install_fallbacks();
 
     $provision = function () use ($CI) {
         if (function_exists('saas_provision_module_database')) {
@@ -138,10 +196,18 @@ function managio_accounting_ensure_database()
         }
     };
 
-    if (managio_accounting_is_php82_patch_applied()) {
-        $provision();
-    } else {
-        managio_accounting_run_with_deprecation_suppressed($provision);
+    try {
+        if (managio_accounting_is_php82_patch_applied()) {
+            $provision();
+        } else {
+            managio_accounting_run_with_deprecation_suppressed($provision);
+        }
+    } catch (Throwable $e) {
+        log_message(
+            'error',
+            '[accounting_compat] schema provision failed: ' . $e->getMessage()
+            . ' in ' . $e->getFile() . ':' . $e->getLine()
+        );
     }
 }
 
