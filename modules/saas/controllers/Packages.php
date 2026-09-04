@@ -493,16 +493,23 @@ class Packages extends AdminController
 
         try {
             $data['id'] = $module_id;
+            $data['package_module_id'] = $module_id;
             $data['monthly_price'] = $data['price'];
             $data['trial_period'] = 0;
             $this->process_module_payment_gateway_package($data);
         } catch (\Exception $e) {
             set_alert('danger', $e->getMessage());
-            redirect('saas/packages');
+            if (!headers_sent()) {
+                redirect('saas/packages');
+            }
+            return;
         }
 
         set_alert('success', _l('module_price_updated'));
-        redirect('saas/packages/modules');
+        if (!headers_sent()) {
+            redirect('saas/packages/modules');
+            return;
+        }
     }
 
     public function process_module_payment_gateway_package($data)

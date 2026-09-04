@@ -105,10 +105,18 @@ class Saas_Stripe extends Saas_payment
         }
 
         foreach ($packages as $package) {
-            $package->name = $package->module_title;
-            $package->id = $package->package_module_id;
+            $package = is_array($package) ? (object) $package : $package;
+            $package_id = $package->package_module_id ?? $package->id ?? null;
+            if (empty($package_id)) {
+                log_message('error', '[STRIPE_LIB::syncModuleProducts] Missing module id for gateway sync payload.');
+                continue;
+            }
 
-            $package->monthly_price = (!empty($package->monthly_price)) ? $package->monthly_price : $package->price;
+            $package->name = $package->module_title ?? $package->name ?? 'Module';
+            $package->id = $package_id;
+            $package->package_module_id = $package_id;
+
+            $package->monthly_price = (!empty($package->monthly_price)) ? $package->monthly_price : ($package->price ?? 0);
             $package->trial_period = (!empty($package->trial_period)) ? $package->trial_period : 0;
 
             $product = $this->getProduct($package->id, 'module');

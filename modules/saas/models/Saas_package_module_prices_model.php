@@ -67,7 +67,7 @@ class Saas_package_module_prices_model extends App_Model
             return false;
         }
         if (!$this->db->table_exists('tbl_saas_package_module_prices')) {
-            log_message('warning', '[saas] Attempt to save per-currency price but table tbl_saas_package_module_prices does not exist.');
+            log_message('error', '[saas] Attempt to save per-currency price but table tbl_saas_package_module_prices does not exist.');
             return false;
         }
 
@@ -106,7 +106,7 @@ class Saas_package_module_prices_model extends App_Model
             return false;
         }
         if (!$this->db->table_exists('tbl_saas_package_module_prices')) {
-            log_message('warning', '[saas] Attempt to bulk save per-currency prices but table tbl_saas_package_module_prices does not exist.');
+            log_message('error', '[saas] Attempt to bulk save per-currency prices but table tbl_saas_package_module_prices does not exist.');
             return false;
         }
         foreach ($prices as $p) {
