@@ -386,6 +386,8 @@ class Gb_admin extends AdminController
             $company_id = $data['companyInfo']->companies_id;
             $data['company_id'] = $company_id;
             $data['moduleInfo'] = get_old_result('tbl_saas_package_module');
+            $data['tenant_locale'] = !empty($companyInfo->language) ? $companyInfo->language : (!empty($companyInfo->locale) ? $companyInfo->locale : 'en');
+            $data['tenant_currency'] = !empty($companyInfo->currency) ? strtoupper($companyInfo->currency) : saas_default_currency();
             $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => $data['companyInfo']->package_id ?? 0], false));
             $data['url'] = 'admin/';
             $data['subview'] = $this->load->view('packages/customize_packages', $data, TRUE);

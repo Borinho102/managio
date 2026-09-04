@@ -422,6 +422,8 @@ class Gb_client extends ClientsController
             $company_id = $data['companyInfo']->companies_id;
             $data['company_id'] = $company_id;
             $data['moduleInfo'] = get_old_result('tbl_saas_package_module');
+            $data['tenant_locale'] = function_exists('saas_tenant_locale') ? saas_tenant_locale() : 'en';
+            $data['tenant_currency'] = function_exists('saas_tenant_currency') ? saas_tenant_currency() : '';
             $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => $data['companyInfo']->package_id ?? 0], false));
             $data['url'] = 'clients/';
             $this->set_layout($data, 'packages/customize_packages');
@@ -462,8 +464,11 @@ class Gb_client extends ClientsController
     {
         $data['title'] = _l('modules');
         isClientLogin($comp_id);
-        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => get_company_subscription_by_id()->package_id ?? 0], false));
+        $data['companyInfo'] = get_company_subscription_by_id();
         $data['all_modules'] = get_old_result('tbl_saas_package_module', array('status' => 'published'));
+        $data['tenant_locale'] = function_exists('saas_tenant_locale') ? saas_tenant_locale() : 'en';
+        $data['tenant_currency'] = function_exists('saas_tenant_currency') ? saas_tenant_currency() : '';
+        $data['payment_modes'] = $this->saas_model->get_payment_modes(false, get_old_result('tbl_saas_packages', ['id' => $data['companyInfo']->package_id ?? 0], false));
         $this->set_layout($data, 'packages/modules/get_modules');
     }
 
@@ -477,11 +482,14 @@ class Gb_client extends ClientsController
             redirect('clients/dashboard');
         }
 
+        $data['companyInfo'] = get_company_subscription_by_id();
+
         // Server-resolve the authoritative per-currency price for the tenant
         // currency so the correct price shows on the initial render (without
         // relying on the AJAX refresh). Checkout re-validates this server-side.
         $tenant_currency = function_exists('saas_tenant_currency') ? saas_tenant_currency() : '';
         $data['tenant_currency'] = $tenant_currency;
+        $data['tenant_locale'] = function_exists('saas_tenant_locale') ? saas_tenant_locale() : 'en';
         $payload = function_exists('saas_module_price_payload')
             ? saas_module_price_payload((int) $data['module']->package_module_id, $tenant_currency)
             : null;

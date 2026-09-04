@@ -38,11 +38,21 @@
 
                         $url = base_url($mUrl . 'module_details/' . $module->module_name);
 
+                        // Resolve the authoritative per-currency price for display
+                        // and form submission (falls back to base price + tenant currency)
+                        $_modulePrice = function_exists('saas_module_price_payload')
+                            ? saas_module_price_payload((int) $module->package_module_id, $tenant_currency ?? '')
+                            : null;
+                        $_price = $_modulePrice['price'] ?? $module->price;
+                        $_priceCurrency = $_modulePrice['currency'] ?? ($tenant_currency ?? null);
+                        $_priceHtml = $_modulePrice['price_html'] ?? null;
+
                         echo form_hidden('companies_id', $companyInfo->companies_id);
                         echo form_hidden('company_history_id', $companyInfo->company_history_id);
                         echo form_hidden('package_module_id', $module->package_module_id);
                         echo form_hidden('module_name', $module->module_name);
-                        echo form_hidden('price', $module->price);
+                        echo form_hidden('price', $_price);
+                        echo form_hidden('price_currency', $_priceCurrency);
                         echo form_hidden('name', $module_title);
 
 
@@ -54,7 +64,7 @@
                                          src="<?= $preview_image ?>"
                                          alt="<?= $module_title ?>"/>
                                     <div class="label label-primary product-price">
-                                        <?= display_money($module->price, $tenant_currency ?? null) ?>
+                                        <?= !empty($_priceHtml) ? $_priceHtml : display_money($_price, $_priceCurrency) ?>
                                     </div>
                                 </div>
                                 <div class="product-content">
