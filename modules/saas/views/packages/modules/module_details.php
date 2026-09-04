@@ -45,7 +45,7 @@ echo form_open($mUrl . 'proceedPayment');
                 // Load currencies list for selector
                 $this->load->model('currencies_model');
                 $_currencies = $this->currencies_model->get();
-                $defaultCurrency = saas_default_currency();
+                $defaultCurrency = saas_tenant_currency();
                 ?>
                 <h2 class="mbot20"><?= $module_title ?>
                     <span class="pull-right">
@@ -55,12 +55,6 @@ echo form_open($mUrl . 'proceedPayment');
                                 $sel = ($code === $defaultCurrency) ? ' selected' : '';
                                 echo '<option value="' . $code . '"' . $sel . '>' . $code . '</option>'; }
                             ?>
-                        </select>
-                        <select id="module_billing_cycle" class="form-control input-sm" style="display:inline-block; width:auto; margin-right:8px">
-                            <option value="default"><?= _l('default') ?></option>
-                            <option value="monthly"><?= _l('monthly') ?></option>
-                            <option value="yearly"><?= _l('yearly') ?></option>
-                            <option value="lifetime"><?= _l('lifetime') ?></option>
                         </select>
                         <span id="module_price_display"><?= display_money($module->price, $defaultCurrency) ?></span>
                     </span>
@@ -195,12 +189,9 @@ echo form_open($mUrl . 'proceedPayment');
         var displaySelector = '#module_price_display';
         var currencySelector = '#module_currency';
 
-        function updatePriceDisplay(currency, billingCycle) {
+        function updatePriceDisplay(currency) {
             if (!moduleId || !currency) return;
             var data = { module_id: moduleId, currency: currency };
-            if (typeof billingCycle !== 'undefined' && billingCycle !== null) {
-                data.billing_cycle = billingCycle;
-            }
             var url = '<?= site_url('saas/ajax/module_price') ?>';
             var xhr = new XMLHttpRequest();
             xhr.open('POST', url, true);
@@ -211,10 +202,8 @@ echo form_open($mUrl . 'proceedPayment');
                         try {
                             var resp = JSON.parse(xhr.responseText);
                             if (resp.success) {
-                                // update display
                                 var displayEl = document.querySelector(displaySelector);
                                 if (displayEl) displayEl.innerHTML = resp.price_html;
-                                // update hidden price input to numeric converted amount
                                 var priceInput = document.querySelector(priceInputSelector);
                                 if (priceInput && typeof resp.price !== 'undefined') {
                                     priceInput.value = resp.price;
@@ -232,19 +221,12 @@ echo form_open($mUrl . 'proceedPayment');
 
         document.addEventListener('DOMContentLoaded', function(){
             var sel = document.querySelector(currencySelector);
-            var cycleSel = document.querySelector('#module_billing_cycle');
             if (!sel) return;
             sel.addEventListener('change', function(){
-                updatePriceDisplay(this.value, cycleSel ? cycleSel.value : null);
+                updatePriceDisplay(this.value);
             });
-            if (cycleSel) {
-                cycleSel.addEventListener('change', function(){
-                    updatePriceDisplay(sel.value, this.value);
-                });
-            }
 
-            // trigger initial update based on selected currency and billing cycle to ensure hidden input matches display
-            updatePriceDisplay(sel.value, cycleSel ? cycleSel.value : null);
+            updatePriceDisplay(sel.value);
         });
     })();
 </script>

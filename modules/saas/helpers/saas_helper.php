@@ -1392,6 +1392,59 @@ function saas_default_currency()
     return 'USD';
 }
 
+function saas_tenant_locale()
+{
+    $CI = &get_instance();
+    $locale = '';
+
+    if (!empty($CI) && !empty($CI->session)) {
+        $locale = $CI->session->userdata('locale') ?: $CI->session->userdata('language');
+    }
+
+    if ($locale === '' && function_exists('get_company_info')) {
+        $company = get_company_info();
+        if (!empty($company)) {
+            $locale = $company->language ?? $company->locale ?? '';
+        }
+    }
+
+    if ($locale === '' && !empty($CI) && !empty($CI->config)) {
+        $locale = $CI->config->item('language');
+    }
+
+    if ($locale === '') {
+        $locale = 'en';
+    }
+
+    return strtolower(substr((string) $locale, 0, 2));
+}
+
+function saas_tenant_currency($fallback = null)
+{
+    $currency = '';
+    $CI = &get_instance();
+
+    if (!empty($CI) && !empty($CI->session)) {
+        $currency = trim((string) $CI->session->userdata('currency'));
+    }
+
+    if ($currency === '' && function_exists('get_company_info')) {
+        $company = get_company_info();
+        if (!empty($company) && !empty($company->currency)) {
+            $currency = (string) $company->currency;
+        } elseif (!empty($company) && !empty($company->package_id) && function_exists('get_old_result')) {
+            $package = get_old_result('tbl_saas_packages', ['id' => $company->package_id], false);
+            if (!empty($package->currency)) {
+                $currency = (string) $package->currency;
+            }
+        }
+    }
+
+    $currency = strtoupper(trim((string) ($currency !== '' ? $currency : ($fallback ?: saas_default_currency()))));
+
+    return $currency !== '' ? $currency : 'USD';
+}
+
 function default_currency()
 {
     return saas_default_currency();
@@ -1418,7 +1471,7 @@ function saas_pick_localized($value, $preferredLocale = null)
     $CI = &get_instance();
     // Determine preferred locale: session -> config -> default 'en'
     if (empty($preferredLocale)) {
-        $preferredLocale = $CI->session->userdata('locale') ?: $CI->config->item('language') ?: 'en';
+        $preferredLocale = saas_tenant_locale();
     }
     // Normalize to two-letter code
     $preferredLocale = strtolower(substr($preferredLocale, 0, 2));

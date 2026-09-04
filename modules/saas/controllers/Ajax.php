@@ -43,8 +43,9 @@ class Ajax extends AdminController
                 return;
             }
 
-            // Base currency for conversion: prefer package currency if available, otherwise saas_default_currency()
-            $baseCurrency = saas_default_currency();
+            // Base currency for conversion: prefer the current tenant/company currency, then the package currency,
+            // and finally the default SaaS currency.
+            $baseCurrency = saas_tenant_currency();
 
             if (!empty($module->package_id)) {
                 $pkg = get_row('tbl_saas_packages', ['id' => $module->package_id]);
