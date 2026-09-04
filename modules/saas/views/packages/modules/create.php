@@ -236,59 +236,106 @@
                     <?php // Localized description editors (hidden by switcher) ?>
                     <?php foreach (saas_available_locales() as $loc => $label) { ?>
                         <label class="localized-description-label localized-desc-<?= $loc ?>" style="display:none; margin-top:10px;"><?= $label ?> <?= _l('descriptions') ?></label>
-                        <textarea style="display:none;" class="localized-description localized-desc-<?= $loc ?> tinymce" name="descriptions_locales[<?= $loc ?>]"><?= html_escape($descriptions_locales[$loc] ?? '') ?></textarea>
+                        <textarea id="descriptions_<?= $loc ?>" style="display:none;" class="localized-description localized-desc-<?= $loc ?>" name="descriptions_locales[<?= $loc ?>]"><?= html_escape($descriptions_locales[$loc] ?? '') ?></textarea>
                     <?php } ?>
                 </div>
 
                 <script>
                     (function ($) {
                         $(function () {
+                            function destroyTinymceFor(selector) {
+                                if (typeof tinyMCE !== 'undefined') {
+                                    try {
+                                        tinyMCE.remove(selector);
+                                    } catch (e) {}
+                                }
+                                if (typeof tinymce !== 'undefined') {
+                                    try {
+                                        tinymce.remove(selector);
+                                    } catch (e) {}
+                                }
+                            }
+
+                            function initTinymceFor(selector) {
+                                var $el = $(selector);
+                                if (!$el.length) {
+                                    return;
+                                }
+                                var id = $el.attr('id');
+                                if (!id) {
+                                    return;
+                                }
+                                if (typeof tinymce !== 'undefined') {
+                                    if (tinymce.get(id)) {
+                                        return;
+                                    }
+                                    try {
+                                        tinymce.init({ selector: '#' + id });
+                                    } catch (e) {}
+                                }
+                                if (typeof tinyMCE !== 'undefined' && !tinyMCE.get(id)) {
+                                    try {
+                                        tinyMCE.init({ selector: '#' + id });
+                                    } catch (e) {}
+                                }
+                            }
+
+                            function syncLocalizedContentBeforeSubmit() {
+                                var $enField = $('textarea[name="descriptions"]');
+                                var $enLocaleField = $('textarea[name="descriptions_locales[en]"]');
+
+                                if ($enLocaleField.length && !$enLocaleField.val()) {
+                                    $enLocaleField.val($enField.val());
+                                }
+
+                                $('.localized-description').each(function () {
+                                    var $field = $(this);
+                                    var id = $field.attr('id');
+                                    if (!id) {
+                                        return;
+                                    }
+                                    if (typeof tinyMCE !== 'undefined' && tinyMCE.get(id)) {
+                                        $field.val(tinyMCE.get(id).getContent());
+                                    }
+                                    if (typeof tinymce !== 'undefined' && tinymce.get(id)) {
+                                        $field.val(tinymce.get(id).getContent());
+                                    }
+                                });
+                            }
+
                             function showLocale(locale) {
                                 var isEnglish = (locale === 'en');
 
-                                // Default locale: keep the legacy/default English fields visible and hide
-                                // the extra locale-specific English clones to avoid duplicate inputs.
                                 $('#module_title_plain').toggle(isEnglish);
-                                $('textarea[name="descriptions"]').closest('.form-group').toggle(isEnglish);
-                                $('textarea[name="descriptions"]').toggle(isEnglish);
                                 $('.localized-module-title').hide();
                                 $('.localized-description, .localized-description-label').hide();
 
                                 if (isEnglish) {
+                                    $('textarea[name="descriptions"]').closest('.form-group').show();
+                                    $('textarea[name="descriptions"]').show();
+                                    destroyTinymceFor('.localized-description');
+                                    initTinymceFor('textarea[name="descriptions"]');
                                     return;
                                 }
 
+                                $('textarea[name="descriptions"]').closest('.form-group').hide();
+                                $('textarea[name="descriptions"]').hide();
+                                destroyTinymceFor('textarea[name="descriptions"]');
+
                                 $('.localized-module-title[data-locale="' + locale + '"]').show();
                                 $('.localized-desc-' + locale).show();
+                                initTinymceFor('#descriptions_' + locale);
                             }
 
                             var $switcher = $('#module-locale-switcher');
                             $switcher.on('change', function () {
                                 showLocale($(this).val());
                             });
-                            // Initialize
+
                             showLocale($switcher.val());
 
-                            // Sync visible TinyMCE editors into hidden localized textareas on submit
                             $('#module_form').on('submit', function () {
-                                // If TinyMCE is available, copy content
-                                if (typeof tinyMCE !== 'undefined') {
-                                    Object.keys(tinyMCE.editors).forEach(function (id) {
-                                        try {
-                                            var ed = tinyMCE.editors[id];
-                                            var $ta = $('#' + id);
-                                            if ($ta.length && $ta.attr('name') && $ta.closest('.localized-description').length) {
-                                                $ta.closest('.localized-description').val(ed.getContent());
-                                            }
-                                        } catch (e) {
-                                        }
-                                    });
-                                }
-
-                                // Additionally, copy the main descriptions field into the en locale if localized not provided
-                                if ($('textarea[name="descriptions_locales[en]"]').val() === '') {
-                                    $('textarea[name="descriptions_locales[en]"]').val($('textarea[name="descriptions"]').val());
-                                }
+                                syncLocalizedContentBeforeSubmit();
                             });
                         });
                     })(jQuery);
