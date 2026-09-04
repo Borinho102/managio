@@ -20,7 +20,7 @@
                                     <?php foreach ($sections as $sectionId => $section) { ?>
                                     <div>
                                         <h4 class="tw-mt-0 tw-mb-4 tw-text-sm tw-text-neutral-500 tw-font-medium">
-                                            <?= $section['title']; ?>
+                                            <?= e($section['title']); ?>
                                         </h4>
                                         <ul class="tw-space-y-2">
                                             <?php foreach ($section['children'] as $child) { ?>
@@ -31,7 +31,7 @@
                                                     <i
                                                         class="<?= $child['icon'] ?? 'fa-regular fa-circle-question'; ?> fa-fw fa-lg tw-mr-0.5 group-hover:tw-text-neutral-800 <?= $group['id'] === $child['id'] ? 'tw-text-neutral-800' : 'tw-text-neutral-500'; ?>"></i>
                                                     <span>
-                                                        <?= $child['name']; ?>
+                                                        <?= e($child['name']); ?>
                                                     </span>
                                                     <?php if (isset($child['badge'], $child['badge']['value']) && ! empty($child['badge'])) { ?>
                                                     <span
@@ -76,7 +76,7 @@
                     </div>
                     <div class="col-md-8 col-lg-9">
                         <h4 class="tw-font-bold tw-mt-0 tw-text-neutral-800">
-                            <?= $group['name']; ?>
+                            <?= e($group['name']); ?>
                         </h4>
                         <?php
 $actionUrl = $group['update_url']

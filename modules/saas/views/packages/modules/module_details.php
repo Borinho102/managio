@@ -41,9 +41,22 @@ echo form_open($mUrl . 'proceedPayment');
                     </button>
                 </div>
 
+                <?php
+                // Load currencies list for selector
+                $this->load->model('currencies_model');
+                $_currencies = $this->currencies_model->get();
+                $defaultCurrency = saas_default_currency();
+                ?>
                 <h2 class="mbot20"><?= $module_title ?>
                     <span class="pull-right">
-                        <?= display_money($module->price) ?>
+                        <select id="module_currency" class="form-control input-sm" style="display:inline-block; width:auto; margin-right:8px">
+                            <?php foreach ($_currencies as $c) {
+                                $code = strtoupper(trim($c['name'] ?? ($c->name ?? '')));
+                                $sel = ($code === $defaultCurrency) ? ' selected' : '';
+                                echo '<option value="' . $code . '"' . $sel . '>' . $code . '</option>'; }
+                            ?>
+                        </select>
+                        <span id="module_price_display"><?= display_money($module->price, $defaultCurrency) ?></span>
                     </span>
                 </h2>
                 <div class="card-body payment_gateway hidden"
@@ -169,6 +182,58 @@ echo form_open($mUrl . 'proceedPayment');
 </div>
 <?php echo form_close(); ?>
 <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>
+
+<script>
+    (function(){
+        var moduleId = <?= json_encode((int)$module->package_module_id) ?>;
+        var priceInputSelector = "input[name='price']";
+        var displaySelector = '#module_price_display';
+        var currencySelector = '#module_currency';
+
+        function updatePriceDisplay(currency) {
+            if (!moduleId || !currency) return;
+            var data = { module_id: moduleId, currency: currency };
+            var url = '<?= site_url('saas/ajax/module_price') ?>';
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', url, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        try {
+                            var resp = JSON.parse(xhr.responseText);
+                            if (resp.success) {
+                                // update display
+                                var displayEl = document.querySelector(displaySelector);
+                                if (displayEl) displayEl.innerHTML = resp.price_html;
+                                // update hidden price input to numeric converted amount
+                                var priceInput = document.querySelector(priceInputSelector);
+                                if (priceInput && typeof resp.price !== 'undefined') {
+                                    priceInput.value = resp.price;
+                                }
+                            }
+                        } catch (e) {
+                            console.error('parse error', e);
+                        }
+                    }
+                }
+            };
+            var params = Object.keys(data).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(data[k]); }).join('&');
+            xhr.send(params);
+        }
+
+        document.addEventListener('DOMContentLoaded', function(){
+            var sel = document.querySelector(currencySelector);
+            if (!sel) return;
+            sel.addEventListener('change', function(){
+                updatePriceDisplay(this.value);
+            });
+
+            // trigger initial update based on selected currency to ensure hidden input matches display
+            updatePriceDisplay(sel.value);
+        });
+    })();
+</script>
 <script>
     Fancybox.bind('[data-fancybox="gallery"]', {
         //

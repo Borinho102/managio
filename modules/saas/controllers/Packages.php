@@ -155,9 +155,9 @@ class Packages extends AdminController
             // remove recommended from other packages
             $this->db->where('recommended', 'Yes');
             $this->db->update('tbl_saas_packages', ['recommended' => 'No']);
-        } else {
-            $data['recommended'] = 'No';
         }
+
+ else {            $data['recommended'] = 'No';        }
         $this->saas_model->_table_name = "tbl_saas_packages"; // table name
         $this->saas_model->_primary_key = "id"; // $id
         $this->saas_model->save($data, $id);

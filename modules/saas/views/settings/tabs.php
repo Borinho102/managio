@@ -25,7 +25,7 @@
                             <?php if (!empty($v_tab['icon'])) { ?>
                                 <i class="<?= $v_tab['icon'] ?> menu-icon"></i>
                             <?php } ?>
-                            <?= _l($v_tab['name']) ?>
+                            <?= e(_l($v_tab['name'])) ?>
                             <strong class="pull-right">
                                 <?php
                                 if (!empty($v_tab['count'])) {
@@ -52,7 +52,7 @@
         <h4 class="tw-font-semibold tw-mt-0 tw-text-neutral-800">
             <?php
             if (!empty($active)) {
-                echo _l($all_tabs[$active]['name']);
+            echo e(_l($all_tabs[$active]['name']));
             }
             ?>
         </h4>
