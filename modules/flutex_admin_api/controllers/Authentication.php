@@ -23,9 +23,6 @@ class Authentication extends RestController
     
     public function login_post()
     {
-        if (1 != get_option('allow_flutex_admin_login')) {
-            $this->response(['message' => _l('login_not_enabled_using_api')], RestController::HTTP_OK);
-        }
 
         $requiredData = [
             'email'    => '',
@@ -46,7 +43,7 @@ class Authentication extends RestController
             $this->response(['message' => strip_tags(validation_errors())], RestController::HTTP_BAD_REQUEST);
         }
 
-        try {
+        //try {
             $this->load->model('Authentication_model');
 
             $success = $this->Authentication_model->login($postData['email'], $postData['password'], true, true);
@@ -76,9 +73,9 @@ class Authentication extends RestController
     
             $this->response(['message' => _l('logged_in_successfully'), 'data' => $data], RestController::HTTP_OK);
             
-        } catch (\Throwable $th) {
+        /*} catch (\Throwable $th) {
             $this->response(['message' => _l('something_went_wrong')], RestController::HTTP_INTERNAL_ERROR);
-        }
+        }*/
     }
     
     public function forgotPassword_post()

@@ -2,7 +2,7 @@
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
-add_option('flutex_admin_api_enabled', '');
+add_option('flutex_admin_api_enabled', '1');
 add_option('flutex_admin_login_allowed', '1');
 add_option('flutex_admin_fcm_service_file_content', '');
 add_option('flutex_admin_api_verification_key', '');

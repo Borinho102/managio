@@ -64,18 +64,6 @@ function flutex_admin_api_push_notification($notification_id)
     $send_push_notification = $CI->flutex_admin_api->send_push_notification($notification_id);
 }
 
-hooks()->add_action('app_init', 'flutex_admin_api_init');
-function flutex_admin_api_init()
-{
-    $CI = &get_instance();
-    $CI->load->library(FLUTEX_ADMIN_API.'/flutex_admin_api');
-    $verify = $CI->flutex_admin_api->verify(FLUTEX_ADMIN_API);
-    if (!$verify['status']) {
-        get_instance()->app_modules->deactivate(FLUTEX_ADMIN_API);
-        set_alert('danger', $verify['message']);
-    }
-}
-
 hooks()->add_action('pre_activate_module', 'flutex_admin_api_activation');
 function flutex_admin_api_activation()
 {
