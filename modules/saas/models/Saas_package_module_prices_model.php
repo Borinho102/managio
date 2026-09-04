@@ -62,7 +62,9 @@ class Saas_package_module_prices_model extends App_Model
         try {
             $db->from($table);
             $db->where('package_module_id', $package_module_id);
-            $db->where('currency', strtoupper($currency));
+            $currency = strtoupper($currency);
+            $equiv = saas_equivalent_currency_codes($currency);
+            $db->where_in('currency', $equiv);
             if ($billing_cycle === null) {
                 $db->where('billing_cycle IS NULL', null, false);
             } else {
@@ -116,7 +118,7 @@ class Saas_package_module_prices_model extends App_Model
             return false;
         }
 
-        $currency = strtoupper($data['currency']);
+        $currency = saas_normalize_currency_code($data['currency']);
         $billing_cycle = isset($data['billing_cycle']) ? $data['billing_cycle'] : null;
 
         try {
@@ -182,9 +184,18 @@ class Saas_package_module_prices_model extends App_Model
             
             // Handle array of currencies (for selective deletion)
             if (is_array($currencies_array) && !empty($currencies_array)) {
-                $db->where_in('currency', array_map('strtoupper', $currencies_array));
+                $normalized = array_map('saas_normalize_currency_code', $currencies_array);
+                $flat = [];
+                foreach ($normalized as $code) {
+                    foreach (saas_equivalent_currency_codes($code) as $eq) {
+                        $flat[] = $eq;
+                    }
+                }
+                $flat = array_unique($flat);
+                $db->where_in('currency', $flat);
             } elseif ($currency !== null) {
-                $db->where('currency', strtoupper($currency));
+                $currency = saas_normalize_currency_code($currency);
+                $db->where_in('currency', saas_equivalent_currency_codes($currency));
             }
             
             if ($billing_cycle !== null) {

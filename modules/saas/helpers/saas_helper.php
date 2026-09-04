@@ -1729,15 +1729,30 @@ function saas_master_option($name)
 function saas_currency_codes_match($left, $right): bool
 {
     $normalize = static function ($code) {
-        $code = strtoupper(trim((string) $code));
-        if (in_array($code, ['FCFA', 'CFA', 'XAF', 'XOF'], true)) {
-            return 'XAF';
-        }
-
-        return $code;
+        return saas_normalize_currency_code($code);
     };
 
     return $normalize($left) !== '' && $normalize($left) === $normalize($right);
+}
+
+function saas_normalize_currency_code($code): string
+{
+    $code = strtoupper(trim((string) $code));
+    if (in_array($code, ['FCFA', 'CFA', 'XAF', 'XOF'], true)) {
+        return 'XAF';
+    }
+
+    return $code;
+}
+
+function saas_equivalent_currency_codes(string $code): array
+{
+    $code = strtoupper(trim($code));
+    if (in_array($code, ['FCFA', 'CFA', 'XAF', 'XOF'], true)) {
+        return ['XAF', 'XOF', 'FCFA', 'CFA'];
+    }
+
+    return [$code];
 }
 
 /**
@@ -1758,7 +1773,7 @@ function saas_currency_codes_match($left, $right): bool
 function saas_resolve_module_price($module_id, $currency, $billing_cycle = null)
 {
     $module_id = (int) $module_id;
-    $currency  = strtoupper(trim((string) $currency));
+    $currency  = saas_normalize_currency_code($currency);
 
     if (empty($module_id) || $currency === '') {
         return null;
@@ -1776,6 +1791,9 @@ function saas_resolve_module_price($module_id, $currency, $billing_cycle = null)
         if (!empty($pkg) && !empty($pkg->currency)) {
             $baseCurrency = strtoupper(trim((string) $pkg->currency));
         }
+    }
+    if (function_exists('saas_normalize_currency_code')) {
+        $baseCurrency = saas_normalize_currency_code($baseCurrency);
     }
 
     // 1) Admin-defined per-currency price always wins.

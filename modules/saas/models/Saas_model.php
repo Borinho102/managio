@@ -3060,6 +3060,9 @@ class Saas_model extends App_Model
         if (($postedCurrency === '' || $postedCurrency === null) && function_exists('saas_tenant_currency')) {
             $postedCurrency = strtoupper(trim((string) saas_tenant_currency()));
         }
+        $postedCurrency = function_exists('saas_normalize_currency_code')
+            ? saas_normalize_currency_code($postedCurrency)
+            : $postedCurrency;
         $authoritative = null;
         if (function_exists('saas_resolve_module_price') && !empty($data['package_module_id']) && !empty($postedCurrency)) {
             $authoritative = saas_resolve_module_price((int) $data['package_module_id'], $postedCurrency);
@@ -3080,6 +3083,9 @@ class Saas_model extends App_Model
                     if (!empty($pkgRow) && !empty($pkgRow->currency)) {
                         $baseCurrency = strtoupper(trim((string) $pkgRow->currency));
                     }
+                }
+                if (function_exists('saas_normalize_currency_code')) {
+                    $baseCurrency = saas_normalize_currency_code($baseCurrency);
                 }
                 $data['price']          = $moduleRow->price;
                 $data['price_currency'] = $baseCurrency;
