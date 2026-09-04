@@ -465,12 +465,14 @@ class Packages extends AdminController
         // Persist per-currency prices posted from the form (if any)
         $posted_prices = $this->input->post('prices', true);
         $this->load->model('saas_package_module_prices_model');
-        // Clear existing prices for this module and re-save what's posted. This keeps synchronization simple.
-        $this->saas_package_module_prices_model->delete_by_module($module_id);
+        
         if (!empty($posted_prices) && is_array($posted_prices)) {
             $to_save = [];
+            $posted_currencies = [];
+            
             foreach ($posted_prices as $currency_code => $entry) {
                 $currency_code = strtoupper(trim((string) ($entry['currency'] ?? $currency_code)));
+                $posted_currencies[] = $currency_code;
 
                 if (!is_array($entry)) {
                     $amount = $entry;
@@ -519,6 +521,12 @@ class Packages extends AdminController
                     'amount' => floatval($amount),
                 ];
             }
+            
+            // Only delete prices for currencies that were actually posted, then save the new values
+            if (!empty($posted_currencies)) {
+                $this->saas_package_module_prices_model->delete_by_module($module_id, null, null, $posted_currencies);
+            }
+            
             if (!empty($to_save)) {
                 $this->saas_package_module_prices_model->save_prices_bulk($module_id, $to_save);
             }

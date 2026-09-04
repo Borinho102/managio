@@ -117,18 +117,27 @@ class Saas_package_module_prices_model extends App_Model
     }
 
     /**
-     * Delete prices for a module (optionally per currency)
+     * Delete prices for a module (optionally per currency or array of currencies)
+     * @param int $package_module_id
+     * @param string|array|null $currency Single currency code or array of currency codes
+     * @param string|null $billing_cycle
+     * @return bool
      */
-    public function delete_by_module($package_module_id, $currency = null, $billing_cycle = null)
+    public function delete_by_module($package_module_id, $currency = null, $billing_cycle = null, $currencies_array = null)
     {
         if (!$this->db->table_exists('tbl_saas_package_module_prices')) {
             return false;
         }
         try {
             $this->db->where('package_module_id', $package_module_id);
-            if ($currency !== null) {
+            
+            // Handle array of currencies (for selective deletion)
+            if (is_array($currencies_array) && !empty($currencies_array)) {
+                $this->db->where_in('currency', array_map('strtoupper', $currencies_array));
+            } elseif ($currency !== null) {
                 $this->db->where('currency', strtoupper($currency));
             }
+            
             if ($billing_cycle !== null) {
                 $this->db->where('billing_cycle', $billing_cycle);
             }
