@@ -29,7 +29,7 @@ foreach ($setup_menu as $key => $item) {
                 <i
                     class="<?= e($item['icon']); ?> menu-icon"></i>
                 <span class="menu-text">
-                    <?= e(_l($item['name'], '', false)); ?>
+                    <?= html_entity_decode(_l($item['name'], '', false), ENT_QUOTES, 'UTF-8'); ?>
                 </span>
                 <?php if (count($item['children']) > 0) { ?>
                 <span class="fa arrow"></span>
@@ -56,7 +56,7 @@ foreach ($setup_menu as $key => $item) {
                             class="<?= e($submenu['icon']); ?> menu-icon"></i>
                         <?php } ?>
                         <span class="sub-menu-text">
-                            <?= e(_l($submenu['name'], '', false)); ?>
+                            <?= html_entity_decode(_l($submenu['name'], '', false), ENT_QUOTES, 'UTF-8'); ?>
                         </span>
                     </a>
                     <?php if (isset($submenu['badge'], $submenu['badge']['value']) && ! empty($submenu['badge'])) {?>
