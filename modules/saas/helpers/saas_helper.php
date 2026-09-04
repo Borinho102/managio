@@ -1088,6 +1088,16 @@ function saas_access()
 {
     $CI = &get_instance();
     saas_ensure_payin_schema();
+
+    // If the per-currency pricing table is missing, show an admin warning with an explicit
+    // link to run the SaaS module DB upgrade. This is a non-destructive, informational
+    // notice so admins know to run the migration if they don't want to keep running
+    // with the fallback behavior (conversions only).
+    if (empty(subdomain()) && is_super_admin() && !$CI->db->table_exists(db_prefix() . 'saas_package_module_prices')) {
+        $upgrade_link = admin_url('modules/upgrade_database/saas');
+        set_alert('warning', 'SaaS database missing required table <strong>tbl_saas_package_module_prices</strong>. Please <a href="' . $upgrade_link . '">run the module database upgrade</a> to enable per-currency module pricing.');
+    }
+
     if ($CI->app_modules->is_database_upgrade_required('saas') && !empty(is_super_admin()) && empty(subdomain())) {
 
         if ($CI->input->post('upgrade_database')) {
