@@ -476,8 +476,67 @@ class Gb_client extends ClientsController
             set_alert('warning', _l('404_error'));
             redirect('clients/dashboard');
         }
+
+        // Server-resolve the authoritative per-currency price for the tenant
+        // currency so the correct price shows on the initial render (without
+        // relying on the AJAX refresh). Checkout re-validates this server-side.
+        $tenant_currency = function_exists('saas_tenant_currency') ? saas_tenant_currency() : '';
+        $data['tenant_currency'] = $tenant_currency;
+        $payload = function_exists('saas_module_price_payload')
+            ? saas_module_price_payload((int) $data['module']->package_module_id, $tenant_currency)
+            : null;
+        $data['initial_price'] = [
+            'amount'   => $payload['price'] ?? $data['module']->price,
+            'currency' => $payload['currency'] ?? $tenant_currency,
+            'html'     => $payload['price_html'] ?? null,
+            'source'   => $payload['source'] ?? null,
+        ];
+
         $this->set_layout($data, 'packages/modules/module_details');
 
+    }
+
+    /**
+     * Client-accessible JSON endpoint for the per-currency module price.
+     * Mirrors saas/ajax/module_price but works for logged-in tenant clients on
+     * the main site (the admin Ajax controller is not reachable there).
+     */
+    public function module_price($module_id = null)
+    {
+        if (!is_client_logged_in()) {
+            echo json_encode(['success' => false, 'message' => 'not_logged_in']);
+            return;
+        }
+
+        // Accept the module id from the URL segment or the POST body (the JS
+        // posts it as module_id).
+        if (empty($module_id)) {
+            $module_id = $this->input->post_get('module_id');
+        }
+
+        $currency = $this->input->post_get('currency');
+        if (empty($currency) && function_exists('saas_tenant_currency')) {
+            $currency = saas_tenant_currency();
+        }
+        $currency = strtoupper(trim((string) $currency));
+
+        $billing_cycle_raw = $this->input->post_get('billing_cycle');
+        $billing_cycle = null;
+        if (!empty($billing_cycle_raw) && $billing_cycle_raw !== 'default') {
+            $billing_cycle = trim((string) $billing_cycle_raw);
+        }
+
+        if (empty($module_id) || $currency === '') {
+            echo json_encode(['success' => false, 'message' => 'missing_parameters']);
+            return;
+        }
+
+        try {
+            echo json_encode(saas_module_price_payload($module_id, $currency, $billing_cycle));
+        } catch (Throwable $e) {
+            log_message('error', '[saas] Gb_client::module_price error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'exception']);
+        }
     }
 
     private

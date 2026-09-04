@@ -56,7 +56,19 @@ echo form_open($mUrl . 'proceedPayment');
                                 echo '<option value="' . $code . '"' . $sel . '>' . $code . '</option>'; }
                             ?>
                         </select>
-                        <span id="module_price_display"><?= display_money($module->price, $defaultCurrency) ?></span>
+                        <?php
+                        // Server-resolved price: admin per-currency price first, then base price,
+                        // then converted display value. The amount charged at checkout is
+                        // re-validated server-side in Saas_model::proceedPayment.
+                        $initialAmount   = $initial_price['amount'] ?? $module->price;
+                        $initialCurrency = $initial_price['currency'] ?? $defaultCurrency;
+                        $priceEndpoint   = site_url('saas/ajax/module_price');
+                        if ($mUrl === 'clients/' && !is_staff_logged_in()) {
+                            // Tenant client on the main site: the admin Ajax controller is staff-only.
+                            $priceEndpoint = site_url('clients/module_price');
+                        }
+                        ?>
+                        <span id="module_price_display"><?= !empty($initial_price['html']) ? $initial_price['html'] : display_money($initialAmount, $initialCurrency) ?></span>
                     </span>
                 </h2>
                 <div class="card-body payment_gateway hidden"
@@ -98,7 +110,8 @@ echo form_open($mUrl . 'proceedPayment');
                         echo form_hidden('company_history_id', $companyInfo->company_history_id);
                         echo form_hidden('package_module_id', $module->package_module_id);
                         echo form_hidden('module_name', $module->module_name);
-                        echo form_hidden('price', $module->price);
+                        echo form_hidden('price', $initialAmount);
+                        echo form_hidden('price_currency', $initialCurrency);
                         echo form_hidden('name', $module_title);
 
                         $image_url = module_dir_url('saas/uploads');
@@ -192,7 +205,7 @@ echo form_open($mUrl . 'proceedPayment');
         function updatePriceDisplay(currency) {
             if (!moduleId || !currency) return;
             var data = { module_id: moduleId, currency: currency };
-            var url = '<?= site_url('saas/ajax/module_price') ?>';
+            var url = '<?= $priceEndpoint ?>';
             var xhr = new XMLHttpRequest();
             xhr.open('POST', url, true);
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
@@ -207,6 +220,10 @@ echo form_open($mUrl . 'proceedPayment');
                                 var priceInput = document.querySelector(priceInputSelector);
                                 if (priceInput && typeof resp.price !== 'undefined') {
                                     priceInput.value = resp.price;
+                                }
+                                var currencyInput = document.querySelector("input[name='price_currency']");
+                                if (currencyInput && typeof resp.currency !== 'undefined' && resp.currency) {
+                                    currencyInput.value = resp.currency;
                                 }
                             }
                         } catch (e) {

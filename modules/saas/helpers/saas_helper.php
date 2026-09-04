@@ -307,6 +307,50 @@ function saas_ensure_flutex_staff_columns($db_name)
 }
 
 /**
+ * Per-currency module pricing table (master database only).
+ * Idempotently creates it so that saving module prices never silently fails
+ * when the module database upgrade has not been run yet.
+ */
+function saas_ensure_module_prices_schema()
+{
+    if (!saas_is_master_instance()) {
+        return false;
+    }
+
+    $CI = &get_instance();
+    if (empty($CI->db)) {
+        return false;
+    }
+
+    $table = db_prefix() . 'saas_package_module_prices';
+    if ($CI->db->table_exists($table)) {
+        return true;
+    }
+
+    try {
+        $CI->db->query("CREATE TABLE IF NOT EXISTS `" . $table . "` (
+            `package_module_price_id` INT NOT NULL AUTO_INCREMENT,
+            `package_module_id` INT NOT NULL,
+            `currency` VARCHAR(10) NOT NULL,
+            `billing_cycle` VARCHAR(50) NULL DEFAULT NULL,
+            `amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+            PRIMARY KEY (`package_module_price_id`),
+            KEY `idx_saas_pmp_module` (`package_module_id`),
+            KEY `idx_saas_pmp_currency` (`currency`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;");
+
+        return $CI->db->table_exists($table);
+    } catch (Throwable $e) {
+        log_message('error', '[saas] saas_ensure_module_prices_schema error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Ensure flutex_admin_api staff columns on all tenant databases (including seed).
+ */
+function saas_ensure_flutex_staff_schema()
+/**
  * Ensure flutex_admin_api staff columns on all tenant databases (including seed).
  */
 function saas_ensure_flutex_staff_schema()
@@ -1088,6 +1132,9 @@ function saas_access()
 {
     $CI = &get_instance();
     saas_ensure_payin_schema();
+    // Self-heal the per-currency module pricing table on the master database
+    // (used by saas/packages/set_module_price to persist per-currency prices).
+    saas_ensure_module_prices_schema();
 
     // If the per-currency pricing table is missing, show an admin warning with an explicit
     // link to run the SaaS module DB upgrade. This is a non-destructive, informational
@@ -1695,6 +1742,174 @@ function saas_currency_codes_match($left, $right): bool
     };
 
     return $normalize($left) !== '' && $normalize($left) === $normalize($right);
+}
+
+/**
+ * Resolve the authoritative price of a module for a given currency.
+ *
+ * Resolution order:
+ *  1. Admin-defined per-currency price (tbl_saas_package_module_prices, master DB).
+ *  2. Module base price when the requested currency matches the base currency.
+ *  3. Otherwise amount=null so the caller can convert for display purposes
+ *     (checkout must charge the base price in the base currency instead).
+ *
+ * @param int         $module_id
+ * @param string      $currency
+ * @param string|null $billing_cycle
+ *
+ * @return array{amount:?float,currency:string,base_currency:string,source:string}|null
+ */
+function saas_resolve_module_price($module_id, $currency, $billing_cycle = null)
+{
+    $module_id = (int) $module_id;
+    $currency  = strtoupper(trim((string) $currency));
+
+    if (empty($module_id) || $currency === '') {
+        return null;
+    }
+
+    $module = get_old_result('tbl_saas_package_module', ['package_module_id' => $module_id], false);
+    if (empty($module)) {
+        return null;
+    }
+
+    // Base currency: the currency of the package the module belongs to, else the SaaS default.
+    $baseCurrency = saas_default_currency();
+    if (!empty($module->package_id)) {
+        $pkg = get_old_result('tbl_saas_packages', ['id' => $module->package_id], false);
+        if (!empty($pkg) && !empty($pkg->currency)) {
+            $baseCurrency = strtoupper(trim((string) $pkg->currency));
+        }
+    }
+
+    // 1) Admin-defined per-currency price always wins.
+    $CI = &get_instance();
+    if (!isset($CI->saas_package_module_prices_model)) {
+        $CI->load->model('saas/saas_package_module_prices_model');
+    }
+    $savedPrice = null;
+    if ($billing_cycle !== null) {
+        $savedPrice = $CI->saas_package_module_prices_model->get_price($module_id, $currency, $billing_cycle);
+    }
+    if (empty($savedPrice)) {
+        $savedPrice = $CI->saas_package_module_prices_model->get_price($module_id, $currency, null);
+    }
+    if (!empty($savedPrice) && isset($savedPrice->amount)) {
+        return [
+            'amount'        => (float) $savedPrice->amount,
+            'currency'      => $currency,
+            'base_currency' => $baseCurrency,
+            'source'        => 'admin_price',
+        ];
+    }
+
+    // 2) Requested currency matches the base currency -> use the base price.
+    if (saas_currency_codes_match($baseCurrency, $currency)) {
+        return [
+            'amount'        => (float) $module->price,
+            'currency'      => $baseCurrency,
+            'base_currency' => $baseCurrency,
+            'source'        => 'base_price',
+        ];
+    }
+
+    // 3) No admin price and a different currency: conversion is display-only.
+    return [
+        'amount'        => null,
+        'currency'      => $currency,
+        'base_currency' => $baseCurrency,
+        'source'        => 'needs_conversion',
+    ];
+}
+
+/**
+ * Build the JSON payload used by the module price endpoints (staff Ajax and
+ * the client-facing module price endpoint on the tenant site).
+ * Prefers the admin per-currency price, falls back to the base price, then to
+ * live conversion for display purposes only.
+ *
+ * @return array
+ */
+function saas_module_price_payload($module_id, $currency, $billing_cycle = null)
+{
+    $currency = strtoupper(trim((string) $currency));
+
+    $resolved = saas_resolve_module_price($module_id, $currency, $billing_cycle);
+    if (empty($resolved)) {
+        return ['success' => false, 'message' => 'module_not_found'];
+    }
+
+    if ($resolved['amount'] !== null) {
+        return [
+            'success'    => true,
+            'price'      => (float) $resolved['amount'],
+            'price_html' => display_money($resolved['amount'], $resolved['currency']),
+            'currency'   => $resolved['currency'],
+            'source'     => $resolved['source'],
+        ];
+    }
+
+    $module = get_old_result('tbl_saas_package_module', ['package_module_id' => (int) $module_id], false);
+    $amount = (float) ($module->price ?? 0);
+    $base   = $resolved['base_currency'];
+
+    // Convert for display purposes only (load the cached conversion helper).
+    $helperPath = APP_MODULES_PATH . 'saas/helpers/saas_currency_helper.php';
+    if (file_exists($helperPath)) {
+        require_once $helperPath;
+    }
+    try {
+        if (function_exists('saas_convert_amount')) {
+            $converted = saas_convert_amount($amount, $base, $resolved['currency'], 2);
+            return [
+                'success'    => true,
+                'price'      => (float) $converted,
+                'price_html' => display_money($converted, $resolved['currency']),
+                'currency'   => $resolved['currency'],
+                'source'     => 'converted',
+            ];
+        }
+    } catch (Throwable $e) {
+        log_message('error', '[saas] currency conversion helper error: ' . $e->getMessage());
+    }
+
+    // Last-resort: fallback to exchangerate.host direct call.
+    $from = urlencode($base);
+    $to   = urlencode($resolved['currency']);
+    $amt  = urlencode((string) $amount);
+    $url  = "https://api.exchangerate.host/convert?from={$from}&to={$to}&amount={$amt}&places=2";
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    $resp = curl_exec($ch);
+    curl_close($ch);
+
+    $fallback = [
+        'success'    => true,
+        'price'      => $amount,
+        'price_html' => display_money($amount, $base),
+        'currency'   => $base,
+        'warning'    => 'conversion_failed',
+    ];
+
+    if ($resp === false || $resp === null) {
+        return $fallback;
+    }
+
+    $json = @json_decode($resp);
+    if (empty($json) || !isset($json->result)) {
+        return $fallback;
+    }
+
+    $converted = (float) $json->result;
+    return [
+        'success'    => true,
+        'price'      => $converted,
+        'price_html' => display_money($converted, $resolved['currency']),
+        'currency'   => $resolved['currency'],
+    ];
 }
 
 function saas_gateway_is_enabled($gatewayName): bool

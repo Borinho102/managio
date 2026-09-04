@@ -497,7 +497,20 @@ class Gb_admin extends AdminController
         // Use tenant company locale/currency directly from company data, with fallback to defaults
         $data['tenant_locale'] = !empty($companyInfo->language) ? $companyInfo->language : (!empty($companyInfo->locale) ? $companyInfo->locale : 'en');
         $data['tenant_currency'] = !empty($companyInfo->currency) ? strtoupper($companyInfo->currency) : saas_default_currency();
-        
+
+        // Server-resolve the authoritative per-currency price for the tenant
+        // currency so the correct price shows on the initial render (without
+        // relying on the AJAX refresh).
+        $payload = function_exists('saas_module_price_payload')
+            ? saas_module_price_payload((int) $data['module']->package_module_id, $data['tenant_currency'])
+            : null;
+        $data['initial_price'] = [
+            'amount'   => $payload['price'] ?? $data['module']->price,
+            'currency' => $payload['currency'] ?? $data['tenant_currency'],
+            'html'     => $payload['price_html'] ?? null,
+            'source'   => $payload['source'] ?? null,
+        ];
+
         $data['subview'] = $this->load->view('packages/modules/module_details', $data, TRUE);
         $this->load->view('_layout_open', $data); //page load
     }

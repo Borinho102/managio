@@ -12,25 +12,63 @@ class Saas_package_module_prices_model extends App_Model
     }
 
     /**
+     * Per-currency module prices live on the master database (the same database
+     * that holds tbl_saas_package_module, which is always read through
+     * get_old_result()). On tenant subdomains $CI->db points to the tenant
+     * database, so resolve the master connection exactly like get_old_result()
+     * does via config_db(null, true). Falls back to the default connection
+     * (master instance) when the master connection cannot be established.
+     */
+    private function db_conn()
+    {
+        static $conn = null, $resolved = false;
+        if ($resolved) {
+            return $conn;
+        }
+        $resolved = true;
+
+        $CI = &get_instance();
+        if (function_exists('config_db')) {
+            $master = config_db(null, true);
+            if (!empty($master)) {
+                $conn = $master;
+            }
+        }
+        if (empty($conn)) {
+            $conn = $CI->db;
+        }
+
+        return $conn;
+    }
+
+    private function prices_table()
+    {
+        return db_prefix() . 'saas_package_module_prices';
+    }
+
+    /**
      * Get a specific price for a module/currency/billing_cycle
      * Returns object or null
      */
     public function get_price($package_module_id, $currency, $billing_cycle = null)
     {
+        $db = $this->db_conn();
+        $table = $this->prices_table();
+
         // Guard: return null if table not present to avoid fatal DB exceptions when migrations are pending
-        if (!$this->db->table_exists('tbl_saas_package_module_prices')) {
+        if (!$db->table_exists($table)) {
             return null;
         }
         try {
-            $this->db->from('tbl_saas_package_module_prices');
-            $this->db->where('package_module_id', $package_module_id);
-            $this->db->where('currency', strtoupper($currency));
+            $db->from($table);
+            $db->where('package_module_id', $package_module_id);
+            $db->where('currency', strtoupper($currency));
             if ($billing_cycle === null) {
-                $this->db->where('billing_cycle IS NULL', null, false);
+                $db->where('billing_cycle IS NULL', null, false);
             } else {
-                $this->db->where('billing_cycle', $billing_cycle);
+                $db->where('billing_cycle', $billing_cycle);
             }
-            $query = $this->db->get();
+            $query = $db->get();
             return $query->row();
         } catch (\Throwable $e) {
             log_message('error', '[saas] Saas_package_module_prices_model::get_price error: ' . $e->getMessage());
@@ -43,13 +81,16 @@ class Saas_package_module_prices_model extends App_Model
      */
     public function get_prices_for_module($package_module_id)
     {
-        if (!$this->db->table_exists('tbl_saas_package_module_prices')) {
+        $db = $this->db_conn();
+        $table = $this->prices_table();
+
+        if (!$db->table_exists($table)) {
             return [];
         }
         try {
-            $this->db->from('tbl_saas_package_module_prices');
-            $this->db->where('package_module_id', $package_module_id);
-            $query = $this->db->get();
+            $db->from($table);
+            $db->where('package_module_id', $package_module_id);
+            $query = $db->get();
             return $query->result();
         } catch (\Throwable $e) {
             log_message('error', '[saas] Saas_package_module_prices_model::get_prices_for_module error: ' . $e->getMessage());
@@ -66,8 +107,12 @@ class Saas_package_module_prices_model extends App_Model
         if (empty($data['package_module_id']) || empty($data['currency'])) {
             return false;
         }
-        if (!$this->db->table_exists('tbl_saas_package_module_prices')) {
-            log_message('error', '[saas] Attempt to save per-currency price but table tbl_saas_package_module_prices does not exist.');
+
+        $db = $this->db_conn();
+        $table = $this->prices_table();
+
+        if (!$db->table_exists($table)) {
+            log_message('error', '[saas] Attempt to save per-currency price but table ' . $table . ' does not exist.');
             return false;
         }
 
@@ -84,13 +129,13 @@ class Saas_package_module_prices_model extends App_Model
             ];
 
             if ($existing) {
-                $this->db->where('package_module_price_id', $existing->package_module_price_id);
-                $this->db->update('tbl_saas_package_module_prices', $save);
+                $db->where('package_module_price_id', $existing->package_module_price_id);
+                $db->update($table, $save);
                 return $existing->package_module_price_id;
             }
 
-            $this->db->insert('tbl_saas_package_module_prices', $save);
-            return $this->db->insert_id();
+            $db->insert($table, $save);
+            return $db->insert_id();
         } catch (\Throwable $e) {
             log_message('error', '[saas] Saas_package_module_prices_model::save_price error: ' . $e->getMessage());
             return false;
@@ -105,8 +150,9 @@ class Saas_package_module_prices_model extends App_Model
         if (empty($package_module_id) || !is_array($prices)) {
             return false;
         }
-        if (!$this->db->table_exists('tbl_saas_package_module_prices')) {
-            log_message('error', '[saas] Attempt to bulk save per-currency prices but table tbl_saas_package_module_prices does not exist.');
+        $db = $this->db_conn();
+        if (!$db->table_exists($this->prices_table())) {
+            log_message('error', '[saas] Attempt to bulk save per-currency prices but table ' . $this->prices_table() . ' does not exist.');
             return false;
         }
         foreach ($prices as $p) {
@@ -125,24 +171,27 @@ class Saas_package_module_prices_model extends App_Model
      */
     public function delete_by_module($package_module_id, $currency = null, $billing_cycle = null, $currencies_array = null)
     {
-        if (!$this->db->table_exists('tbl_saas_package_module_prices')) {
+        $db = $this->db_conn();
+        $table = $this->prices_table();
+
+        if (!$db->table_exists($table)) {
             return false;
         }
         try {
-            $this->db->where('package_module_id', $package_module_id);
+            $db->where('package_module_id', $package_module_id);
             
             // Handle array of currencies (for selective deletion)
             if (is_array($currencies_array) && !empty($currencies_array)) {
-                $this->db->where_in('currency', array_map('strtoupper', $currencies_array));
+                $db->where_in('currency', array_map('strtoupper', $currencies_array));
             } elseif ($currency !== null) {
-                $this->db->where('currency', strtoupper($currency));
+                $db->where('currency', strtoupper($currency));
             }
             
             if ($billing_cycle !== null) {
-                $this->db->where('billing_cycle', $billing_cycle);
+                $db->where('billing_cycle', $billing_cycle);
             }
-            $this->db->delete('tbl_saas_package_module_prices');
-            return ($this->db->affected_rows() > 0);
+            $db->delete($table);
+            return ($db->affected_rows() > 0);
         } catch (\Throwable $e) {
             log_message('error', '[saas] Saas_package_module_prices_model::delete_by_module error: ' . $e->getMessage());
             return false;

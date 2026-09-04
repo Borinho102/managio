@@ -3052,6 +3052,40 @@ class Saas_model extends App_Model
     {
 
         $data = $_POST;
+
+        // Security / per-currency fix: never trust the client-posted price.
+        // Resolve the authoritative amount for the requested currency from the
+        // admin-defined per-currency prices (falls back to the base price).
+        $postedCurrency = strtoupper(trim((string) ($data['price_currency'] ?? '')));
+        if (($postedCurrency === '' || $postedCurrency === null) && function_exists('saas_tenant_currency')) {
+            $postedCurrency = strtoupper(trim((string) saas_tenant_currency()));
+        }
+        $authoritative = null;
+        if (function_exists('saas_resolve_module_price') && !empty($data['package_module_id']) && !empty($postedCurrency)) {
+            $authoritative = saas_resolve_module_price((int) $data['package_module_id'], $postedCurrency);
+        }
+
+        if (!empty($authoritative) && $authoritative['amount'] !== null) {
+            // Charge the admin-defined/base amount in its own currency.
+            $data['price']          = $authoritative['amount'];
+            $data['price_currency'] = $authoritative['currency'];
+        } else {
+            // No per-currency price for the requested currency: charge the base
+            // price in the base currency instead of a client-controlled value.
+            $moduleRow = get_old_result('tbl_saas_package_module', ['package_module_id' => (int) ($data['package_module_id'] ?? 0)], false);
+            if (!empty($moduleRow)) {
+                $baseCurrency = function_exists('saas_default_currency') ? saas_default_currency() : '';
+                if (!empty($moduleRow->package_id)) {
+                    $pkgRow = get_old_result('tbl_saas_packages', ['id' => $moduleRow->package_id], false);
+                    if (!empty($pkgRow) && !empty($pkgRow->currency)) {
+                        $baseCurrency = strtoupper(trim((string) $pkgRow->currency));
+                    }
+                }
+                $data['price']          = $moduleRow->price;
+                $data['price_currency'] = $baseCurrency;
+            }
+        }
+
         $data['total'] = $data['price'];
         $data['subtotal'] = $data['price'];
         $data['discount_total_type_selected'] = '%';
