@@ -52,14 +52,18 @@ class Saas_Paypal extends Saas_payment
             'validate_ssl'   => (bool)$paypal_live,
         ];
 
-        $this->provider = new PayPalClient($config);
+        $oldErrorReporting = error_reporting();
+        error_reporting($oldErrorReporting & ~(E_DEPRECATED | E_USER_DEPRECATED));
 
         try {
+            $this->provider = new PayPalClient($config);
             $this->provider->getAccessToken();
             log_message('debug', '[PAYPAL_LIB::accessToken] Access token obtained successfully');
         } catch (\Throwable $th) {
             log_message('error', '[PAYPAL_LIB::accessToken] Failed to get access token: ' . $th->getMessage());
             throw $th;
+        } finally {
+            error_reporting($oldErrorReporting);
         }
     }
 
