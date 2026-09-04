@@ -24,6 +24,13 @@ class Ajax extends AdminController
         $module_id = is_numeric($module_id) ? (int) $module_id : 0;
         $currency = strtoupper(trim((string) $currency));
 
+        // billing_cycle expected values: 'monthly','yearly','lifetime' or 'default' (or empty)
+        $billing_cycle_raw = $this->input->post_get('billing_cycle');
+        $billing_cycle = null;
+        if (!empty($billing_cycle_raw) && $billing_cycle_raw !== 'default') {
+            $billing_cycle = trim((string)$billing_cycle_raw);
+        }
+
         if (empty($module_id) || $currency === '') {
             echo json_encode(['success' => false, 'message' => 'missing_parameters']);
             return;
@@ -48,12 +55,51 @@ class Ajax extends AdminController
 
             $amount = (float) $module->price;
 
+            // First, prefer an admin-specified per-currency price for this module
+            $this->load->model('saas_package_module_prices_model');
+            // Try billing-specific saved price first (if billing_cycle provided), then fallback to default (NULL)
+            $savedPrice = null;
+            if ($billing_cycle !== null) {
+                $savedPrice = $this->saas_package_module_prices_model->get_price($module_id, $currency, $billing_cycle);
+            }
+            if (empty($savedPrice)) {
+                $savedPrice = $this->saas_package_module_prices_model->get_price($module_id, $currency, null);
+            }
+
+            if (!empty($savedPrice) && isset($savedPrice->amount)) {
+                $converted = (float) $savedPrice->amount;
+                $formatted = display_money($converted, $currency);
+                echo json_encode(['success' => true, 'price' => $converted, 'price_html' => $formatted, 'source' => 'admin_price']);
+                return;
+            }
+
             if (saas_currency_codes_match($baseCurrency, $currency)) {
                 $formatted = display_money($amount, $currency);
                 echo json_encode(['success' => true, 'price' => $amount, 'price_html' => $formatted]);
                 return;
             }
 
+            // Use the cached helper for conversion fallback
+            // Load helper (exists in modules/saas/helpers)
+            $helperPath = APP_MODULES_PATH . 'saas/helpers/saas_currency_helper.php';
+            if (file_exists($helperPath)) {
+                require_once $helperPath;
+            }
+
+            // Default TTL taken by helper (12 hours) unless option added later
+            try {
+                if (function_exists('saas_convert_amount')) {
+                    $converted = saas_convert_amount($amount, $baseCurrency, $currency, 2);
+                    $formatted = display_money($converted, $currency);
+                    echo json_encode(['success' => true, 'price' => $converted, 'price_html' => $formatted, 'source' => 'converted']);
+                    return;
+                }
+            } catch (Throwable $e) {
+                log_message('error', '[saas] currency conversion helper error: ' . $e->getMessage());
+                // fallback to direct provider below if helper fails
+            }
+
+            // Last-resort: fallback to exchangerate.host direct call (existing behavior)
             $from = urlencode($baseCurrency);
             $to = urlencode($currency);
             $amt = urlencode((string) $amount);

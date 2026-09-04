@@ -438,6 +438,35 @@ class Packages extends AdminController
             $this->saas_model->save($adata, $module_id);
         }
 
+        // Persist per-currency prices posted from the form (if any)
+        $posted_prices = $this->input->post('prices', true);
+        $this->load->model('saas_package_module_prices_model');
+        // Clear existing prices for this module and re-save what's posted. This keeps synchronization simple.
+        $this->saas_package_module_prices_model->delete_by_module($module_id);
+        if (!empty($posted_prices) && is_array($posted_prices)) {
+            $to_save = [];
+            foreach ($posted_prices as $currency_code => $cycles) {
+                $currency_code = strtoupper(trim($currency_code));
+                if (!is_array($cycles)) {
+                    continue;
+                }
+                foreach ($cycles as $cycle => $amt) {
+                    if ($amt === '' || $amt === null) {
+                        continue;
+                    }
+                    $billing_cycle = $cycle === 'default' ? null : $cycle;
+                    $to_save[] = [
+                        'currency' => $currency_code,
+                        'billing_cycle' => $billing_cycle,
+                        'amount' => floatval($amt),
+                    ];
+                }
+            }
+            if (!empty($to_save)) {
+                $this->saas_package_module_prices_model->save_prices_bulk($module_id, $to_save);
+            }
+        }
+
         try {
             $data['id'] = $module_id;
             $data['monthly_price'] = $data['price'];
@@ -653,6 +682,24 @@ class Packages extends AdminController
             $data['title'] = 'Modules - Edit Module';
         }
         $data['modules'] = $this->app_modules->get();
+
+        // Load available currencies for per-currency pricing UI
+        $this->load->model('currencies_model');
+        $data['currencies'] = $this->currencies_model->get();
+
+        // Load existing per-currency prices for this module (if editing)
+        $data['module_prices'] = [];
+        if (!empty($id)) {
+            $this->load->model('saas_package_module_prices_model');
+            $prices = $this->saas_package_module_prices_model->get_prices_for_module($id);
+            if (!empty($prices)) {
+                foreach ($prices as $p) {
+                    $cycle = $p->billing_cycle === null ? 'default' : $p->billing_cycle;
+                    $data['module_prices'][strtoupper($p->currency)][$cycle] = $p->amount;
+                }
+            }
+        }
+
         $data['subview'] = $this->load->view('packages/modules/create', $data, true);
         $this->load->view('_layout_main', $data);
     }

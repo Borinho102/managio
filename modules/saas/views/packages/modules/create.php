@@ -76,6 +76,41 @@
                     </div>
                 </div>
 
+                <?php // Per-currency price inputs: show available currencies with billing cycle columns (monthly/yearly/lifetime)
+                if (!empty($currencies) && is_array($currencies)) { ?>
+                    <div class="form-group">
+                        <label class="control-label"><?= _l('per_currency_prices') ?></label>
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead>
+                                <tr>
+                                    <th><?= _l('currency') ?></th>
+                                    <th><?= _l('monthly') ?></th>
+                                    <th><?= _l('yearly') ?></th>
+                                    <th><?= _l('lifetime') ?></th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <?php foreach ($currencies as $cur) {
+                                    // currencies_model->get() returns array elements with keys (id,name,symbol,...)
+                                    $code = is_array($cur) ? strtoupper($cur['name']) : strtoupper($cur->name);
+                                    $monthly = isset($module_prices[strtoupper($code)]['monthly']) ? $module_prices[strtoupper($code)]['monthly'] : '';
+                                    $yearly = isset($module_prices[strtoupper($code)]['yearly']) ? $module_prices[strtoupper($code)]['yearly'] : '';
+                                    $lifetime = isset($module_prices[strtoupper($code)]['lifetime']) ? $module_prices[strtoupper($code)]['lifetime'] : '';
+                                    ?>
+                                    <tr>
+                                        <td><?= $code ?> (<?= is_array($cur) ? $cur['symbol'] : $cur->symbol ?>)</td>
+                                        <td><input type="number" step="0.01" class="form-control" name="prices[<?= $code ?>][monthly]" value="<?= $monthly ?>"/></td>
+                                        <td><input type="number" step="0.01" class="form-control" name="prices[<?= $code ?>][yearly]" value="<?= $yearly ?>"/></td>
+                                        <td><input type="number" step="0.01" class="form-control" name="prices[<?= $code ?>][lifetime]" value="<?= $lifetime ?>"/></td>
+                                    </tr>
+                                <?php } ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                <?php } ?>
+
                 <div class="form-group">
                     <label for="field-1" class="control-label"><?= _l('preview_video_url') ?></label>
                     <div class="">

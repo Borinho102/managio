@@ -12,18 +12,25 @@ defined('BASEPATH') or exit('No direct script access allowed');
  */
 
 if (!function_exists('saas_get_cached_rates')) {
-    function saas_get_cached_rates($base = 'USD', $ttl = 43200)
+    function saas_get_cached_rates($base = 'USD', $ttl = null)
     {
         $CI = &get_instance();
         $base = strtoupper(trim($base));
         $option_name = 'saas_exchange_rates_' . $base;
 
+        // Normalize TTL: if not provided, read option (interpreted as hours), default 12 hours
+        if ($ttl === null) {
+            $opt = get_option('saas_exchange_rate_ttl');
+            $hours = ($opt !== null && $opt !== '') ? intval($opt) : 12; // hours
+            $ttl = max(0, intval($hours) * 3600);
+        }
+
         $cached = get_option($option_name);
         if ($cached) {
             $cached = json_decode($cached, true);
             if (is_array($cached) && isset($cached['fetched_at']) && isset($cached['rates'])) {
-                // check TTL
-                if (time() - intval($cached['fetched_at']) < intval($ttl)) {
+                // check TTL (if TTL==0 treat as always expired -> still return cached on fetch failure later)
+                if ($ttl > 0 && (time() - intval($cached['fetched_at']) < intval($ttl))) {
                     return $cached['rates'];
                 }
             }
@@ -63,7 +70,37 @@ if (!function_exists('saas_get_cached_rates')) {
 
         return [];
     }
-}
+
+    /**
+     * Clear cached exchange rate options for known currencies (and USD).
+     */
+    function saas_clear_cached_rates()
+    {
+        $CI = &get_instance();
+        // Try to load currencies model; fall back to a small known set
+        $bases = ['USD'];
+        if (method_exists($CI, 'load')) {
+            try {
+                $CI->load->model('currencies_model');
+                $cur = $CI->currencies_model->get();
+                if (is_array($cur)) {
+                    foreach ($cur as $c) {
+                        $code = is_array($c) ? ($c['name'] ?? null) : ($c->name ?? null);
+                        if ($code) $bases[] = strtoupper(trim($code));
+                    }
+                }
+            } catch (Throwable $e) {
+                // ignore and continue with USD only
+            }
+        }
+        // Deduplicate
+        $bases = array_unique(array_map('strtoupper', $bases));
+        foreach ($bases as $b) {
+            $opt = 'saas_exchange_rates_' . $b;
+            update_option($opt, null);
+        }
+        return true;
+    }}
 
 if (!function_exists('saas_convert_amount')) {
     /**

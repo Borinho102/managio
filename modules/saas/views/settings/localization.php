@@ -70,3 +70,16 @@ $date_formats = get_available_date_formats();
     </select>
     <p class="text-muted tw-mt-2"><?php echo _l('saas_default_currency_help'); ?></p>
 </div>
+
+<hr />
+<div class="form-group">
+    <label for="saas_exchange_rate_ttl" class="control-label"><?php echo _l('saas_exchange_rate_ttl_hours') ?: 'Exchange rate cache TTL (hours)'; ?></label>
+    <?php $ttl_hours = get_option('saas_exchange_rate_ttl'); $ttl_hours = ($ttl_hours !== null && $ttl_hours !== '') ? intval($ttl_hours) : 12; ?>
+    <input type="number" min="0" name="settings[saas_exchange_rate_ttl]" id="saas_exchange_rate_ttl" class="form-control" value="<?= $ttl_hours ?>" />
+    <p class="text-muted"><?= _l('saas_exchange_rate_ttl_help') ?: 'Number of hours to cache exchange rates. Set 0 to disable TTL (helper will still try cached values on fetch failure). Default 12.' ?></p>
+    <div class="mt-2">
+        <form method="post" action="<?= site_url('saas/settings/clear_exchange_cache') ?>" style="display:inline">
+            <button type="submit" class="btn btn-warning"><?php echo _l('saas_clear_exchange_cache') ?: 'Clear cached exchange rates'; ?></button>
+        </form>
+    </div>
+</div>

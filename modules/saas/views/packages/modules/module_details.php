@@ -56,6 +56,12 @@ echo form_open($mUrl . 'proceedPayment');
                                 echo '<option value="' . $code . '"' . $sel . '>' . $code . '</option>'; }
                             ?>
                         </select>
+                        <select id="module_billing_cycle" class="form-control input-sm" style="display:inline-block; width:auto; margin-right:8px">
+                            <option value="default"><?= _l('default') ?></option>
+                            <option value="monthly"><?= _l('monthly') ?></option>
+                            <option value="yearly"><?= _l('yearly') ?></option>
+                            <option value="lifetime"><?= _l('lifetime') ?></option>
+                        </select>
                         <span id="module_price_display"><?= display_money($module->price, $defaultCurrency) ?></span>
                     </span>
                 </h2>
@@ -190,9 +196,12 @@ echo form_open($mUrl . 'proceedPayment');
         var displaySelector = '#module_price_display';
         var currencySelector = '#module_currency';
 
-        function updatePriceDisplay(currency) {
+        function updatePriceDisplay(currency, billingCycle) {
             if (!moduleId || !currency) return;
             var data = { module_id: moduleId, currency: currency };
+            if (typeof billingCycle !== 'undefined' && billingCycle !== null) {
+                data.billing_cycle = billingCycle;
+            }
             var url = '<?= site_url('saas/ajax/module_price') ?>';
             var xhr = new XMLHttpRequest();
             xhr.open('POST', url, true);
@@ -224,13 +233,19 @@ echo form_open($mUrl . 'proceedPayment');
 
         document.addEventListener('DOMContentLoaded', function(){
             var sel = document.querySelector(currencySelector);
+            var cycleSel = document.querySelector('#module_billing_cycle');
             if (!sel) return;
             sel.addEventListener('change', function(){
-                updatePriceDisplay(this.value);
+                updatePriceDisplay(this.value, cycleSel ? cycleSel.value : null);
             });
+            if (cycleSel) {
+                cycleSel.addEventListener('change', function(){
+                    updatePriceDisplay(sel.value, this.value);
+                });
+            }
 
-            // trigger initial update based on selected currency to ensure hidden input matches display
-            updatePriceDisplay(sel.value);
+            // trigger initial update based on selected currency and billing cycle to ensure hidden input matches display
+            updatePriceDisplay(sel.value, cycleSel ? cycleSel.value : null);
         });
     })();
 </script>

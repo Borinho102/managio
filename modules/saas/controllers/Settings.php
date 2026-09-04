@@ -159,6 +159,27 @@ class Settings extends AdminController
         redirect($_SERVER['HTTP_REFERER']);
     }
 
+    /**
+     * Clear cached exchange rates created by saas_currency_helper
+     */
+    public function clear_exchange_cache()
+    {
+        // simple access check
+        saas_access();
+        $helperPath = APP_MODULES_PATH . 'saas/helpers/saas_currency_helper.php';
+        if (file_exists($helperPath)) {
+            require_once $helperPath;
+            if (function_exists('saas_clear_cached_rates')) {
+                saas_clear_cached_rates();
+                set_alert('success', _l('saas_exchange_rates_cleared') ?: 'Exchange rate cache cleared');
+                redirect($_SERVER['HTTP_REFERER']);
+                return;
+            }
+        }
+        set_alert('warning', _l('saas_exchange_rates_clear_failed') ?: 'Could not clear exchange rate cache');
+        redirect($_SERVER['HTTP_REFERER']);
+    }
+
 
     /* Since version 1.0.1 - test your smtp settings */
     public function sent_smtp_test_email()
