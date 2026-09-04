@@ -350,10 +350,6 @@ function saas_ensure_module_prices_schema()
  * Ensure flutex_admin_api staff columns on all tenant databases (including seed).
  */
 function saas_ensure_flutex_staff_schema()
-/**
- * Ensure flutex_admin_api staff columns on all tenant databases (including seed).
- */
-function saas_ensure_flutex_staff_schema()
 {
     if (!saas_is_master_instance()) {
         return false;
