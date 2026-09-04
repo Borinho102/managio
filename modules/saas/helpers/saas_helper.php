@@ -4404,7 +4404,9 @@ function saas_provision_module_database($module_name)
                 managio_accounting_register_install_fallbacks();
             }
 
-            $requireInstall = function () use ($installFile) {
+            $requireInstall = function () use ($installFile, $CI) {
+                // Legacy module install scripts still reference $CI directly;
+                // the closure must carry the active controller instance into scope.
                 require_once $installFile;
             };
 
