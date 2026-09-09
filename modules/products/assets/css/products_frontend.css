@@ -1,0 +1,119 @@
+.products-grid-container {
+    width: 100%;
+}
+.products-grid-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-left: -15px;
+    margin-right: -15px;
+}
+.products-grid-row [class*="col-"] {
+    margin-bottom: 15px;
+}
+.products-grid-row .product-row {
+    display: flex;
+    flex-direction: column;
+}
+.products-grid-row .thumbnail {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+.products-grid-row .thumbnail .product-img-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+.products-grid-row .thumbnail .input_data {
+    margin-top: auto;
+}
+span {
+    font-size:15px;
+}
+.title {
+    font-size:18px;
+}
+.thumbnail {
+    margin-bottom: 38px;
+    min-height:520px;
+}
+.img1 {
+    width:100%;
+    height: 250px;
+    max-height:250px;
+    min-height:250px;
+    object-fit: contain;
+    background-color: white;
+    text-align: center; vertical-align: middle;
+}
+.shadow {
+    padding: 15px;
+    box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
+    border: none;
+}
+.products-pricing:hover {
+    opacity: 0.9;
+    transition: 0.2s;
+}
+.description {
+    height: 60px;overflow: hidden;
+}
+.total_taxes.text-warning {
+    font-size: 60%;
+}
+.product-row.without-variations .row.input_data {
+    margin-top: 59px;
+}
+.variations {
+    margin-bottom: 15px;
+}
+.variations .dropdown.bootstrap-select {
+    max-width: 100%;
+}
+.select_cat:after {
+    display: none !important;
+}
+.product-urgency-badge { position: absolute; top: 8px; left: 8px; z-index: 2; }
+.product-img-wrap { position: relative; }
+/* Product detail: primary row (Quantity + Add to Cart) */
+.product-detail-primary-row {
+    display: flex;
+    align-items: flex-start;
+}
+.product-detail-action-col {
+    padding-top: 25px;
+}
+.product-detail-action-align {
+    display: flex;
+    align-items: flex-start;
+}
+/* Secondary blocks: price drop, back-in-stock, social proof - full-width, left-aligned */
+.product-detail-secondary-row {
+    padding-top: 0;
+}
+.product-detail-secondary-block {
+    padding: 12px 0;
+    border-top: 1px solid #eee;
+    text-align: left;
+}
+.product-detail-secondary-block label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+.product-detail-input-group {
+    max-width: 400px;
+}
+/* Social proof uses same secondary block styling */
+.product-social-proof-row .product-detail-secondary-block {
+    border-top: 1px solid #eee;
+}
+.product-social-proof-block .product-recent-purchase,
+.product-social-proof-block .product-social-proof {
+    margin-top: 0;
+    margin-bottom: 6px;
+    line-height: 1.5;
+}
+.product-social-proof-block .product-social-proof:last-child {
+    margin-bottom: 0;
+}

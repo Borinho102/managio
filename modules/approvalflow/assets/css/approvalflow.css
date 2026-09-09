@@ -1,0 +1,1706 @@
+/**
+ * ApprovalFlow — Stylesheet
+ *
+ * Scoped to .approvalflow-* prefix. Cero overrides de selectores globales
+ * de Perfex (sin tocar body, .btn, .alert, .modal, .table de manera
+ * indiscriminada). Toda la paleta vive como custom properties dentro
+ * del scope .approvalflow-app.
+ *
+ * TABLE OF CONTENTS
+ *   1.  Tokens (color, spacing, radius, shadow, motion, fonts)
+ *   2.  Page reset (.approvalflow-page + focus rings)
+ *   3.  Hero banner (slate→teal gradient)
+ *   4.  KPI tiles
+ *   5.  Cards generic
+ *   6.  Tables (with mobile-first stacked variant)
+ *   7.  Badges (status semantic)
+ *   8.  Action buttons (approve / reject / view)
+ *   9.  Forms (label, control, switch, condition row)
+ *   10. Modal overrides
+ *   11. Alerts inline
+ *   12. Warning banner (CRITICAL — inline in native preview templates)
+ *   13. Empty states
+ *   14. Timeline (history feed)
+ *   15. Bulk bar
+ *   16. Utility classes (col-hide, money, text helpers)
+ *   17. Responsive overrides (992 / 768 / 576)
+ *   18. prefers-reduced-motion
+ *   19. Multi-level approval chain (v1.0.1)
+ *   20. Level form builder (rules/form.php)
+ *
+ * @package ApprovalFlow
+ */
+
+/* ════════════════════════════════════════════════════════════════
+ * 1. TOKENS
+ * Custom properties declared inside the module scope to avoid leaking
+ * to the rest of Perfex. Anyone consuming a token from this list
+ * gets the canonical slate+teal palette of the design system.
+ *
+ * NOTE: tokens are also exposed on .approvalflow-modal-shell because
+ * Bootstrap appends .modal nodes as direct children of <body>, outside
+ * of any .approvalflow-app wrapper. Without this, var(--approvalflow-*)
+ * references inside modals resolve to empty strings and elements like
+ * the "Reject request" button render transparent on white.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-app,
+.approvalflow-modal-shell {
+    /* ── color: brand */
+    --approvalflow-color-primary-50:  #f1f5f9;
+    --approvalflow-color-primary-100: #e2e8f0;
+    --approvalflow-color-primary-200: #cbd5e1;
+    --approvalflow-color-primary-300: #94a3b8;
+    --approvalflow-color-primary-500: #475569;
+    --approvalflow-color-primary-700: #1e293b;
+    --approvalflow-color-primary-900: #0f172a;
+    --approvalflow-color-accent-50:   #ecfeff;
+    --approvalflow-color-accent-500:  #0891b2;
+    --approvalflow-color-accent-600:  #0e7490;
+    --approvalflow-color-accent-700:  #0e7490;
+
+    /* ── color: semantic states */
+    --approvalflow-color-success-50:  #ecfdf5;
+    --approvalflow-color-success-200: #a7f3d0;
+    --approvalflow-color-success-600: #059669;
+    --approvalflow-color-success-700: #047857;
+    --approvalflow-color-danger-50:   #fef2f2;
+    --approvalflow-color-danger-200:  #fecaca;
+    --approvalflow-color-danger-600:  #dc2626;
+    --approvalflow-color-danger-700:  #991b1b;
+    --approvalflow-color-warning-50:  #fffbeb;
+    --approvalflow-color-warning-200: #fde68a;
+    --approvalflow-color-warning-500: #f59e0b;
+    --approvalflow-color-warning-700: #b45309;
+    --approvalflow-color-warning-900: #78350f;
+    --approvalflow-color-info-50:     #eff6ff;
+    --approvalflow-color-info-200:    #bfdbfe;
+    --approvalflow-color-info-600:    #2563eb;
+    --approvalflow-color-neutral-50:  #f8fafc;
+    --approvalflow-color-neutral-200: #e2e8f0;
+    --approvalflow-color-neutral-600: #475569;
+
+    /* ── color: surfaces */
+    --approvalflow-color-bg-page:        #f4f6fa;
+    --approvalflow-color-bg-card:        #ffffff;
+    --approvalflow-color-bg-card-hover:  #fafbff;
+    --approvalflow-color-bg-muted:       #f8fafc;
+    --approvalflow-color-border:         rgba(15, 23, 42, 0.08);
+    --approvalflow-color-border-subtle:  rgba(15, 23, 42, 0.04);
+    --approvalflow-color-border-strong:  rgba(15, 23, 42, 0.18);
+
+    /* ── color: text */
+    --approvalflow-color-text-primary:        #0f172a;
+    --approvalflow-color-text-secondary:      #334155;
+    --approvalflow-color-text-muted:          #64748b;
+    --approvalflow-color-text-link:           #0891b2;
+    --approvalflow-color-text-link-hover:     #0e7490;
+    --approvalflow-color-text-on-primary:     #ffffff;
+    --approvalflow-color-text-on-primary-mute:rgba(255,255,255,0.82);
+
+    /* ── space (4-px scale) */
+    --approvalflow-space-1:  4px;
+    --approvalflow-space-2:  8px;
+    --approvalflow-space-3:  12px;
+    --approvalflow-space-4:  16px;
+    --approvalflow-space-5:  20px;
+    --approvalflow-space-6:  24px;
+    --approvalflow-space-8:  32px;
+    --approvalflow-space-10: 40px;
+    --approvalflow-space-12: 48px;
+
+    /* ── radius */
+    --approvalflow-radius-sharp: 4px;
+    --approvalflow-radius-sm:    6px;
+    --approvalflow-radius-md:    8px;
+    --approvalflow-radius-lg:    10px;
+    --approvalflow-radius-xl:    12px;
+    --approvalflow-radius-2xl:   14px;
+    --approvalflow-radius-pill:  999px;
+
+    /* ── shadows (slate-tinted, never pure black) */
+    --approvalflow-shadow-xs:   0 1px 2px rgba(15, 23, 42, 0.04);
+    --approvalflow-shadow-sm:   0 2px 8px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.03);
+    --approvalflow-shadow-md:   0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04);
+    --approvalflow-shadow-lg:   0 18px 40px rgba(15, 23, 42, 0.14), 0 4px 12px rgba(15, 23, 42, 0.06);
+    --approvalflow-shadow-hero: 0 14px 36px rgba(15, 41, 78, 0.18);
+    --approvalflow-shadow-focus-ring:       0 0 0 3px rgba(8, 145, 178, 0.28);
+    --approvalflow-shadow-focus-ring-error: 0 0 0 3px rgba(220, 38, 38, 0.28);
+
+    /* ── motion (max 220ms) */
+    --approvalflow-duration-fast:   120ms;
+    --approvalflow-duration-normal: 180ms;
+    --approvalflow-duration-slow:   220ms;
+    --approvalflow-easing-out:    cubic-bezier(0.16, 1, 0.3, 1);
+    --approvalflow-easing-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+    /* ── typography scale */
+    --approvalflow-font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --approvalflow-font-size-hero:        22px;
+    --approvalflow-font-size-h1:          20px;
+    --approvalflow-font-size-h2:          16px;
+    --approvalflow-font-size-h3:          14px;
+    --approvalflow-font-size-body:        14px;
+    --approvalflow-font-size-small:       13px;
+    --approvalflow-font-size-label:       12px;
+    --approvalflow-font-size-eyebrow:     11px;
+    --approvalflow-font-size-badge:       11px;
+    --approvalflow-font-size-kpi-value:   30px;
+
+    color: var(--approvalflow-color-text-primary);
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 2. PAGE RESET + FOCUS RINGS
+ * Light reset on the module page (font, padding) + accessible focus
+ * ring on every interactive element inside our scope. Never use
+ * outline:none without a replacement.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-page {
+    padding: 0;
+    color: var(--approvalflow-color-text-primary);
+}
+.approvalflow-app {
+    font-family: var(--approvalflow-font-stack);
+    font-size: var(--approvalflow-font-size-body);
+    line-height: 1.5;
+}
+.approvalflow-app a {
+    color: var(--approvalflow-color-text-link);
+    transition: color var(--approvalflow-duration-fast) var(--approvalflow-easing-in-out);
+}
+.approvalflow-app a:hover { color: var(--approvalflow-color-text-link-hover); }
+.approvalflow-app button:focus-visible,
+.approvalflow-app a:focus-visible,
+.approvalflow-app input:focus-visible,
+.approvalflow-app select:focus-visible,
+.approvalflow-app textarea:focus-visible {
+    outline: none;
+    box-shadow: var(--approvalflow-shadow-focus-ring);
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 3. HERO BANNER
+ * Slate→teal gradient at the top of every module page. Variants:
+ * compact (used on sub-pages) keeps padding tighter.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-hero {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--approvalflow-space-4);
+    padding: 18px 22px;
+    margin-bottom: var(--approvalflow-space-6);
+    overflow: hidden;
+    color: var(--approvalflow-color-text-on-primary);
+    background:
+        radial-gradient(circle at 16px 16px, rgba(255,255,255,0.06) 1px, transparent 1.5px) 0 0 / 24px 24px,
+        linear-gradient(135deg, var(--approvalflow-color-primary-700) 0%, var(--approvalflow-color-primary-900) 50%, var(--approvalflow-color-accent-700) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--approvalflow-radius-xl);
+    box-shadow: var(--approvalflow-shadow-hero);
+    font-family: var(--approvalflow-font-stack);
+}
+.approvalflow-hero--compact { padding: 14px 18px; margin-bottom: var(--approvalflow-space-4); }
+.approvalflow-hero__icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: rgba(255, 255, 255, 0.14);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.approvalflow-hero__body { flex: 1; min-width: 0; }
+.approvalflow-hero__eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: var(--approvalflow-font-size-eyebrow);
+    opacity: 0.82;
+    font-weight: 700;
+}
+.approvalflow-hero h4 {
+    color: var(--approvalflow-color-text-on-primary);
+    margin: 3px 0 4px;
+    font-size: var(--approvalflow-font-size-hero);
+    line-height: 1.25;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+.approvalflow-hero p {
+    color: var(--approvalflow-color-text-on-primary-mute);
+    margin: 0;
+    max-width: 780px;
+    font-size: var(--approvalflow-font-size-small);
+}
+.approvalflow-hero__actions {
+    display: flex; gap: var(--approvalflow-space-2);
+    align-items: center; flex-shrink: 0;
+}
+.approvalflow-hero__actions .btn .fa { margin-right: 6px; }
+.approvalflow-btn-outline-light {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: var(--approvalflow-color-primary-900);
+}
+
+/* Hero meta line — small status row under the subtitle. Helps the user
+   see "11 pending · 7 approved this month" at a glance without scrolling. */
+.approvalflow-hero__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--approvalflow-color-text-on-primary-mute);
+    line-height: 1.4;
+}
+.approvalflow-hero__meta span { display: inline-flex; align-items: center; gap: 6px; }
+.approvalflow-hero__meta .fa { font-size: 11px; opacity: 0.9; }
+.approvalflow-hero__meta-sep { opacity: 0.4; }
+
+/* Split CTA primary — main row + sub row underneath. Mirrors DupliGuard's
+   .dg-run-scan button: a bold call to action that also shows context
+   ("12 waiting") without a second tooltip. */
+.approvalflow-cta-primary {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 10px 16px 8px;
+    gap: 2px;
+    line-height: 1.2;
+}
+.approvalflow-cta-primary__main {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 14px;
+}
+.approvalflow-cta-primary__main .fa { margin-right: 0; }
+.approvalflow-cta-primary__label { white-space: nowrap; }
+.approvalflow-cta-primary__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px; height: 22px;
+    padding: 0 6px;
+    border-radius: 11px;
+    background: rgba(255,255,255,0.22);
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.approvalflow-cta-primary__sub {
+    font-size: 11px;
+    font-weight: 500;
+    opacity: 0.85;
+    text-transform: none;
+    letter-spacing: 0.01em;
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 4. KPI TILES
+ * 6 tiles in a row in desktop, 3 then 2 then 1 in smaller widths.
+ * Value is always 30px / weight 800 / tabular-nums for column alignment.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-kpi-row { margin-bottom: var(--approvalflow-space-6); }
+.approvalflow-kpi-col { margin-bottom: var(--approvalflow-space-3); }
+.approvalflow-kpi {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    overflow: hidden;
+    transition: transform var(--approvalflow-duration-normal) var(--approvalflow-easing-out),
+                box-shadow var(--approvalflow-duration-normal) var(--approvalflow-easing-out),
+                border-color var(--approvalflow-duration-normal) var(--approvalflow-easing-out);
+}
+.approvalflow-kpi:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--approvalflow-shadow-md);
+    border-color: var(--approvalflow-color-border-strong);
+}
+
+/* Row that holds the colored icon on the left + decorative spark on the right.
+   The spark is a CSS-only sine wave (no SVG file dependency) following the
+   DupliGuard pattern — purely decorative, aria-hidden, hides on mobile. */
+.approvalflow-kpi__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+.approvalflow-kpi__spark {
+    flex: 1;
+    height: 18px;
+    max-width: 70px;
+    opacity: 0.35;
+    background:
+        radial-gradient(circle at 10% 80%, currentColor 1px, transparent 1.5px) 0 0 / 12px 100%,
+        linear-gradient(90deg, transparent 0, currentColor 50%, transparent 100%) center / 100% 1px no-repeat;
+    color: var(--approvalflow-color-accent-500);
+}
+.approvalflow-kpi__icon {
+    width: 40px; height: 40px;
+    border-radius: var(--approvalflow-radius-lg);
+    background: var(--approvalflow-color-accent-500);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 10px -3px rgba(15, 23, 42, 0.18);
+}
+
+/* Per-KPI icon hue. Six different tints so the row reads as a scoreboard
+   of distinct metrics, not a wall of identical badges. All tints stay in
+   the slate+teal family with semantic colors (success/danger/warning)
+   reused where their meaning lines up with the KPI. */
+.approvalflow-kpi--pending  .approvalflow-kpi__icon { background: var(--approvalflow-color-warning-500); }
+.approvalflow-kpi--pending  .approvalflow-kpi__spark { color: var(--approvalflow-color-warning-500); }
+.approvalflow-kpi--approved .approvalflow-kpi__icon { background: var(--approvalflow-color-success-600); }
+.approvalflow-kpi--approved .approvalflow-kpi__spark { color: var(--approvalflow-color-success-600); }
+.approvalflow-kpi--rejected .approvalflow-kpi__icon { background: var(--approvalflow-color-danger-600); }
+.approvalflow-kpi--rejected .approvalflow-kpi__spark { color: var(--approvalflow-color-danger-600); }
+.approvalflow-kpi--time     .approvalflow-kpi__icon { background: var(--approvalflow-color-info-600); }
+.approvalflow-kpi--time     .approvalflow-kpi__spark { color: var(--approvalflow-color-info-600); }
+.approvalflow-kpi--money    .approvalflow-kpi__icon { background: var(--approvalflow-color-accent-500); }
+.approvalflow-kpi--money    .approvalflow-kpi__spark { color: var(--approvalflow-color-accent-500); }
+.approvalflow-kpi--leader   .approvalflow-kpi__icon { background: var(--approvalflow-color-primary-700); }
+.approvalflow-kpi--leader   .approvalflow-kpi__spark { color: var(--approvalflow-color-primary-700); }
+.approvalflow-kpi__value {
+    font-size: var(--approvalflow-font-size-kpi-value);
+    font-weight: 800;
+    line-height: 1;
+    color: var(--approvalflow-color-text-primary);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+.approvalflow-kpi__value small {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--approvalflow-color-text-muted);
+    margin-left: 4px;
+}
+.approvalflow-kpi__label {
+    font-size: var(--approvalflow-font-size-eyebrow);
+    font-weight: 600;
+    color: var(--approvalflow-color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 4px;
+}
+.approvalflow-kpi__sub {
+    font-size: var(--approvalflow-font-size-label);
+    color: var(--approvalflow-color-text-muted);
+    margin-top: 2px;
+}
+.approvalflow-kpi__nodata {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--approvalflow-color-text-muted);
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 5. CARDS
+ * Base container. Hover lift only when explicitly clickable.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-card {
+    background: var(--approvalflow-color-bg-card);
+    border: 1px solid var(--approvalflow-color-border);
+    border-radius: var(--approvalflow-radius-lg);
+    box-shadow: var(--approvalflow-shadow-sm);
+    transition: border-color var(--approvalflow-duration-normal) var(--approvalflow-easing-out),
+                box-shadow var(--approvalflow-duration-normal) var(--approvalflow-easing-out);
+    margin-bottom: var(--approvalflow-space-4);
+}
+.approvalflow-card__header {
+    background: transparent;
+    border-bottom: 1px solid var(--approvalflow-color-border);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--approvalflow-space-3);
+}
+.approvalflow-card__header h6 {
+    font-size: var(--approvalflow-font-size-h2);
+    font-weight: 700;
+    margin: 0;
+    color: var(--approvalflow-color-text-primary);
+}
+.approvalflow-card__header h6 .fa { margin-right: 8px; color: var(--approvalflow-color-text-muted); }
+.approvalflow-card__header--toolbar { flex-wrap: wrap; }
+.approvalflow-card__link {
+    font-size: var(--approvalflow-font-size-small);
+    color: var(--approvalflow-color-text-link);
+    text-decoration: none;
+    white-space: nowrap;
+}
+.approvalflow-card__link .fa { margin-left: 4px; font-size: 10px; }
+.approvalflow-card__body { padding: 20px; }
+.approvalflow-card__body.p-0 { padding: 0; }
+.approvalflow-dashboard-row { margin-top: var(--approvalflow-space-2); }
+
+/* ════════════════════════════════════════════════════════════════
+ * 6. TABLES
+ * Plain HTML tables — no DataTables required. Header in muted bg,
+ * hover row in accent-tinted bg. No zebra striping (looks dated).
+ * The .approvalflow-table--stacked variant transforms each row into
+ * a card in mobile via responsive overrides at the bottom.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.approvalflow-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+.approvalflow-table thead th {
+    background: var(--approvalflow-color-bg-muted);
+    font-size: var(--approvalflow-font-size-eyebrow);
+    font-weight: 700;
+    color: var(--approvalflow-color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--approvalflow-color-border);
+    text-align: left;
+    white-space: nowrap;
+}
+.approvalflow-table tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--approvalflow-color-border-subtle);
+    font-size: var(--approvalflow-font-size-small);
+    vertical-align: middle;
+    color: var(--approvalflow-color-text-primary);
+}
+.approvalflow-table tbody tr:hover { background: rgba(8, 145, 178, 0.04); }
+.approvalflow-table tbody tr:last-child td { border-bottom: 0; }
+.approvalflow-table .approvalflow-money,
+.approvalflow-table .approvalflow-money-th {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.approvalflow-table .approvalflow-select-th,
+.approvalflow-table .approvalflow-select-td {
+    width: 36px;
+    text-align: center;
+}
+.approvalflow-table .approvalflow-actions-th,
+.approvalflow-table .approvalflow-actions-td {
+    width: 1%;
+    text-align: right;
+    white-space: nowrap;
+}
+.approvalflow-doc-link {
+    font-weight: 600;
+    text-decoration: none;
+}
+.approvalflow-doc-link .fa { font-size: 10px; margin-left: 4px; opacity: 0.7; }
+.approvalflow-entity-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--approvalflow-radius-pill);
+    background: var(--approvalflow-color-primary-50);
+    color: var(--approvalflow-color-primary-700);
+    font-size: var(--approvalflow-font-size-eyebrow);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+.approvalflow-history-comment { max-width: 320px; }
+.approvalflow-comment-toggle {
+    font-size: var(--approvalflow-font-size-label);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 7. BADGES (semantic state)
+ * Four variants — pending / approved / rejected / cancelled. Each pair
+ * (bg / border / text) passes WCAG AA contrast against module bg.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: var(--approvalflow-radius-pill);
+    font-size: var(--approvalflow-font-size-badge);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border: 1px solid transparent;
+    line-height: 1.2;
+}
+.approvalflow-badge .fa { font-size: 10px; }
+.approvalflow-badge--pending   { background: var(--approvalflow-color-warning-50);  color: var(--approvalflow-color-warning-700); border-color: var(--approvalflow-color-warning-200); }
+.approvalflow-badge--approved  { background: var(--approvalflow-color-success-50);  color: var(--approvalflow-color-success-700); border-color: var(--approvalflow-color-success-200); }
+.approvalflow-badge--rejected  { background: var(--approvalflow-color-danger-50);   color: var(--approvalflow-color-danger-700);  border-color: var(--approvalflow-color-danger-200); }
+.approvalflow-badge--cancelled { background: var(--approvalflow-color-neutral-50);  color: var(--approvalflow-color-neutral-600); border-color: var(--approvalflow-color-neutral-200); }
+
+/* ════════════════════════════════════════════════════════════════
+ * 8. ACTION BUTTONS (approve / reject / view)
+ * Compact, color-semantic, with focus ring. Approve = solid green,
+ * reject = outline red, view = ghost. Disabled never receives clicks.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-btn-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: var(--approvalflow-radius-sm);
+    font-size: var(--approvalflow-font-size-label);
+    font-weight: 600;
+    line-height: 1.4;
+    border: 1px solid transparent;
+    transition: background-color var(--approvalflow-duration-normal) var(--approvalflow-easing-in-out),
+                border-color var(--approvalflow-duration-normal) var(--approvalflow-easing-in-out),
+                color var(--approvalflow-duration-normal) var(--approvalflow-easing-in-out);
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+    margin-left: 6px;
+    background: transparent;
+}
+.approvalflow-btn-action:first-child { margin-left: 0; }
+.approvalflow-btn-action .fa { font-size: 11px; }
+.approvalflow-btn-action--approve {
+    background: var(--approvalflow-color-success-600);
+    color: #fff;
+    border-color: var(--approvalflow-color-success-600);
+}
+.approvalflow-btn-action--approve:hover,
+.approvalflow-btn-action--approve:focus {
+    background: var(--approvalflow-color-success-700);
+    border-color: var(--approvalflow-color-success-700);
+    color: #fff;
+}
+.approvalflow-btn-action--reject {
+    background: #fff;
+    color: var(--approvalflow-color-danger-600);
+    border-color: var(--approvalflow-color-danger-200);
+}
+.approvalflow-btn-action--reject:hover,
+.approvalflow-btn-action--reject:focus {
+    background: var(--approvalflow-color-danger-50);
+    border-color: var(--approvalflow-color-danger-600);
+    color: var(--approvalflow-color-danger-700);
+}
+.approvalflow-btn-action--reject.approvalflow-btn-action--solid {
+    background: var(--approvalflow-color-danger-600);
+    color: #fff;
+    border-color: var(--approvalflow-color-danger-600);
+}
+.approvalflow-btn-action--reject.approvalflow-btn-action--solid:hover {
+    background: var(--approvalflow-color-danger-700);
+    border-color: var(--approvalflow-color-danger-700);
+}
+.approvalflow-btn-action--view {
+    background: transparent;
+    color: var(--approvalflow-color-text-secondary);
+    border-color: var(--approvalflow-color-border);
+}
+.approvalflow-btn-action--view:hover {
+    background: var(--approvalflow-color-primary-50);
+    color: var(--approvalflow-color-primary-700);
+    border-color: var(--approvalflow-color-primary-200);
+}
+.approvalflow-btn-action[disabled],
+.approvalflow-btn-action.is-disabled {
+    opacity: 0.5; cursor: not-allowed; pointer-events: none;
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 9. FORMS
+ * Label + control with focus ring. Custom switch component for
+ * toggles (rule active, settings flags, condition row enable).
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-form-row { margin-bottom: var(--approvalflow-space-4); }
+.approvalflow-form-row--inline {
+    display: flex;
+    align-items: center;
+    gap: var(--approvalflow-space-2);
+    margin-bottom: var(--approvalflow-space-3);
+}
+.approvalflow-form-label {
+    display: block;
+    font-size: var(--approvalflow-font-size-small);
+    font-weight: 600;
+    color: var(--approvalflow-color-text-secondary);
+    margin-bottom: 6px;
+}
+.approvalflow-form-label-inline {
+    font-size: var(--approvalflow-font-size-small);
+    color: var(--approvalflow-color-text-primary);
+    line-height: 1.4;
+}
+.approvalflow-form-label-inline small {
+    display: block;
+    color: var(--approvalflow-color-text-muted);
+    font-size: var(--approvalflow-font-size-label);
+    margin-top: 2px;
+}
+.approvalflow-form-control {
+    display: block;
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 12px;
+    font-size: var(--approvalflow-font-size-body);
+    line-height: 1.5;
+    color: var(--approvalflow-color-text-primary);
+    background: #fff;
+    border: 1px solid var(--approvalflow-color-border);
+    border-radius: var(--approvalflow-radius-sm);
+    transition: border-color var(--approvalflow-duration-normal) var(--approvalflow-easing-in-out),
+                box-shadow var(--approvalflow-duration-normal) var(--approvalflow-easing-in-out);
+}
+.approvalflow-form-control:hover { border-color: var(--approvalflow-color-border-strong); }
+.approvalflow-form-control:focus {
+    outline: none;
+    border-color: var(--approvalflow-color-accent-500);
+    box-shadow: var(--approvalflow-shadow-focus-ring);
+}
+.approvalflow-form-control.is-error { border-color: var(--approvalflow-color-danger-600); }
+.approvalflow-form-control.is-error:focus { box-shadow: var(--approvalflow-shadow-focus-ring-error); }
+.approvalflow-form-control--narrow { max-width: 160px; }
+.approvalflow-form-hint {
+    display: block;
+    margin-top: 6px;
+    font-size: var(--approvalflow-font-size-label);
+    color: var(--approvalflow-color-text-muted);
+    line-height: 1.45;
+}
+.approvalflow-form-counter {
+    color: var(--approvalflow-color-text-muted);
+    font-size: var(--approvalflow-font-size-label);
+}
+
+.approvalflow-switch {
+    position: relative; display: inline-block;
+    width: 44px; height: 24px; flex-shrink: 0;
+}
+.approvalflow-switch input { opacity: 0; width: 0; height: 0; }
+.approvalflow-switch__slider {
+    position: absolute; inset: 0;
+    background: var(--approvalflow-color-primary-200);
+    border-radius: var(--approvalflow-radius-pill);
+    cursor: pointer;
+    transition: background-color var(--approvalflow-duration-normal) var(--approvalflow-easing-in-out);
+}
+.approvalflow-switch__slider::before {
+    content: ""; position: absolute;
+    height: 18px; width: 18px; left: 3px; top: 3px;
+    background: #fff; border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    transition: transform var(--approvalflow-duration-normal) var(--approvalflow-easing-in-out);
+}
+.approvalflow-switch input:checked + .approvalflow-switch__slider { background: var(--approvalflow-color-accent-500); }
+.approvalflow-switch input:checked + .approvalflow-switch__slider::before { transform: translateX(20px); }
+.approvalflow-switch input:focus-visible + .approvalflow-switch__slider { box-shadow: var(--approvalflow-shadow-focus-ring); }
+.approvalflow-switch--readonly .approvalflow-switch__slider { cursor: not-allowed; opacity: 0.6; }
+
+.approvalflow-rule-form .approvalflow-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--approvalflow-space-2);
+    margin-top: var(--approvalflow-space-5);
+}
+.approvalflow-advanced {
+    border-top: 1px solid var(--approvalflow-color-border);
+    padding-top: var(--approvalflow-space-3);
+    margin-top: var(--approvalflow-space-3);
+}
+.approvalflow-advanced summary {
+    cursor: pointer;
+    font-size: var(--approvalflow-font-size-small);
+    font-weight: 600;
+    color: var(--approvalflow-color-text-secondary);
+    margin-bottom: var(--approvalflow-space-2);
+}
+
+/* Condition builder rows */
+.approvalflow-conditions { display: flex; flex-direction: column; gap: 8px; margin-bottom: var(--approvalflow-space-2); }
+.approvalflow-condition-row {
+    display: flex;
+    gap: var(--approvalflow-space-2);
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--approvalflow-color-bg-muted);
+    border: 1px solid var(--approvalflow-color-border);
+    border-radius: var(--approvalflow-radius-md);
+}
+.approvalflow-condition-row__label {
+    font-size: var(--approvalflow-font-size-small);
+    color: var(--approvalflow-color-text-secondary);
+    font-weight: 600;
+    flex: 0 0 180px;
+}
+.approvalflow-condition-row__type {
+    flex: 0 0 220px;
+    min-width: 0;
+}
+.approvalflow-condition-row__input { flex: 1; min-width: 0; }
+/* Wrapper for the value widget (native input OR Bootstrap-Select dropdown).
+   The bootstrap-select plugin wraps our <select> with .bootstrap-select, so
+   the flex sizing has to live on this wrapper, not on the <select> itself. */
+.approvalflow-condition-row__value { flex: 1; min-width: 0; }
+.approvalflow-condition-row__value .bootstrap-select { width: 100% !important; }
+/* scoped: only inside .approvalflow-condition-row__value — does NOT leak to global .btn */
+.approvalflow-condition-row__value .bootstrap-select > .btn { width: 100%; text-align: left; }
+/* Inline hint that lives on its own row below the controls (e.g. the status
+   code legend). Breaks out of the row flex so it spans full width. */
+.approvalflow-condition-row__hint { flex-basis: 100%; margin-top: 4px; display: block; }
+.approvalflow-condition-row__remove {
+    background: transparent;
+    border: 0;
+    color: var(--approvalflow-color-text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--approvalflow-radius-sm);
+}
+.approvalflow-condition-row__remove:hover {
+    color: var(--approvalflow-color-danger-600);
+    background: var(--approvalflow-color-danger-50);
+}
+.approvalflow-btn-add-condition {
+    margin-top: 4px;
+    font-size: var(--approvalflow-font-size-small);
+}
+.approvalflow-preview-card { position: sticky; top: 16px; }
+.approvalflow-preview-text {
+    font-size: var(--approvalflow-font-size-small);
+    color: var(--approvalflow-color-text-secondary);
+    line-height: 1.55;
+    margin: 0;
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 10. MODAL OVERRIDES
+ * Re-skin Bootstrap's .modal-* INSIDE our .approvalflow-modal-shell
+ * scope only — never globally.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-modal-shell .approvalflow-modal {
+    border-radius: var(--approvalflow-radius-2xl);
+    border: 0;
+    overflow: hidden;
+    box-shadow: var(--approvalflow-shadow-lg);
+}
+.approvalflow-modal-shell .modal-header {
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--approvalflow-color-border);
+    background: #fff;
+}
+.approvalflow-modal-shell .modal-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--approvalflow-color-text-primary);
+    margin: 0;
+}
+.approvalflow-modal-shell .modal-title .fa { margin-right: 8px; }
+.approvalflow-modal-shell .modal-body {
+    padding: 20px 22px;
+    color: var(--approvalflow-color-text-primary);
+    font-size: var(--approvalflow-font-size-body);
+    line-height: 1.55;
+}
+.approvalflow-modal-shell .modal-footer {
+    padding: 14px 22px;
+    border-top: 1px solid var(--approvalflow-color-border);
+    background: var(--approvalflow-color-bg-muted);
+    display: flex;
+    gap: var(--approvalflow-space-2);
+    justify-content: flex-end;
+}
+.approvalflow-modal-intro {
+    font-size: var(--approvalflow-font-size-small);
+    color: var(--approvalflow-color-text-secondary);
+    margin-bottom: var(--approvalflow-space-3);
+}
+.approvalflow-modal-summary {
+    padding: 12px;
+    border-radius: var(--approvalflow-radius-md);
+    background: var(--approvalflow-color-bg-muted);
+    margin-bottom: var(--approvalflow-space-3);
+}
+.approvalflow-modal-summary__row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: var(--approvalflow-font-size-small);
+}
+.approvalflow-modal-summary__label {
+    color: var(--approvalflow-color-text-muted);
+    font-weight: 600;
+}
+.approvalflow-modal-summary__value { color: var(--approvalflow-color-text-primary); }
+.approvalflow-modal-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+}
+.approvalflow-modal-section-title {
+    font-size: var(--approvalflow-font-size-h3);
+    font-weight: 700;
+    margin: var(--approvalflow-space-4) 0 var(--approvalflow-space-2);
+}
+.approvalflow-modal-section-title .fa { margin-right: 6px; color: var(--approvalflow-color-text-muted); }
+.approvalflow-modal-loading {
+    text-align: center;
+    color: var(--approvalflow-color-text-muted);
+    padding: 24px 0;
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 11. ALERTS (inline informational)
+ * Different from set_alert flash — these live inside our cards.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--approvalflow-space-2);
+    padding: 12px 16px;
+    border-radius: var(--approvalflow-radius-md);
+    font-size: var(--approvalflow-font-size-small);
+    line-height: 1.5;
+    border: 1px solid transparent;
+    margin-bottom: var(--approvalflow-space-3);
+}
+.approvalflow-alert__icon { flex-shrink: 0; font-size: 16px; margin-top: 1px; }
+.approvalflow-alert__body { flex: 1; min-width: 0; }
+.approvalflow-alert--warning {
+    background: var(--approvalflow-color-warning-50);
+    color: var(--approvalflow-color-warning-900);
+    border-color: var(--approvalflow-color-warning-200);
+}
+.approvalflow-alert--warning .approvalflow-alert__icon { color: var(--approvalflow-color-warning-500); }
+
+/* ════════════════════════════════════════════════════════════════
+ * 12. WARNING BANNER (CRITICAL)
+ * Renders inline at the top of native Perfex preview templates when a
+ * request is pending / approved / rejected. Amber gradient by default,
+ * shifts to green / red for resolved states. Border-left 4px is the
+ * visual anchor — same pattern Stripe and Linear use for callouts.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-warning-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 18px;
+    background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+    border: 1px solid var(--approvalflow-color-warning-200);
+    border-left: 4px solid var(--approvalflow-color-warning-500);
+    border-radius: var(--approvalflow-radius-md);
+    color: var(--approvalflow-color-warning-900);
+    box-shadow: 0 6px 16px rgba(245, 158, 11, 0.10);
+    margin: 0 0 18px;
+    animation: approvalflow-bannerIn 220ms var(--approvalflow-easing-out);
+    font-family: var(--approvalflow-font-stack);
+}
+@keyframes approvalflow-bannerIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.approvalflow-warning-banner__icon {
+    flex-shrink: 0;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--approvalflow-color-warning-500);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+}
+.approvalflow-warning-banner__body { flex: 1; min-width: 0; }
+.approvalflow-warning-banner__title {
+    font-size: var(--approvalflow-font-size-body);
+    font-weight: 700;
+    color: var(--approvalflow-color-warning-900);
+    margin: 0 0 2px;
+    line-height: 1.3;
+}
+.approvalflow-warning-banner__desc {
+    font-size: var(--approvalflow-font-size-small);
+    line-height: 1.5;
+    color: #92400e;
+    margin: 0;
+}
+.approvalflow-warning-banner__meta {
+    font-size: var(--approvalflow-font-size-label);
+    color: var(--approvalflow-color-warning-700);
+    margin: 6px 0 0;
+    line-height: 1.4;
+}
+/* Rendered INSIDE native Perfex preview templates, whose global `a`
+ * styles override our color — force white text/icon with !important so
+ * the label stays legible on the brown button regardless of the theme. */
+.approvalflow-warning-banner__action,
+.approvalflow-warning-banner__action:link,
+.approvalflow-warning-banner__action:visited {
+    flex-shrink: 0;
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(146, 64, 14, 0.92);
+    color: #fff !important;
+    border: 0;
+    border-radius: var(--approvalflow-radius-sm);
+    padding: 7px 12px;
+    font-size: var(--approvalflow-font-size-label);
+    font-weight: 600;
+    text-decoration: none !important;
+    transition: background-color var(--approvalflow-duration-normal) var(--approvalflow-easing-in-out);
+}
+.approvalflow-warning-banner__action i { color: #fff !important; }
+.approvalflow-warning-banner__action:hover,
+.approvalflow-warning-banner__action:focus {
+    background: var(--approvalflow-color-warning-900);
+    color: #fff !important;
+    text-decoration: none !important;
+}
+.approvalflow-warning-banner--approved {
+    background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
+    border-color: var(--approvalflow-color-success-200);
+    border-left-color: var(--approvalflow-color-success-600);
+    color: var(--approvalflow-color-success-700);
+    box-shadow: 0 6px 16px rgba(5, 150, 105, 0.08);
+}
+.approvalflow-warning-banner--approved .approvalflow-warning-banner__icon { background: var(--approvalflow-color-success-600); }
+.approvalflow-warning-banner--approved .approvalflow-warning-banner__title { color: var(--approvalflow-color-success-700); }
+.approvalflow-warning-banner--approved .approvalflow-warning-banner__desc  { color: var(--approvalflow-color-success-700); }
+.approvalflow-warning-banner--rejected {
+    background: linear-gradient(180deg, #fef2f2 0%, #fee2e2 100%);
+    border-color: var(--approvalflow-color-danger-200);
+    border-left-color: var(--approvalflow-color-danger-600);
+    color: var(--approvalflow-color-danger-700);
+    box-shadow: 0 6px 16px rgba(220, 38, 38, 0.08);
+}
+.approvalflow-warning-banner--rejected .approvalflow-warning-banner__icon { background: var(--approvalflow-color-danger-600); }
+.approvalflow-warning-banner--rejected .approvalflow-warning-banner__title { color: var(--approvalflow-color-danger-700); }
+.approvalflow-warning-banner--rejected .approvalflow-warning-banner__desc  { color: var(--approvalflow-color-danger-700); }
+
+/* ════════════════════════════════════════════════════════════════
+ * 13. EMPTY STATES
+ * Single pattern, three flavors (success / neutral / accent) by adding
+ * a modifier on the icon. Always center-aligned with generous padding.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-empty {
+    text-align: center;
+    padding: 48px 24px;
+}
+.approvalflow-empty--inline { padding: 36px 16px; }
+.approvalflow-empty__icon {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: var(--approvalflow-color-accent-50);
+    color: var(--approvalflow-color-accent-600);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    margin-bottom: 14px;
+}
+.approvalflow-empty__icon--success {
+    background: var(--approvalflow-color-success-50);
+    color: var(--approvalflow-color-success-600);
+}
+.approvalflow-empty h5 {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--approvalflow-color-text-primary);
+    margin: 0 0 6px;
+}
+.approvalflow-empty p {
+    color: var(--approvalflow-color-text-muted);
+    max-width: 480px;
+    margin: 0 auto var(--approvalflow-space-3);
+    line-height: 1.55;
+    font-size: var(--approvalflow-font-size-body);
+}
+.approvalflow-empty .btn .fa { margin-right: 6px; }
+
+/* ════════════════════════════════════════════════════════════════
+ * 14. TIMELINE (history feed)
+ * Vertical timeline with a dot per entry. Used on the dashboard
+ * activity card and inside the "view request" modal.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-timeline {
+    list-style: none;
+    padding: 18px;
+    margin: 0;
+    position: relative;
+}
+.approvalflow-timeline::before {
+    content: "";
+    position: absolute;
+    left: 28px;
+    top: 18px;
+    bottom: 18px;
+    width: 1px;
+    background: var(--approvalflow-color-border);
+}
+.approvalflow-timeline__item {
+    position: relative;
+    padding-left: 28px;
+    padding-bottom: var(--approvalflow-space-3);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--approvalflow-space-2);
+}
+.approvalflow-timeline__item:last-child { padding-bottom: 0; }
+.approvalflow-timeline__dot {
+    position: absolute;
+    left: 6px;
+    top: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--approvalflow-color-primary-300);
+    border: 2px solid var(--approvalflow-color-bg-card);
+    box-shadow: 0 0 0 2px var(--approvalflow-color-border);
+}
+.approvalflow-timeline__item--approved  .approvalflow-timeline__dot { background: var(--approvalflow-color-success-600); }
+.approvalflow-timeline__item--rejected  .approvalflow-timeline__dot { background: var(--approvalflow-color-danger-600); }
+.approvalflow-timeline__item--cancelled .approvalflow-timeline__dot { background: var(--approvalflow-color-neutral-600); }
+.approvalflow-timeline__item--created   .approvalflow-timeline__dot { background: var(--approvalflow-color-accent-500); }
+.approvalflow-timeline__body { flex: 1; min-width: 0; }
+.approvalflow-timeline__action {
+    font-size: var(--approvalflow-font-size-small);
+    font-weight: 600;
+    color: var(--approvalflow-color-text-primary);
+}
+.approvalflow-timeline__meta {
+    font-size: var(--approvalflow-font-size-label);
+    color: var(--approvalflow-color-text-muted);
+    margin-top: 2px;
+    line-height: 1.4;
+}
+.approvalflow-timeline__comment {
+    color: var(--approvalflow-color-text-secondary);
+    margin-top: 4px;
+    font-style: italic;
+}
+.approvalflow-timeline__time {
+    font-size: var(--approvalflow-font-size-label);
+    color: var(--approvalflow-color-text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.approvalflow-timeline--compact { padding: 0; }
+.approvalflow-timeline--compact::before { left: 16px; top: 4px; bottom: 4px; }
+.approvalflow-timeline--compact .approvalflow-timeline__item { padding-left: 28px; }
+
+/* ════════════════════════════════════════════════════════════════
+ * 15. BULK BAR + FILTERS
+ * Appears in the pending list header when at least one row is selected.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-filters {
+    display: flex;
+    gap: var(--approvalflow-space-2);
+    align-items: center;
+    flex-wrap: wrap;
+}
+.approvalflow-filters--wrap { flex-wrap: wrap; }
+.approvalflow-filter-input {
+    min-width: 180px;
+    width: auto;
+}
+.approvalflow-btn-filter .fa { margin-right: 6px; }
+.approvalflow-clear-link {
+    font-size: var(--approvalflow-font-size-small);
+    color: var(--approvalflow-color-text-muted);
+    text-decoration: none;
+    padding: 8px 4px;
+}
+.approvalflow-clear-link:hover { color: var(--approvalflow-color-text-primary); }
+.approvalflow-bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--approvalflow-space-2);
+    padding: 6px 12px;
+    background: var(--approvalflow-color-primary-50);
+    border: 1px solid var(--approvalflow-color-primary-200);
+    border-radius: var(--approvalflow-radius-md);
+    margin-left: auto;
+    animation: approvalflow-fadeIn 180ms var(--approvalflow-easing-out);
+}
+@keyframes approvalflow-fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+.approvalflow-bulk-bar__count {
+    font-weight: 600;
+    color: var(--approvalflow-color-primary-900);
+    font-size: var(--approvalflow-font-size-small);
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 15.5 PAGINATION (server-side pager)
+ * Sits below pending / rules / history tables. Pager links are pill-shaped
+ * neutral buttons with a teal active state. Disabled prev/next stays in
+ * place (no layout shift) but is non-interactive.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--approvalflow-space-3);
+    padding: 14px 18px;
+    border-top: 1px solid var(--approvalflow-color-border);
+    background: var(--approvalflow-color-bg-muted);
+    font-family: var(--approvalflow-font-stack);
+}
+.approvalflow-pager__count {
+    font-size: 13px;
+    color: var(--approvalflow-color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+.approvalflow-pager__list {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.approvalflow-pager__item--ellipsis {
+    padding: 0 6px;
+    color: var(--approvalflow-color-text-muted);
+    font-weight: 700;
+    user-select: none;
+}
+.approvalflow-pager__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 34px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: var(--approvalflow-radius-md);
+    border: 1px solid var(--approvalflow-color-border);
+    background: #fff;
+    color: var(--approvalflow-color-text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    font-variant-numeric: tabular-nums;
+    transition: background var(--approvalflow-duration-normal) var(--approvalflow-easing-out),
+                color var(--approvalflow-duration-normal) var(--approvalflow-easing-out),
+                border-color var(--approvalflow-duration-normal) var(--approvalflow-easing-out);
+}
+.approvalflow-pager__link:hover,
+.approvalflow-pager__link:focus-visible {
+    background: var(--approvalflow-color-primary-50);
+    color: var(--approvalflow-color-primary-900);
+    border-color: var(--approvalflow-color-border-strong);
+    text-decoration: none;
+}
+.approvalflow-pager__link--active,
+.approvalflow-pager__link--active:hover {
+    background: var(--approvalflow-color-accent-500);
+    color: #fff;
+    border-color: var(--approvalflow-color-accent-500);
+    cursor: default;
+}
+.approvalflow-pager__link--disabled {
+    color: var(--approvalflow-color-primary-300);
+    background: #fff;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+.approvalflow-pager__link--disabled:hover {
+    background: #fff;
+    color: var(--approvalflow-color-primary-300);
+    border-color: var(--approvalflow-color-border);
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 16. UTILITY CLASSES
+ * Responsive column hiders + text helpers. Use sparingly and ALWAYS
+ * inside the .approvalflow-* scope.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-text-muted    { color: var(--approvalflow-color-text-muted); }
+.approvalflow-text-small    { font-size: var(--approvalflow-font-size-label); }
+.approvalflow-text-info     { color: var(--approvalflow-color-info-600); }
+.approvalflow-text-warning  { color: var(--approvalflow-color-warning-500); margin-right: 4px; }
+.approvalflow-text-danger   { color: var(--approvalflow-color-danger-600); }
+.approvalflow-spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: approvalflowSpin 720ms linear infinite;
+    vertical-align: -2px;
+    margin-right: 6px;
+}
+@keyframes approvalflowSpin { to { transform: rotate(360deg); } }
+
+.approvalflow-row--removing {
+    transition: opacity 220ms var(--approvalflow-easing-out), transform 220ms var(--approvalflow-easing-out);
+    opacity: 0;
+    transform: translateX(20px);
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 16. SETTINGS PAGE
+ * Rendered inside Setup → Settings → Integrations.
+ * Layout: hero strip → 4 section cards (entities, notifications,
+ * behavior, advanced) → quick links footer.
+ * Component vocabulary mirrors DupliGuard's settings (approved on
+ * CodeCanyon) so the catalog reads as a coherent family, but the
+ * palette stays slate + teal as defined in the style guide.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-settings-shell { padding: 4px 0; color: var(--approvalflow-color-text-primary); }
+.approvalflow-settings-shell .approvalflow-hero { margin-bottom: var(--approvalflow-space-5); }
+.approvalflow-settings-shell .approvalflow-card { overflow: hidden; }
+.approvalflow-settings-shell .approvalflow-card__body { padding: 18px 20px 20px; }
+.approvalflow-settings-row > [class*="col-"] { margin-bottom: var(--approvalflow-space-4); }
+
+/* Settings layout v2: 3 cards top (col-md-4 equal height) + 1 Advanced full-width.
+   The divider visually separates "basic config" from "advanced" so the Advanced
+   card reads as a deliberate section, not a leftover floating tile. */
+.approvalflow-settings-row--top { display: flex; flex-wrap: wrap; align-items: stretch; }
+.approvalflow-settings-row--top > [class*="col-"] { display: flex; }
+.approvalflow-settings-row--top > [class*="col-"] > .approvalflow-card { width: 100%; }
+
+.approvalflow-settings-divider {
+    position: relative;
+    margin: var(--approvalflow-space-2) 0 var(--approvalflow-space-4);
+    height: 1px;
+    background: var(--approvalflow-color-border);
+    text-align: center;
+}
+.approvalflow-settings-divider__label {
+    position: relative;
+    top: -10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    background: var(--approvalflow-color-bg-page);
+    border: 1px solid var(--approvalflow-color-border);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 750;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--approvalflow-color-text-muted);
+    line-height: 1;
+}
+.approvalflow-settings-divider__label .fa {
+    color: var(--approvalflow-color-accent-500);
+    font-size: 12px;
+}
+
+/* Advanced card is wider — split its body in 3 internal columns so it does not
+   render as a long single column wasting horizontal space. */
+.approvalflow-settings-card--advanced { margin-bottom: var(--approvalflow-space-4); }
+.approvalflow-settings-card--advanced .approvalflow-card__header {
+    background: linear-gradient(180deg, #fafbfd 0%, #ffffff 100%);
+}
+.approvalflow-advanced-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--approvalflow-space-5);
+    align-items: start;
+}
+.approvalflow-advanced-col { min-width: 0; }
+.approvalflow-advanced-col .approvalflow-section-divider { margin-top: 0; }
+
+/* ════════════════════════════════════════════════════════════════
+ * SETTINGS — FORM ACTIONS (Save button row)
+ * Anchored at the bottom of the settings shell, right-aligned to mirror
+ * Perfex's native settings "Save" affordance. The button posts the form
+ * to Approvalflow::settings() (not Perfex core) so module toggles persist.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-settings-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--approvalflow-space-5);
+    padding-top: var(--approvalflow-space-4);
+    border-top: 1px solid var(--approvalflow-color-border);
+}
+.approvalflow-settings-save .fa { margin-right: 6px; }
+
+/* Legacy title (kept for backward compat) */
+.approvalflow-settings-title {
+    font-size: var(--approvalflow-font-size-h1);
+    font-weight: 700;
+    margin: 0 0 var(--approvalflow-space-4);
+    color: var(--approvalflow-color-text-primary);
+}
+.approvalflow-settings-title .fa { margin-right: 8px; color: var(--approvalflow-color-accent-500); }
+.approvalflow-settings-card { height: 100%; }
+
+/* Card intro hint — short paragraph under each section header */
+.approvalflow-settings-hint {
+    font-size: 13px;
+    color: var(--approvalflow-color-text-muted);
+    margin: 0 0 var(--approvalflow-space-4);
+    line-height: 1.5;
+}
+
+/* Section divider (intra-card) — eyebrow uppercase + hairline rule */
+.approvalflow-section-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: var(--approvalflow-space-5) 0 var(--approvalflow-space-3);
+    color: var(--approvalflow-color-text-muted);
+    font-size: 11px;
+    font-weight: 750;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+}
+.approvalflow-section-divider:first-child { margin-top: 0; }
+.approvalflow-section-divider::after {
+    content: "";
+    height: 1px;
+    flex: 1;
+    background: var(--approvalflow-color-border);
+}
+
+/* Toggle group container — rounded surround + hairline rows */
+.approvalflow-toggle-group {
+    border: 1px solid var(--approvalflow-color-border);
+    border-radius: var(--approvalflow-radius-xl);
+    overflow: hidden;
+    background: #fff;
+}
+
+/* Toggle row — label-left (icon + text + sub) + control-right */
+.approvalflow-toggle-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--approvalflow-space-4);
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--approvalflow-color-border-subtle);
+    background: #fff;
+}
+.approvalflow-toggle-row:last-child { border-bottom: 0; }
+.approvalflow-toggle-row__label {
+    flex: 1;
+    min-width: 0;
+    color: var(--approvalflow-color-text-primary);
+    font-size: 14px;
+    line-height: 1.4;
+    padding-right: var(--approvalflow-space-2);
+}
+.approvalflow-toggle-row__label > i {
+    color: var(--approvalflow-color-text-muted);
+    margin-right: 8px;
+    width: 14px;
+    text-align: center;
+}
+.approvalflow-toggle-row__label > i.approvalflow-text-warning {
+    color: var(--approvalflow-color-warning-500);
+}
+.approvalflow-toggle-row__label strong {
+    font-weight: 700;
+    color: var(--approvalflow-color-text-primary);
+}
+.approvalflow-toggle-row__sub {
+    display: block;
+    font-size: 12px;
+    color: var(--approvalflow-color-text-muted);
+    font-weight: 400;
+    margin-top: 5px;
+    line-height: 1.45;
+}
+
+/* Field row — for number inputs inside settings cards */
+.approvalflow-settings-field {
+    padding: 14px 16px 16px;
+    background: #fff;
+    border: 1px solid var(--approvalflow-color-border);
+    border-radius: var(--approvalflow-radius-xl);
+    margin-top: var(--approvalflow-space-3);
+}
+.approvalflow-settings-field .approvalflow-form-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: var(--approvalflow-space-2);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--approvalflow-color-text-secondary);
+}
+.approvalflow-settings-field .approvalflow-form-label > i {
+    color: var(--approvalflow-color-text-muted);
+    width: 14px;
+    text-align: center;
+}
+
+/* Quick links — outline button row at the bottom */
+.approvalflow-quick-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--approvalflow-space-2);
+    margin-top: var(--approvalflow-space-3);
+}
+.approvalflow-quick-links .btn { display: inline-flex; align-items: center; gap: 6px; }
+.approvalflow-quick-links .btn .fa { margin-right: 0; }
+
+/* ════════════════════════════════════════════════════════════════
+ * 17. RESPONSIVE OVERRIDES
+ * Mobile-first: only the diffs land here. Bootstrap breakpoints are
+ * inherited from Perfex (xs <576, sm 576+, md 768+, lg 992+, xl 1200+).
+ * ════════════════════════════════════════════════════════════════ */
+@media (max-width: 1199px) {
+    .approvalflow-kpi__value { font-size: 26px; }
+}
+
+@media (max-width: 991px) {
+    .approvalflow-col-hide-md { display: none !important; }
+    .approvalflow-hero { flex-wrap: wrap; gap: var(--approvalflow-space-3); }
+    .approvalflow-hero__actions { width: 100%; }
+}
+
+@media (max-width: 767px) {
+    .approvalflow-col-hide-sm { display: none !important; }
+    .approvalflow-hero { padding: 14px 16px; }
+    .approvalflow-hero h4 { font-size: 18px; }
+    .approvalflow-card__header { flex-direction: column; align-items: flex-start; }
+    .approvalflow-filters { width: 100%; }
+    .approvalflow-bulk-bar { width: 100%; margin-left: 0; }
+    /* Stacked-table mode: each row turns into a labelled card */
+    .approvalflow-table--stacked thead { display: none; }
+    .approvalflow-table--stacked tbody tr {
+        display: block;
+        border: 1px solid var(--approvalflow-color-border);
+        border-radius: var(--approvalflow-radius-md);
+        margin-bottom: 10px;
+        padding: 12px;
+        background: #fff;
+    }
+    .approvalflow-table--stacked tbody td {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--approvalflow-color-border-subtle);
+        font-size: var(--approvalflow-font-size-small);
+        text-align: left;
+    }
+    .approvalflow-table--stacked tbody td:last-child { border-bottom: 0; padding-top: 10px; }
+    .approvalflow-table--stacked tbody td::before {
+        content: attr(data-label);
+        font-size: var(--approvalflow-font-size-eyebrow);
+        font-weight: 700;
+        color: var(--approvalflow-color-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .approvalflow-table--stacked .approvalflow-money { text-align: right; }
+    .approvalflow-table--stacked .approvalflow-actions-td { justify-content: flex-end; }
+    .approvalflow-condition-row { flex-direction: column; align-items: stretch; }
+    .approvalflow-condition-row__label { flex: 0; }
+    .approvalflow-condition-row__type  { flex: 0 0 auto; }
+    .approvalflow-condition-row__input { flex: 0 0 auto; }
+    .approvalflow-condition-row__value { flex: 0 0 auto; }
+}
+
+@media (max-width: 575px) {
+    .approvalflow-col-hide-xs { display: none !important; }
+    .approvalflow-warning-banner { flex-direction: column; }
+    .approvalflow-warning-banner__action { align-self: stretch; text-align: center; }
+
+    /* Stacked-table actions cell: in <576px the View/Approve/Reject
+     * buttons need to stack full-width inside the card or they overflow
+     * past the viewport edge (the inherited nowrap + flex-end of the
+     * actions cell was clipping the Reject button off-screen on 360px).
+     * Strategy: row becomes column; the action cell drops the data-label
+     * pseudo-element and lets the buttons fill the row. */
+    .approvalflow-table--stacked .approvalflow-actions-td {
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        gap: 6px;
+        white-space: normal;
+        padding-top: 10px;
+    }
+    .approvalflow-table--stacked .approvalflow-actions-td::before {
+        content: "";
+        display: none;
+    }
+    .approvalflow-table--stacked .approvalflow-actions-td .approvalflow-btn-action {
+        margin-left: 0;
+        width: 100%;
+        justify-content: center;
+        white-space: normal;
+    }
+
+    /* Settings: tighter padding + stacked quick links on narrow screens */
+    .approvalflow-settings-shell .approvalflow-card__body { padding: 14px; }
+    .approvalflow-toggle-row { padding: 12px 14px; gap: 12px; }
+    .approvalflow-toggle-row__label { font-size: 13px; }
+    .approvalflow-settings-field { padding: 12px 14px 14px; }
+    .approvalflow-quick-links .btn { flex: 1 1 100%; justify-content: center; }
+    /* Advanced grid collapses to single column on mobile */
+    .approvalflow-advanced-grid { grid-template-columns: 1fr; gap: var(--approvalflow-space-3); }
+
+    /* Pager: count line + buttons row stack vertically. The link labels
+       (Prev/Next text) hide so the row stays scannable on 360px. */
+    .approvalflow-pager { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 14px; }
+    .approvalflow-pager__count { text-align: center; }
+    .approvalflow-pager__list { justify-content: center; }
+    .approvalflow-pager__link-label { display: none; }
+}
+
+/* Mid breakpoint: tablet collapses Advanced grid to 2 columns */
+@media (max-width: 991px) and (min-width: 577px) {
+    .approvalflow-advanced-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 18. PREFERS-REDUCED-MOTION
+ * Respect OS-level setting and disable animations entirely.
+ * ════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+    .approvalflow-app *,
+    .approvalflow-app *::before,
+    .approvalflow-app *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 19. MULTI-LEVEL APPROVAL CHAIN (v1.0.1)
+ * Level progress dots rendered inside the warning banner.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-level-progress {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.approvalflow-lvl-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(0, 0, 0, 0.08);
+    color: inherit;
+    cursor: default;
+}
+.approvalflow-lvl-dot--approved {
+    background: rgba(34, 197, 94, 0.15);
+    color: #166534;
+}
+.approvalflow-lvl-dot--rejected {
+    background: rgba(239, 68, 68, 0.15);
+    color: #991b1b;
+}
+.approvalflow-lvl-dot--pending {
+    background: rgba(245, 158, 11, 0.15);
+    color: #92400e;
+}
+.approvalflow-lvl-dot--waiting {
+    background: rgba(148, 163, 184, 0.15);
+    color: #475569;
+}
+
+.approvalflow-lvl-arrow {
+    font-size: 10px;
+    opacity: 0.5;
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 20. LEVEL FORM BUILDER (rules/form.php — v1.0.1)
+ * Rows in the multi-level approver builder.
+ * ════════════════════════════════════════════════════════════════ */
+.approvalflow-level-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.approvalflow-level-item--fixed {
+    opacity: 0.7;
+    font-size: 13px;
+}
+.approvalflow-level-badge {
+    display: inline-block;
+    min-width: 60px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(var(--approvalflow-accent-rgb, 14,165,233), 0.12);
+    color: var(--approvalflow-accent, #0ea5e9);
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.approvalflow-level-select {
+    flex: 1;
+}
+.approvalflow-level-hint {
+    font-size: 11px;
+    color: var(--approvalflow-text-muted, #94a3b8);
+    margin-left: 6px;
+}
+.approvalflow-level-approver-label {
+    font-size: 13px;
+    color: var(--approvalflow-text-muted, #94a3b8);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * 21. APPROVAL PULSE (v1.0.2) — risk badge, overdue badge, settings card
+ * Risk badge is a compact pill colored by band (low/medium/high) reusing
+ * the success/warning/danger palette. Overdue badge extends the shared
+ * .approvalflow-badge. The Pulse settings card reuses the advanced grid.
+ * ════════════════════════════════════════════════════════════════════ */
+.approvalflow-risk-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.4;
+    cursor: default;
+}
+.approvalflow-risk-badge--low {
+    background: var(--approvalflow-color-success-50);
+    color: var(--approvalflow-color-success-700);
+    border-color: var(--approvalflow-color-success-200);
+}
+.approvalflow-risk-badge--medium {
+    background: var(--approvalflow-color-warning-50);
+    color: var(--approvalflow-color-warning-700);
+    border-color: var(--approvalflow-color-warning-200);
+}
+.approvalflow-risk-badge--high {
+    background: var(--approvalflow-color-danger-50);
+    color: var(--approvalflow-color-danger-700);
+    border-color: var(--approvalflow-color-danger-200);
+}
+.approvalflow-badge--overdue {
+    background: var(--approvalflow-color-danger-50);
+    color: var(--approvalflow-color-danger-700);
+    border-color: var(--approvalflow-color-danger-200);
+    margin-left: 6px;
+}
+.approvalflow-risk-th,
+.approvalflow-risk-td { text-align: center; }
+.approvalflow-settings-card--pulse .approvalflow-card__header h6 .fa { color: var(--approvalflow-color-accent-600); }
+

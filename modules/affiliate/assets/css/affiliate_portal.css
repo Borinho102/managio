@@ -1,0 +1,17 @@
+#content{
+	background-color: #f1f5f9;
+}
+
+#report{
+	overflow: auto;
+}
+
+@media screen and (max-width: 767px) {
+    div.dataTables_wrapper div.dataTables_length {
+        position: unset;
+    }
+
+    div.dataTables_wrapper div.dataTables_filter {
+    	text-align: left;
+    }
+}
