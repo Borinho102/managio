@@ -259,10 +259,10 @@
         </div>
         <?php echo render_input('settings[smtp_email_charset]', 'settings_email_charset', get_option('smtp_email_charset')); ?>
         <?php echo render_input('settings[bcc_emails]', 'bcc_all_emails', get_option('bcc_emails')); ?>
-        <?php echo render_textarea('settings[email_signature]', 'settings_email_signature', get_option('email_signature'), ['data-entities-encode' => 'true']); ?>
+        <?php echo render_textarea('settings[email_signature]', 'settings_email_signature', get_option('email_signature'), [], '', '', 'tinymce tinymce-manual email-html-editor'); ?>
         <hr/>
-        <?php echo render_textarea('settings[email_header]', 'email_header', get_option('email_header'), ['rows' => 15, 'data-entities-encode' => 'true']); ?>
-        <?php echo render_textarea('settings[email_footer]', 'email_footer', get_option('email_footer'), ['rows' => 15, 'data-entities-encode' => 'true']); ?>
+        <?php echo render_textarea('settings[email_header]', 'email_header', get_option('email_header'), ['rows' => 15], '', '', 'tinymce tinymce-manual email-html-editor'); ?>
+        <?php echo render_textarea('settings[email_footer]', 'email_footer', get_option('email_footer'), ['rows' => 15], '', '', 'tinymce tinymce-manual email-html-editor'); ?>
         <hr/>
         <h4><?php echo _l('settings_send_test_email_heading'); ?></h4>
         <p class="text-muted"><?php echo _l('settings_send_test_email_subheading'); ?></p>
@@ -325,6 +325,13 @@ document.addEventListener('DOMContentLoaded', function () {
         el.addEventListener('change', onProtocolChange);
     });
     onProtocolChange();
+
+    if (typeof init_editor === 'function') {
+        init_editor('.email-html-editor', {
+            append_plugins: 'preview',
+            toolbar: "fontfamily fontsize | forecolor backcolor | bold italic | alignleft aligncenter alignright alignjustify | image link | bullist numlist | restoredraft | preview",
+        });
+    }
 
     var runTest = function () {
         var emailInput = document.getElementById('saas_test_email');

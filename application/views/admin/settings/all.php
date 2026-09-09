@@ -116,6 +116,14 @@ echo form_open_multipart($actionUrl, $formAttributes);
     $(function() {
         var settingsForm = $('#settings-form');
         var slug = "<?= e($group['id']); ?>";
+
+        <?php if ($group['id'] == 'email') { ?>
+        init_editor('.email-html-editor', {
+            append_plugins: 'preview',
+            toolbar: "fontfamily fontsize | forecolor backcolor | bold italic | alignleft aligncenter alignright alignjustify | image link | bullist numlist | restoredraft | preview",
+        });
+        <?php } ?>
+
         $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
             if (settingsForm.hasClass('custom-update-url')) {
                 return;

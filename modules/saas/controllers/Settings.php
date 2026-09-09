@@ -36,6 +36,17 @@ class Settings extends AdminController
         $post_data = $this->input->post();
         $tmpData = $this->input->post(null, false);
 
+        if (isset($post_data['settings']['email_header'])) {
+            $post_data['settings']['email_header'] = $tmpData['settings']['email_header'];
+        }
+
+        if (isset($post_data['settings']['email_footer'])) {
+            $post_data['settings']['email_footer'] = $tmpData['settings']['email_footer'];
+        }
+
+        if (isset($post_data['settings']['email_signature'])) {
+            $post_data['settings']['email_signature'] = $tmpData['settings']['email_signature'];
+        }
 
         if (!empty($post_data['settings']['saas_email_header'])) {
             $post_data['settings']['saas_email_header'] = ($tmpData['settings']['saas_email_header']);

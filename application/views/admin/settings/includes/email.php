@@ -253,10 +253,10 @@ echo render_input('settings[smtp_password]', 'settings_email_password', $ps, 'pa
         </div>
         <?= render_input('settings[smtp_email_charset]', 'settings_email_charset', get_option('smtp_email_charset')); ?>
         <?= render_input('settings[bcc_emails]', 'bcc_all_emails', get_option('bcc_emails')); ?>
-        <?= render_textarea('settings[email_signature]', 'settings_email_signature', get_option('email_signature'), ['data-entities-encode' => 'true']); ?>
+        <?= render_textarea('settings[email_signature]', 'settings_email_signature', get_option('email_signature'), [], '', '', 'tinymce tinymce-manual email-html-editor'); ?>
         <hr />
-        <?= render_textarea('settings[email_header]', 'email_header', get_option('email_header'), ['rows' => 15, 'data-entities-encode' => 'true']); ?>
-        <?= render_textarea('settings[email_footer]', 'email_footer', get_option('email_footer'), ['rows' => 15, 'data-entities-encode' => 'true']); ?>
+        <?= render_textarea('settings[email_header]', 'email_header', get_option('email_header'), ['rows' => 15], '', '', 'tinymce tinymce-manual email-html-editor'); ?>
+        <?= render_textarea('settings[email_footer]', 'email_footer', get_option('email_footer'), ['rows' => 15], '', '', 'tinymce tinymce-manual email-html-editor'); ?>
         <hr />
         <h4><?= _l('settings_send_test_email_heading'); ?>
         </h4>
