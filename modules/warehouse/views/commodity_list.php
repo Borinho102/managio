@@ -21,7 +21,11 @@
                         <?php if (has_permission('warehouse_item', '', 'create') || is_admin() || has_permission('warehouse_item', '', 'edit') ) { ?>
 
                           
-                        <a href="#" onclick="new_commodity_item(); return false;" class="btn btn-info pull-left display-block mr-4 button-margin-r-b">
+                        <a href="#"
+                           onclick="if (typeof new_commodity_item === 'function') { new_commodity_item(); return false; }"
+                           class="btn btn-info pull-left display-block mr-4 button-margin-r-b"
+                           data-toggle="modal"
+                           data-target="#commodity_list-add-edit">
                             <?php echo _l('add'); ?>
                         </a>
 
@@ -989,7 +993,13 @@
 <div id="modal_wrapper"></div>
 
 <?php init_tail(); ?>
-<?php require 'modules/warehouse/assets/js/commodity_list_js.php';?>
-<?php require 'modules/warehouse/assets/js/inventory/scan_barcode_js.php'; ?>
+<?php
+// Fallback if footer hook did not run (should already be loaded at app_admin_footer priority 5).
+if (empty($GLOBALS['warehouse_commodity_list_js_loaded'])) {
+    $GLOBALS['warehouse_commodity_list_js_loaded'] = true;
+    require 'modules/warehouse/assets/js/commodity_list_js.php';
+    require 'modules/warehouse/assets/js/inventory/scan_barcode_js.php';
+}
+?>
 </body>
 </html>

@@ -38,7 +38,9 @@ define('WAREHOUSE_PATH_LIBRARIES', 'modules/warehouse/libraries');
 
 hooks()->add_action('admin_init', 'warehouse_permissions');
 hooks()->add_action('app_admin_head', 'warehouse_add_head_components');
-hooks()->add_action('app_admin_footer', 'warehouse_load_js');
+// Priority 5: emit commodity_list JS before accounting footer (priority 10),
+// so a fatal in accounting cannot wipe the Ajouter / DataTable scripts.
+hooks()->add_action('app_admin_footer', 'warehouse_load_js', 5);
 hooks()->add_action('admin_init', 'warehouse_module_init_menu_items');
 define('WAREHOUSE_PATH', 'modules/warehouse/uploads/');
 hooks()->add_action('after_invoice_view_as_client_link', 'warehouse_module_init_tab');
@@ -404,7 +406,20 @@ function warehouse_load_js(){
          echo '<script src="' . module_dir_url(WAREHOUSE_MODULE_NAME, 'assets/plugins/simplelightbox/simple-lightbox.min.js') . '"></script>';
          echo '<script src="' . module_dir_url(WAREHOUSE_MODULE_NAME, 'assets/plugins/simplelightbox/simple-lightbox.jquery.min.js') . '"></script>';
          echo '<script src="' . module_dir_url(WAREHOUSE_MODULE_NAME, 'assets/plugins/simplelightbox/masonry-layout-vanilla.min.js') . '"></script>';
-         
+    }
+
+    // Load page scripts here (before other modules' footer hooks) so Accounting
+    // PHP fatals cannot prevent new_commodity_item / DataTable from loading.
+    if (!(strpos($viewuri, '/admin/warehouse/commodity_list') === false) && empty($GLOBALS['warehouse_commodity_list_js_loaded'])) {
+        $GLOBALS['warehouse_commodity_list_js_loaded'] = true;
+        $commodity_list_js = module_dir_path(WAREHOUSE_MODULE_NAME, 'assets/js/commodity_list_js.php');
+        $scan_barcode_js = module_dir_path(WAREHOUSE_MODULE_NAME, 'assets/js/inventory/scan_barcode_js.php');
+        if (is_file($commodity_list_js)) {
+            require $commodity_list_js;
+        }
+        if (is_file($scan_barcode_js)) {
+            require $scan_barcode_js;
+        }
     }
     
 	if (!(strpos($viewuri, '/admin/warehouse/add_loss_adjustment') === false)) {

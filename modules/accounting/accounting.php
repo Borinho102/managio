@@ -18,7 +18,8 @@ define('ACCOUTING_EXPORT_XLSX', 'modules/accounting/uploads/export_xlsx/');
 define('ACCOUTING_PATH', 'modules/accounting/uploads/');
 
 hooks()->add_action('app_admin_head', 'accounting_add_head_component');
-hooks()->add_action('app_admin_footer', 'accounting_load_js');
+// Run after warehouse commodity JS (priority 5) so a fatal here cannot block Ajouter.
+hooks()->add_action('app_admin_footer', 'accounting_load_js', 50);
 hooks()->add_action('admin_init', 'accounting_module_init_menu_items');
 hooks()->add_action('admin_init', 'accounting_permissions');
 
@@ -461,6 +462,36 @@ function accounting_load_js() {
     $acc_thousand_separator = ($base_currency) ? $base_currency->thousand_separator : get_option('thousand_separator');
     $acc_symbol = ($base_currency) ? $base_currency->symbol : "";
 
+    // Precompute BEFORE opening <script> so DB errors never land inside JS.
+    $budget_categories = [];
+    $expense_id = 0;
+    $po_id = 0;
+    try {
+        if ($CI->db->table_exists(db_prefix() . 'acc_project_budget_categories')) {
+            $budget_categories = $CI->db->get(db_prefix() . 'acc_project_budget_categories')->result_array();
+            if (!is_array($budget_categories)) {
+                $budget_categories = [];
+            }
+        }
+        if (strpos($viewuri, 'admin/expenses/expense/') !== false) {
+            $parts = explode('admin/expenses/expense/', $viewuri);
+            if (isset($parts[1])) {
+                $expense_id = intval(explode('?', $parts[1])[0]);
+            }
+        }
+        if (strpos($viewuri, 'admin/purchase/pur_order/') !== false) {
+            $parts = explode('admin/purchase/pur_order/', $viewuri);
+            if (isset($parts[1])) {
+                $po_id = intval(explode('?', $parts[1])[0]);
+            }
+        }
+    } catch (Throwable $e) {
+        log_message('error', 'accounting_load_js budget categories: ' . $e->getMessage());
+        $budget_categories = [];
+        $expense_id = 0;
+        $po_id = 0;
+    }
+
     echo '<script>';
     try {
     echo 'var acc_decimal_separator = ' . json_encode($acc_decimal_separator) . ';';
@@ -891,39 +922,6 @@ function accounting_load_js() {
         var is_pur_order = <?php echo (get_option('acc_enforce_purchase_order') == '1') ? 'true' : 'false'; ?> && (path.indexOf('admin/purchase/purchase_order') !== -1 || path.indexOf('admin/purchase/pur_order') !== -1);
 
         if (is_expense || is_pur_order) {
-            <?php
-            // NOTE: this PHP runs on every admin page (JS if is client-side only).
-            // Guard schema so a missing tenant table cannot dump HTML into <script>
-            // and break later page JS (e.g. warehouse "Ajouter" / commodity_list).
-            $budget_categories = [];
-            $expense_id = 0;
-            $po_id = 0;
-            try {
-                if ($CI->db->table_exists(db_prefix() . 'acc_project_budget_categories')) {
-                    $budget_categories = $CI->db->get(db_prefix() . 'acc_project_budget_categories')->result_array();
-                    if (!is_array($budget_categories)) {
-                        $budget_categories = [];
-                    }
-                }
-                if (strpos($viewuri, 'admin/expenses/expense/') !== false) {
-                    $parts = explode('admin/expenses/expense/', $viewuri);
-                    if (isset($parts[1])) {
-                        $expense_id = intval(explode('?', $parts[1])[0]);
-                    }
-                }
-                if (strpos($viewuri, 'admin/purchase/pur_order/') !== false) {
-                    $parts = explode('admin/purchase/pur_order/', $viewuri);
-                    if (isset($parts[1])) {
-                        $po_id = intval(explode('?', $parts[1])[0]);
-                    }
-                }
-            } catch (Throwable $e) {
-                log_message('error', 'accounting_load_js budget categories: ' . $e->getMessage());
-                $budget_categories = [];
-                $expense_id = 0;
-                $po_id = 0;
-            }
-            ?>
             var budget_categories = <?php echo json_encode($budget_categories); ?>;
             var expense_id = <?php echo (int) $expense_id; ?>;
             var po_id = <?php echo (int) $po_id; ?>;
