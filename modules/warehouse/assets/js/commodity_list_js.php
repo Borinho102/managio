@@ -612,7 +612,14 @@ warehouse_type_value = warehouse_type;
     data.warehouse_id = $('select[name="warehouse_id"]').val();
     data.parent_id = $('select[name="parent_id"]').val();
 
-    data.long_descriptions = tinymce.activeEditor.getContent();
+    data.long_descriptions = '';
+    try {
+      if (typeof tinymce !== 'undefined' && tinymce.activeEditor) {
+        data.long_descriptions = tinymce.activeEditor.getContent();
+      } else if ($('textarea[name="long_descriptions"]').length) {
+        data.long_descriptions = $('textarea[name="long_descriptions"]').val();
+      }
+    } catch (e) {}
     data.formdata = $( form ).serializeArray();
 
     var without_checking = $('input[id="without_checking_warehouse"]').is(":checked");

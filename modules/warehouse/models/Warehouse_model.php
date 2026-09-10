@@ -6047,6 +6047,31 @@ class Warehouse_model extends App_Model {
 			$data['unit'] = $unit_type->unit_name;
 		}
 
+		// Strip non-column / array payload keys (native form submit sends name[]/options[] etc.)
+		foreach ([
+			'formdata',
+			'custom_fields',
+			'name',
+			'options',
+			'csrf_token_name',
+			'account_template',
+			'hot_warehouse_type',
+			'itemid',
+		] as $non_column) {
+			unset($data[$non_column]);
+		}
+		foreach ($data as $field => $value) {
+			if (is_array($value)) {
+				if ($field === 'warehouse_id') {
+					$data[$field] = implode(',', array_filter($value, static function ($v) {
+						return $v !== '' && $v !== null;
+					}));
+				} else {
+					unset($data[$field]);
+				}
+			}
+		}
+
 		$this->db->insert(db_prefix() . 'items', $data);
 		$insert_id = $this->db->insert_id();
 
@@ -6315,7 +6340,7 @@ class Warehouse_model extends App_Model {
 
 		/*handle update item tag*/
 
-		if(new_strlen($data['tags']) > 0){
+		if(isset($data['tags']) && new_strlen($data['tags']) > 0){
 
 			$this->db->where('rel_id', $id);
 			$this->db->where('rel_type', 'item_tags');
@@ -6366,6 +6391,31 @@ class Warehouse_model extends App_Model {
 		$unit_type = get_unit_type($data['unit_id']);
 		if(isset($unit_type->unit_name)){
 			$data['unit'] = $unit_type->unit_name;
+		}
+
+		// Strip non-column / array payload keys (native form submit sends name[]/options[] etc.)
+		foreach ([
+			'formdata',
+			'custom_fields',
+			'name',
+			'options',
+			'csrf_token_name',
+			'account_template',
+			'hot_warehouse_type',
+			'itemid',
+		] as $non_column) {
+			unset($data[$non_column]);
+		}
+		foreach ($data as $field => $value) {
+			if (is_array($value)) {
+				if ($field === 'warehouse_id') {
+					$data[$field] = implode(',', array_filter($value, static function ($v) {
+						return $v !== '' && $v !== null;
+					}));
+				} else {
+					unset($data[$field]);
+				}
+			}
 		}
 
 		$this->db->where('id', $id);

@@ -2428,23 +2428,43 @@ class warehouse extends AdminController {
 
 		if ($data) {
 
+			// AJAX submit sends formdata[]; native submit does not.
+			if (!isset($data['formdata']) || !is_array($data['formdata'])) {
+				$data['formdata'] = [];
+			}
+
+			$data['tags'] = '';
+			foreach ($data['formdata'] as $key => $value) {
+				if (!is_array($value) || !isset($value['name'])) {
+					continue;
+				}
+				if ($value['name'] == 'tags') {
+					$data['tags'] .= $value['value'];
+				}
+
+				if ($value['name'] == 'tax2') {
+					$data['tax2'] = $value['value'];
+				}
+
+				if ($value['name'] == 'parent_id') {
+					$data['parent_id'] = $value['value'];
+				}
+			}
+
+			// Fallbacks when submitted as a normal form POST
+			if ($data['tags'] === '' && $this->input->post('tags') !== null) {
+				$tags_post = $this->input->post('tags');
+				$data['tags'] = is_array($tags_post) ? implode(',', $tags_post) : (string) $tags_post;
+			}
+			if (!isset($data['tax2']) && $this->input->post('tax2') !== null) {
+				$data['tax2'] = $this->input->post('tax2');
+			}
+			if (!isset($data['parent_id']) && $this->input->post('parent_id') !== null) {
+				$data['parent_id'] = $this->input->post('parent_id');
+			}
+
 			if (!isset($data['id'])) {
 				$data['long_descriptions'] = $this->input->post('long_descriptions', false);
-				
-				$data['tags'] = '';
-				foreach ( $data['formdata'] as $key => $value) {
-					if($value['name'] == 'tags'){
-						$data['tags'] .= $value['value'];
-					}
-
-					if($value['name'] == 'tax2'){
-						$data['tax2'] = $value['value'];
-					}
-
-					if($value['name'] == 'parent_id'){
-						$data['parent_id'] = $value['value'];
-					}
-				}
 
 				$result = $this->warehouse_model->add_commodity_one_item($data);
 				if ($result) {
@@ -2468,21 +2488,6 @@ class warehouse extends AdminController {
 				die;
 
 			} else {
-
-				$data['tags'] = '';
-				foreach ( $data['formdata'] as $key => $value) {
-					if($value['name'] == 'tags'){
-						$data['tags'] .= $value['value'];
-					}
-
-					if($value['name'] == 'tax2'){
-						$data['tax2'] = $value['value'];
-					}
-
-					if($value['name'] == 'parent_id'){
-						$data['parent_id'] = $value['value'];
-					}
-				}
 
 				$data['long_descriptions'] = $this->input->post('long_descriptions', false);
 
