@@ -4224,7 +4224,8 @@ function get_usages($company_info, $slug = ''): array
             'slug' => 'items',
             'url' => admin_url('invoice_items'),
             'total' => total_rows('items'),
-            'limit' => get_numeric($company_info->item_no),
+            // Core sales lines: empty package limit must not disable Items / "Ajouter un article"
+            'limit' => saas_core_feature_limit($company_info->item_no ?? null),
             'for' => 'item_no',
         ], [
             'name' => _l('invoices'),
@@ -4418,7 +4419,7 @@ function saas_is_unlimited_usage_limit($limit): bool
  */
 function saas_protected_crm_features(): array
 {
-    return ['customers', 'leads', 'clients'];
+    return ['customers', 'leads', 'clients', 'items'];
 }
 
 function get_coupon_by_package_type($package_type)

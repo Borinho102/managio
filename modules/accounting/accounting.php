@@ -351,91 +351,105 @@ function accounting_load_js() {
 	$viewuri = $_SERVER['REQUEST_URI'];
 
     $CI->load->model('accounting/accounting_model');
-    $classes = $CI->accounting_model->get_class();
     $enable_class = get_option('acc_enable_class_tracking');
+    $classes = [];
+
+    // Never let schema gaps dump HTML into the footer <script> (breaks invoice item select).
+    if ($CI->db->table_exists(db_prefix() . 'acc_class')) {
+        try {
+            $classes = $CI->accounting_model->get_class();
+            if (!is_array($classes)) {
+                $classes = [];
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'accounting_load_js get_class: ' . $e->getMessage());
+            $classes = [];
+        }
+    }
+
+    /**
+     * Safely read acc_class from a transaction table when the column exists.
+     */
+    $acc_read_transaction_class = static function ($table, $id) use ($CI) {
+        if ($id <= 0 || !$CI->db->table_exists(db_prefix() . $table)) {
+            return 0;
+        }
+        if (!$CI->db->field_exists('acc_class', db_prefix() . $table)) {
+            return 0;
+        }
+        try {
+            $row = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . $table)->row();
+            return ($row && isset($row->acc_class)) ? (int) $row->acc_class : 0;
+        } catch (Throwable $e) {
+            log_message('error', 'accounting_load_js acc_class read: ' . $e->getMessage());
+            return 0;
+        }
+    };
     
     // Find selected class of current transaction if editing
     $transaction_class = 0;
     if (strpos($viewuri, 'admin/invoices/invoice/') !== false) {
         $parts = explode('admin/invoices/invoice/', $viewuri);
         $id = intval(explode('?', $parts[1])[0]);
-        $inv = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'invoices')->row();
-        if ($inv) { $transaction_class = $inv->acc_class; }
+        $transaction_class = $acc_read_transaction_class('invoices', $id);
     } elseif (strpos($viewuri, 'admin/credit_notes/credit_note/') !== false) {
         $parts = explode('admin/credit_notes/credit_note/', $viewuri);
         $id = intval(explode('?', $parts[1])[0]);
-        $cn = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'creditnotes')->row();
-        if ($cn) { $transaction_class = $cn->acc_class; }
+        $transaction_class = $acc_read_transaction_class('creditnotes', $id);
     } elseif (strpos($viewuri, 'admin/expenses/expense/') !== false) {
         $parts = explode('admin/expenses/expense/', $viewuri);
         $id = intval(explode('?', $parts[1])[0]);
-        $exp = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'expenses')->row();
-        if ($exp) { $transaction_class = $exp->acc_class; }
+        $transaction_class = $acc_read_transaction_class('expenses', $id);
     } elseif (strpos($viewuri, 'admin/purchase/purchase_order/') !== false || strpos($viewuri, 'admin/purchase/pur_order/') !== false) {
         $parts = explode('admin/purchase/purchase_order/', $viewuri);
         if (count($parts) < 2) { $parts = explode('admin/purchase/pur_order/', $viewuri); }
         $id = intval(explode('?', $parts[1])[0]);
-        $po = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'pur_orders')->row();
-        if ($po) { $transaction_class = $po->acc_class; }
+        $transaction_class = $acc_read_transaction_class('pur_orders', $id);
     } elseif (strpos($viewuri, 'admin/purchase/pur_invoice/') !== false) {
         $parts = explode('admin/purchase/pur_invoice/', $viewuri);
         $id = intval(explode('?', $parts[1])[0]);
-        $pi = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'pur_invoices')->row();
-        if ($pi) { $transaction_class = $pi->acc_class; }
+        $transaction_class = $acc_read_transaction_class('pur_invoices', $id);
     } elseif (strpos($viewuri, 'admin/purchase/debit_note/') !== false) {
         $parts = explode('admin/purchase/debit_note/', $viewuri);
         $id = intval(explode('?', $parts[1])[0]);
-        $dn = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'pur_debit_notes')->row();
-        if ($dn) { $transaction_class = $dn->acc_class; }
+        $transaction_class = $acc_read_transaction_class('pur_debit_notes', $id);
     } elseif (strpos($viewuri, 'order_return/') !== false) {
         $parts = explode('order_return/', $viewuri);
         $subparts = explode('/', explode('?', $parts[1])[0]);
         $id = intval(end($subparts));
-        $or = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'wh_order_returns')->row();
-        if ($or) { $transaction_class = $or->acc_class; }
+        $transaction_class = $acc_read_transaction_class('wh_order_returns', $id);
     } elseif (strpos($viewuri, 'order_manual/') !== false) {
         $parts = explode('order_manual/', $viewuri);
         $subparts = explode('/', explode('?', $parts[1])[0]);
         $id = intval(end($subparts));
-        if ($id > 0) {
-            $cart = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'cart')->row();
-            if ($cart) { $transaction_class = $cart->acc_class; }
-        }
+        $transaction_class = $acc_read_transaction_class('cart', $id);
     } elseif (strpos($viewuri, 'admin/purchase/payment_invoice/') !== false) {
         $parts = explode('admin/purchase/payment_invoice/', $viewuri);
         $id = intval(explode('?', $parts[1])[0]);
-        $pp = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'pur_invoice_payment')->row();
-        if ($pp) { $transaction_class = $pp->acc_class; }
+        $transaction_class = $acc_read_transaction_class('pur_invoice_payment', $id);
     } elseif (strpos($viewuri, 'admin/warehouse/edit_purchase/') !== false || strpos($viewuri, 'admin/warehouse/view_purchase/') !== false) {
         $parts = explode('admin/warehouse/edit_purchase/', $viewuri);
         if (count($parts) < 2) { $parts = explode('admin/warehouse/view_purchase/', $viewuri); }
         $id = intval(explode('?', $parts[1])[0]);
-        $gr = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'goods_receipt')->row();
-        if ($gr) { $transaction_class = $gr->acc_class; }
+        $transaction_class = $acc_read_transaction_class('goods_receipt', $id);
     } elseif (strpos($viewuri, 'admin/warehouse/edit_delivery/') !== false) {
         $parts = explode('admin/warehouse/edit_delivery/', $viewuri);
         $id = intval(explode('?', $parts[1])[0]);
-        $gd = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'goods_delivery')->row();
-        if ($gd) { $transaction_class = $gd->acc_class; }
+        $transaction_class = $acc_read_transaction_class('goods_delivery', $id);
     } elseif (strpos($viewuri, 'admin/warehouse/view_lost_adjustment/') !== false || strpos($viewuri, 'admin/warehouse/add_loss_adjustment/') !== false) {
         $parts = explode('admin/warehouse/view_lost_adjustment/', $viewuri);
         if (count($parts) < 2) { $parts = explode('admin/warehouse/add_loss_adjustment/', $viewuri); }
         $id = intval(explode('?', $parts[1])[0]);
-        if ($id > 0) {
-            $la = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'wh_loss_adjustment')->row();
-            if ($la) { $transaction_class = $la->acc_class; }
-        }
+        $transaction_class = $acc_read_transaction_class('wh_loss_adjustment', $id);
     } elseif (strpos($viewuri, 'admin/manufacturing/view_manufacturing_order/') !== false) {
         $parts = explode('admin/manufacturing/view_manufacturing_order/', $viewuri);
         $id = intval(explode('?', $parts[1])[0]);
-        $mo = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'mrp_manufacturing_orders')->row();
-        if ($mo) { $transaction_class = $mo->acc_class; }
+        $transaction_class = $acc_read_transaction_class('mrp_manufacturing_orders', $id);
     } elseif (strpos($viewuri, 'admin/manufacturing/add_edit_manufacturing_order') !== false) {
         $parts = explode('admin/manufacturing/add_edit_manufacturing_order/', $viewuri);
         if (count($parts) > 1) {
             $id = intval(explode('?', $parts[1])[0]);
-            $mo = $CI->db->select('acc_class')->where('id', $id)->get(db_prefix() . 'mrp_manufacturing_orders')->row();
-            if ($mo) { $transaction_class = $mo->acc_class; }
+            $transaction_class = $acc_read_transaction_class('mrp_manufacturing_orders', $id);
         }
     }
 
@@ -579,13 +593,12 @@ function accounting_load_js() {
                                 select_html = select_html.replace('col-md-6', col_class);
                                 $(select_html).insertAfter(target);
                             }
+                            // Only init #acc_class. Calling global init_selectpicker()
+                            // re-binds every .selectpicker and breaks #item_select ajax-search
+                            // ("Ajouter un article" appears dead on invoice/estimate pages).
                             if (typeof $.fn.selectpicker !== 'undefined') {
-                                $('#acc_class').selectpicker();
+                                $('#acc_class').selectpicker('refresh');
                             }
-                            if (typeof init_selectpicker === 'function') {
-                                init_selectpicker();
-                            }
-                            $('#acc_class').selectpicker('refresh');
                             clearInterval(interval);
                         }
                     }
