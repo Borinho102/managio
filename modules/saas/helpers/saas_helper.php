@@ -1171,11 +1171,18 @@ function saas_access()
 
 /**
  * Is affiliate logged in
+ * Supports both SaaS affiliate sessions (affiliate_user_id)
+ * and the Affiliate module sessions (affiliate_logged_in).
  * @return boolean
  */
-function is_affiliate_logged_in()
-{
-    return get_instance()->session->has_userdata('affiliate_user_id');
+if (!function_exists('is_affiliate_logged_in')) {
+    function is_affiliate_logged_in()
+    {
+        $CI = get_instance();
+
+        return $CI->session->has_userdata('affiliate_user_id')
+            || $CI->session->has_userdata('affiliate_logged_in');
+    }
 }
 
 
@@ -1206,9 +1213,15 @@ function affiliate_access()
     }
 }
 
-function get_affiliate_user_id()
-{
-    return get_instance()->session->userdata('affiliate_user_id');
+if (!function_exists('get_affiliate_user_id')) {
+    function get_affiliate_user_id()
+    {
+        if (!is_affiliate_logged_in()) {
+            return false;
+        }
+
+        return get_instance()->session->userdata('affiliate_user_id');
+    }
 }
 
 function saas_packege_field($type = 'text', $info = '', $colLeft = '', $colRight = '')

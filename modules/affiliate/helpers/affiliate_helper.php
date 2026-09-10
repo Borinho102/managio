@@ -15,22 +15,29 @@ hooks()->add_action('pre_deactivate_module', AFFILIATE_MODULE_NAME.'_predeactiva
  * Is affiliate logged in
  * @return boolean
  */
-function is_affiliate_logged_in()
-{
-    return get_instance()->session->has_userdata('affiliate_logged_in');
+if (!function_exists('is_affiliate_logged_in')) {
+    function is_affiliate_logged_in()
+    {
+        $CI = get_instance();
+
+        return $CI->session->has_userdata('affiliate_logged_in')
+            || $CI->session->has_userdata('affiliate_user_id');
+    }
 }
 
 /**
  * Return logged affiliate User ID from session
  * @return mixed
  */
-function get_affiliate_user_id()
-{
-    if (!is_affiliate_logged_in()) {
-        return false;
-    }
+if (!function_exists('get_affiliate_user_id')) {
+    function get_affiliate_user_id()
+    {
+        if (!is_affiliate_logged_in()) {
+            return false;
+        }
 
-    return get_instance()->session->userdata('affiliate_user_id');
+        return get_instance()->session->userdata('affiliate_user_id');
+    }
 }
 
 /**
