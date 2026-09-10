@@ -2463,29 +2463,32 @@ class warehouse extends AdminController {
 				$data['parent_id'] = $this->input->post('parent_id');
 			}
 
+			$respond = function (array $payload) {
+				$url = $payload['url'] ?? admin_url('warehouse/commodity_list');
+				// Native browser POST would otherwise render raw JSON in the tab.
+				if ($this->input->is_ajax_request()) {
+					echo json_encode($payload);
+					die;
+				}
+				redirect($url);
+			};
+
 			if (!isset($data['id'])) {
 				$data['long_descriptions'] = $this->input->post('long_descriptions', false);
 
 				$result = $this->warehouse_model->add_commodity_one_item($data);
 				if ($result) {
-
-					// handle commodity list add edit file
-					$success = true;
 					$message = _l('added_successfully');
 					set_alert('success', $message);
-					/*upload multifile*/
-					echo json_encode([
+					$respond([
 						'url' => admin_url('warehouse/view_commodity_detail/' . $result['insert_id']),
 						'commodityid' => $result['insert_id'],
 						'add_variant' => $result['add_variant'],
 					]);
-					die;
-
 				}
-				echo json_encode([
+				$respond([
 					'url' => admin_url('warehouse/commodity_list'),
 				]);
-				die;
 
 			} else {
 
@@ -2495,19 +2498,15 @@ class warehouse extends AdminController {
 				unset($data['id']);
 				$success = $this->warehouse_model->update_commodity_one_item($data, $id);
 
-				/*update file*/
-
 				if ($success == true) {
-
 					$message = _l('updated_successfully');
 					set_alert('success', $message);
 				}
 
-				echo json_encode([
+				$respond([
 					'url' => admin_url('warehouse/view_commodity_detail/' . $id),
 					'commodityid' => $id,
 				]);
-				die;
 
 			}
 		}

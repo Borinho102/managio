@@ -573,7 +573,7 @@
     <div class="modal" id="commodity_list-add-edit" tabindex="-1" role="dialog">
     <div class="modal-dialog ht-dialog-width">
 
-        <?php echo form_open_multipart(admin_url('warehouse/commodity_list_add_edit'),array('class'=>'commodity_list-add-edit','autocomplete'=>'off')); ?>
+        <?php echo form_open_multipart(admin_url('warehouse/commodity_list_add_edit'),array('class'=>'commodity_list-add-edit dropzone dropzone-manual','autocomplete'=>'off', 'onsubmit'=>'return false;')); ?>
 
       <div class="modal-content">
 
@@ -908,7 +908,7 @@
 
             <div class="modal-footer">
               <button type="button" class="btn btn-default" data-dismiss="modal"><?php echo _l('close') ?></button>
-                <button type="submit" class="btn btn-info submit_btn"><?php echo _l('save'); ?></button>
+                <button type="button" class="btn btn-info submit_btn" id="commodity_list_save_btn"><?php echo _l('save'); ?></button>
             </div>
           </div>
 

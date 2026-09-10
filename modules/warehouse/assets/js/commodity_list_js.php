@@ -1,9 +1,14 @@
 <script>
   var hidden_columns = [2,6];
   var sub_group_value ='';
+  var expenseDropzone;
 
   (function($) {
     "use strict";
+
+    if (typeof Dropzone !== 'undefined') {
+      Dropzone.autoDiscover = false;
+    }
 
     $('input[name="description"]').on('change', function () {
 
@@ -60,70 +65,91 @@
       console.warn('warehouse SimpleLightbox init skipped', e);
     }
 
-    if($('#dropzoneDragArea').length > 0){
+    // Dropzone must be created when the modal is visible — init on a hidden
+    // modal leaves the clickable area with 0 size so "Joindre des images" looks dead.
+    function initCommodityImageDropzone() {
+      if (typeof Dropzone === 'undefined' || typeof appCreateDropzoneOptions !== 'function') {
+        return;
+      }
+      if ($('#dropzoneDragArea').length === 0) {
+        return;
+      }
+      var formEl = document.querySelector('form.commodity_list-add-edit');
+      if (!formEl) {
+        return;
+      }
       try {
-      expenseDropzone = new Dropzone(".commodity_list-add-edit", appCreateDropzoneOptions({
-        autoProcessQueue: false,
-        clickable: '#dropzoneDragArea',
-        previewsContainer: '.dropzone-previews',
-        addRemoveLinks: true,
-        maxFiles: 10,
-
-        success:function(file,response){
-         response = JSON.parse(response);
-         if (this.getUploadingFiles().length === 0 && this.getQueuedFiles().length === 0) {
-
-          if(response.add_variant == 'add_variant'){
-            $.get(admin_url + 'warehouse/copy_product_image/' +response.id, function (response1) {
-              response1 = JSON.parse(response1);
-
-              var check_id = $('#commodity_item_id').html();
-              if(check_id){
-                alert_float('success', "<?php echo _l('updated_successfully') ?>");
-              }else{
-                alert_float('success', "<?php echo _l('added_successfully') ?>");
-              }
-
-              $('#commodity_list-add-edit').modal('hide');
-              var table_commodity_list = $('table.table-table_commodity_list');
-              table_commodity_list.DataTable().ajax.reload(null, false);
-
-            });
-          }else{
-            var check_id = $('#commodity_item_id').html();
-            if(check_id){
-              alert_float('success', "<?php echo _l('updated_successfully') ?>");
-            }else{
-              alert_float('success', "<?php echo _l('added_successfully') ?>");
-            }
-              
-            $('#commodity_list-add-edit').modal('hide');
-            var table_commodity_list = $('table.table-table_commodity_list');
-            table_commodity_list.DataTable().ajax.reload(null, false);
-
-          }
-
-         }else{
-
-          expenseDropzone.processQueue();
-
+        if (formEl.dropzone) {
+          return;
         }
-
-      },
-
-    }));
+        if (expenseDropzone) {
+          try { expenseDropzone.destroy(); } catch (e) {}
+          expenseDropzone = null;
+        }
+        expenseDropzone = new Dropzone(formEl, appCreateDropzoneOptions({
+          autoProcessQueue: false,
+          clickable: '#dropzoneDragArea',
+          previewsContainer: '.dropzone-previews',
+          addRemoveLinks: true,
+          maxFiles: 10,
+          acceptedFiles: 'image/*',
+          success: function(file, response) {
+            try {
+              response = typeof response === 'string' ? JSON.parse(response) : response;
+            } catch (e) {
+              response = response || {};
+            }
+            if (this.getUploadingFiles().length === 0 && this.getQueuedFiles().length === 0) {
+              var afterImages = function () {
+                if (window._commoditySaveRedirectUrl) {
+                  var redirectUrl = window._commoditySaveRedirectUrl;
+                  window._commoditySaveRedirectUrl = null;
+                  window.location.assign(redirectUrl);
+                  return;
+                }
+                var check_id = $('#commodity_item_id').html();
+                alert_float('success', check_id ? "<?php echo _l('updated_successfully') ?>" : "<?php echo _l('added_successfully') ?>");
+                $('#commodity_list-add-edit').modal('hide');
+                if ($.fn.DataTable.isDataTable('table.table-table_commodity_list')) {
+                  $('table.table-table_commodity_list').DataTable().ajax.reload(null, false);
+                }
+              };
+              if (response.add_variant == 'add_variant') {
+                $.get(admin_url + 'warehouse/copy_product_image/' + response.id, function () {
+                  afterImages();
+                }).fail(afterImages);
+              } else {
+                afterImages();
+              }
+            } else {
+              expenseDropzone.processQueue();
+            }
+          },
+        }));
       } catch (e) {
         console.warn('warehouse Dropzone init skipped', e);
       }
     }
 
+    $('#commodity_list-add-edit').on('shown.bs.modal', function () {
+      initCommodityImageDropzone();
+    });
+
+    // Fallback if modal was already open / shown without event
+    $(document).ready(function () {
+      if ($('#commodity_list-add-edit').hasClass('in') || $('#commodity_list-add-edit').is(':visible')) {
+        initCommodityImageDropzone();
+      }
+    });
+
     $( document ).ready(function() {
 
-      appValidateForm($("body").find('.commodity_list-add-edit'), {
+      var $commodityForm = $("body").find('form.commodity_list-add-edit');
+      appValidateForm($commodityForm, {
         commodity_code: {
           required: true,
           remote: {
-            url: site_url + "warehouse/wh_check_commodity_code_exit",
+            url: admin_url + "warehouse/wh_check_commodity_code_exit",
             type: 'post',
             data: {
               commodity_code: function() {
@@ -138,7 +164,21 @@
 
         'unit_id': 'required',
         'rate': 'required',
-      },expenseSubmitHandler);
+      }, expenseSubmitHandler);
+
+      // Explicit save click — never rely on native form POST (shows raw JSON).
+      $(document).off('click.commoditySave', '#commodity_list_save_btn').on('click.commoditySave', '#commodity_list_save_btn', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var form = document.querySelector('form.commodity_list-add-edit');
+        if (!form) {
+          return false;
+        }
+        if ($(form).valid()) {
+          expenseSubmitHandler(form);
+        }
+        return false;
+      });
     });
 
     $(".checkbox #filter_all_simple_variation").change(function() {
@@ -572,8 +612,9 @@ warehouse_type_value = warehouse_type;
 
   
   $('#hot-display-license-info').empty();
-  Dropzone.options.expenseForm = false;
-  var expenseDropzone;
+  if (typeof Dropzone !== 'undefined') {
+    Dropzone.options.expenseForm = false;
+  }
 
 
    // var data_long_descriptions;
@@ -581,163 +622,126 @@ warehouse_type_value = warehouse_type;
     "use strict";
     $('.submit_btn').attr( "disabled", "disabled" );
 
-    var data ={};
+    var $form = $(form);
+    var data = {};
 
-
-    data.commodity_code = $('input[name="commodity_code"]').val();
-    data.description = $('input[name="description"]').val();
-    data.commodity_barcode = $('input[name="commodity_barcode"]').val();
-    data.sku_code = $('input[name="sku_code"]').val();
-    data.sku_name = $('input[name="sku_name"]').val();
-
-    data.long_description = $('textarea[name="long_description"]').val();
-
-    data.commodity_type = $('select[name="commodity_type"]').val();
-    data.unit_id = $('select[name="unit_id"]').val();
-    data.group_id = $('select[name="group_id"]').val();
-    data.sub_group = $('select[name="sub_group"]').val();
-
-    data.profif_ratio = $('input[name="profif_ratio"]').val();
-    data.tax = $('select[name="tax"]').val();
-
-    data.purchase_price = $('input[name="purchase_price"]').val();
-    data.rate = $('input[name="rate"]').val();
-
-    data.origin = $('input[name="origin"]').val();
-    data.style_id = $('select[name="style_id"]').val();
-    data.model_id = $('select[name="model_id"]').val();
-    data.size_id = $('select[name="size_id"]').val();
-    data.color = $('select[name="color"]').val();
-    data.guarantee = $('input[name="guarantee"]').val();
-    data.warehouse_id = $('select[name="warehouse_id"]').val();
-    data.parent_id = $('select[name="parent_id"]').val();
+    data.commodity_code = $form.find('input[name="commodity_code"]').val();
+    data.description = $form.find('input[name="description"]').val();
+    data.commodity_barcode = $form.find('input[name="commodity_barcode"]').val();
+    data.sku_code = $form.find('input[name="sku_code"]').val();
+    data.sku_name = $form.find('input[name="sku_name"]').val();
+    data.long_description = $form.find('textarea[name="long_description"]').val();
+    data.commodity_type = $form.find('select[name="commodity_type"]').val();
+    data.unit_id = $form.find('select[name="unit_id"]').val();
+    data.group_id = $form.find('select[name="group_id"]').val();
+    data.sub_group = $form.find('select[name="sub_group"]').val();
+    data.profif_ratio = $form.find('input[name="profif_ratio"]').val();
+    data.tax = $form.find('select[name="tax"]').val();
+    data.purchase_price = $form.find('input[name="purchase_price"]').val();
+    data.rate = $form.find('input[name="rate"]').val();
+    data.origin = $form.find('input[name="origin"]').val();
+    data.style_id = $form.find('select[name="style_id"]').val();
+    data.model_id = $form.find('select[name="model_id"]').val();
+    data.size_id = $form.find('select[name="size_id"]').val();
+    data.color = $form.find('select[name="color"]').val();
+    data.guarantee = $form.find('input[name="guarantee"]').val();
+    data.warehouse_id = $form.find('select[name="warehouse_id"]').val();
+    data.parent_id = $form.find('select[name="parent_id"]').val();
 
     data.long_descriptions = '';
     try {
       if (typeof tinymce !== 'undefined' && tinymce.activeEditor) {
         data.long_descriptions = tinymce.activeEditor.getContent();
-      } else if ($('textarea[name="long_descriptions"]').length) {
-        data.long_descriptions = $('textarea[name="long_descriptions"]').val();
+      } else if ($form.find('textarea[name="long_descriptions"]').length) {
+        data.long_descriptions = $form.find('textarea[name="long_descriptions"]').val();
       }
     } catch (e) {}
-    data.formdata = $( form ).serializeArray();
+    data.formdata = $form.serializeArray();
 
-    var without_checking = $('input[id="without_checking_warehouse"]').is(":checked");
-    if(without_checking == true ){
-      data.without_checking_warehouse = 1;
+    data.without_checking_warehouse = $form.find('input[id="without_checking_warehouse"]').is(':checked') ? 1 : 0;
+    data.can_be_sold = $form.find('input[id="can_be_sold"]').is(':checked') ? 'can_be_sold' : null;
+    data.can_be_purchased = $form.find('input[id="can_be_purchased"]').is(':checked') ? 'can_be_purchased' : null;
+    data.can_be_manufacturing = $form.find('input[id="can_be_manufacturing"]').is(':checked') ? 'can_be_manufacturing' : null;
+    data.can_be_inventory = $form.find('input[id="can_be_inventory"]').is(':checked') ? 'can_be_inventory' : null;
 
-    }else{
-      data.without_checking_warehouse = 0;
-
-    }
-
-    if($('input[id="can_be_sold"]').is(":checked")){
-      data.can_be_sold = 'can_be_sold';
-    }else{
-      data.can_be_sold = null;
-    }
-    if($('input[id="can_be_purchased"]').is(":checked")){
-      data.can_be_purchased = 'can_be_purchased';
-    }else{
-      data.can_be_purchased = null;
-    }
-    if($('input[id="can_be_manufacturing"]').is(":checked")){
-      data.can_be_manufacturing = 'can_be_manufacturing';
-    }else{
-      data.can_be_manufacturing = null;
-    }
-    if($('input[id="can_be_inventory"]').is(":checked")){
-      data.can_be_inventory = 'can_be_inventory';
-    }else{
-      data.can_be_inventory = null;
-    }  
-
-    /*update*/
     var check_id = $('#commodity_item_id').html();
-    if(check_id){
-      data.id = $('input[name="id"]').val();
+    if (check_id) {
+      data.id = $form.find('input[name="id"]').val();
     }
 
-       //check duplicate sku code
-       var flag_duplicate_sku = 1;
-
-       var sku_data ={};
-       sku_data.sku_code =  $('input[name="sku_code"]').val();
-       if(check_id){
-        sku_data.item_id =  $('input[name="id"]').val();
-      }else{
-        sku_data.item_id = '';
+    var finishSave = function (response) {
+      $('.submit_btn').removeAttr('disabled');
+      if (!response) {
+        return;
+      }
+      if (response.commodityid && expenseDropzone && expenseDropzone.getQueuedFiles && expenseDropzone.getQueuedFiles().length > 0) {
+        var add_variant = response.add_variant ? 'add_variant' : '';
+        window._commoditySaveRedirectUrl = response.url || null;
+        expenseDropzone.options.url = admin_url + 'warehouse/add_commodity_attachment/' + response.commodityid + '/' + add_variant;
+        // After images upload, Dropzone success handler redirects / reloads.
+        expenseDropzone.processQueue();
+        return;
       }
 
-      $.post(admin_url + 'warehouse/check_sku_duplicate', sku_data).done(function(response) {
-        response = JSON.parse(response);
+      if (response.url) {
+        window.location.assign(response.url);
+        return;
+      }
 
-        if(response.message == 'false' || response.message ==  false){
+      alert_float(check_id ? 'success' : 'warning', check_id ? "<?php echo _l('updated_successfully') ?>" : "<?php echo _l('Add_commodity_type_false') ?>");
+      $('#commodity_list-add-edit').modal('hide');
+      if ($.fn.DataTable.isDataTable('table.table-table_commodity_list')) {
+        $('table.table-table_commodity_list').DataTable().ajax.reload(null, false);
+      }
+    };
 
-         alert_float('warning', "<?php echo _l('sku_code_already_exists') ?>");
-         $('.submit_btn').removeAttr('disabled')
+    var sku_data = {
+      sku_code: $form.find('input[name="sku_code"]').val(),
+      item_id: check_id ? $form.find('input[name="id"]').val() : ''
+    };
 
-
-       }else{
-        $('.submit_btn').attr( "disabled", "disabled" );
-
-        $.post(form.action, data).done(function(response) {
-
-         var response = JSON.parse(response);
-
-         if (response.commodityid) {
-           if(typeof(expenseDropzone) !== 'undefined'){
-            if (expenseDropzone.getQueuedFiles().length > 0) {
-              
-              if(response.add_variant){
-                var add_variant = 'add_variant';
-              }else{
-                var add_variant = '';
-              }
-              expenseDropzone.options.url = admin_url + 'warehouse/add_commodity_attachment/' + response.commodityid+'/'+add_variant;
-              expenseDropzone.processQueue();
-            } else {
-              if(check_id){
-                alert_float('success', "<?php echo _l('updated_successfully') ?>");
-              }else{
-                alert_float('success', "<?php echo _l('added_successfully') ?>");
-              }
-
-              $('#commodity_list-add-edit').modal('hide');
-
-              var table_commodity_list = $('table.table-table_commodity_list');
-              table_commodity_list.DataTable().ajax.reload(null, false);
-
-            }
-          } else {
-            if(check_id){
-              alert_float('success', "<?php echo _l('updated_successfully') ?>");
-            }else{
-              alert_float('success', "<?php echo _l('added_successfully') ?>");
-            }
-
-            $('#commodity_list-add-edit').modal('hide');
-
-            var table_commodity_list = $('table.table-table_commodity_list');
-            table_commodity_list.DataTable().ajax.reload(null, false);
-
-          }
-        } else {
-          alert_float('warning', "<?php echo _l('Add_commodity_type_false') ?>");
-
-          $('#commodity_list-add-edit').modal('hide');
-
-          var table_commodity_list = $('table.table-table_commodity_list');
-          table_commodity_list.DataTable().ajax.reload(null, false);
-        }
+    $.post(admin_url + 'warehouse/check_sku_duplicate', sku_data).done(function(response) {
+      try {
+        response = typeof response === 'string' ? JSON.parse(response) : response;
+      } catch (e) {
         $('.submit_btn').removeAttr('disabled');
-      });
+        alert_float('warning', "<?php echo _l('something_went_wrong') ?>");
+        return;
       }
 
+      if (response.message == 'false' || response.message == false) {
+        alert_float('warning', "<?php echo _l('sku_code_already_exists') ?>");
+        $('.submit_btn').removeAttr('disabled');
+        return;
+      }
+
+      $.ajax({
+        url: $form.attr('action'),
+        type: 'POST',
+        data: data,
+        dataType: 'json',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      }).done(function (response) {
+        finishSave(response);
+      }).fail(function (xhr) {
+        $('.submit_btn').removeAttr('disabled');
+        // If server returned JSON despite non-2xx, try to use it.
+        try {
+          var parsed = typeof xhr.responseJSON !== 'undefined' ? xhr.responseJSON : JSON.parse(xhr.responseText);
+          if (parsed && (parsed.url || parsed.commodityid)) {
+            finishSave(parsed);
+            return;
+          }
+        } catch (e) {}
+        alert_float('danger', "<?php echo _l('something_went_wrong') ?>");
+      });
+    }).fail(function () {
+      $('.submit_btn').removeAttr('disabled');
+      alert_float('danger', "<?php echo _l('something_went_wrong') ?>");
     });
 
-      return false;
-    }
+    return false;
+  }
 
       //function delete contract attachment file 
       function delete_contract_attachment(wrapper, id) {

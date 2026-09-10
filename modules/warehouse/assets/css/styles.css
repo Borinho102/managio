@@ -7,6 +7,39 @@
     box-sizing: border-box;
 }
 
+#dropzoneDragArea {
+    min-height: 120px;
+    border: 2px dashed rgba(0, 0, 0, 0.25);
+    border-radius: 6px;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin: 12px 0;
+    padding: 24px;
+    text-align: center;
+    color: #475569;
+}
+
+#dropzoneDragArea:hover {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+#dropzoneDragArea .dz-message,
+#dropzoneDragArea span {
+    cursor: pointer;
+    margin: 0;
+}
+
+form.commodity_list-add-edit.dropzone {
+    min-height: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+}
+
 #images_old_preview {
     box-sizing: border-box;
 }
