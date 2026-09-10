@@ -100,10 +100,6 @@ img.images_w {
     height: 100%;
 }
 
-select.selectpicker.form-control {
-  display: block !important;
-  }
-
   table.table{
     margin-top: 10px;
   }

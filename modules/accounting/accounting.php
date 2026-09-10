@@ -462,6 +462,7 @@ function accounting_load_js() {
     $acc_symbol = ($base_currency) ? $base_currency->symbol : "";
 
     echo '<script>';
+    try {
     echo 'var acc_decimal_separator = ' . json_encode($acc_decimal_separator) . ';';
     echo 'var acc_thousand_separator = ' . json_encode($acc_thousand_separator) . ';';
     echo 'var acc_enable_class_tracking = ' . json_encode($enable_class) . ';';
@@ -891,16 +892,41 @@ function accounting_load_js() {
 
         if (is_expense || is_pur_order) {
             <?php
-            $budget_categories = $CI->db->get(db_prefix() . 'acc_project_budget_categories')->result_array();
-            $expense_id = (strpos($viewuri, 'admin/expenses/expense/') !== false) ? intval(explode('?', explode('admin/expenses/expense/', $viewuri)[1])[0]) : 0;
+            // NOTE: this PHP runs on every admin page (JS if is client-side only).
+            // Guard schema so a missing tenant table cannot dump HTML into <script>
+            // and break later page JS (e.g. warehouse "Ajouter" / commodity_list).
+            $budget_categories = [];
+            $expense_id = 0;
             $po_id = 0;
-            if (strpos($viewuri, 'admin/purchase/pur_order/') !== false) {
-                $po_id = intval(explode('?', explode('admin/purchase/pur_order/', $viewuri)[1])[0]);
+            try {
+                if ($CI->db->table_exists(db_prefix() . 'acc_project_budget_categories')) {
+                    $budget_categories = $CI->db->get(db_prefix() . 'acc_project_budget_categories')->result_array();
+                    if (!is_array($budget_categories)) {
+                        $budget_categories = [];
+                    }
+                }
+                if (strpos($viewuri, 'admin/expenses/expense/') !== false) {
+                    $parts = explode('admin/expenses/expense/', $viewuri);
+                    if (isset($parts[1])) {
+                        $expense_id = intval(explode('?', $parts[1])[0]);
+                    }
+                }
+                if (strpos($viewuri, 'admin/purchase/pur_order/') !== false) {
+                    $parts = explode('admin/purchase/pur_order/', $viewuri);
+                    if (isset($parts[1])) {
+                        $po_id = intval(explode('?', $parts[1])[0]);
+                    }
+                }
+            } catch (Throwable $e) {
+                log_message('error', 'accounting_load_js budget categories: ' . $e->getMessage());
+                $budget_categories = [];
+                $expense_id = 0;
+                $po_id = 0;
             }
             ?>
             var budget_categories = <?php echo json_encode($budget_categories); ?>;
-            var expense_id = <?php echo $expense_id; ?>;
-            var po_id = <?php echo $po_id; ?>;
+            var expense_id = <?php echo (int) $expense_id; ?>;
+            var po_id = <?php echo (int) $po_id; ?>;
             
             var interval_budget = setInterval(function() {
                 if (typeof jQuery !== 'undefined') {
@@ -1037,6 +1063,9 @@ function accounting_load_js() {
         }
     });
     <?php
+    } catch (Throwable $e) {
+        log_message('error', 'accounting_load_js script body: ' . $e->getMessage());
+    }
     echo '</script>';
 
 	if (!(strpos($viewuri, 'admin/accounting') === false)) {

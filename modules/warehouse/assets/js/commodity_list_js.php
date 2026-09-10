@@ -51,9 +51,17 @@
     });
 
 
-    var gallery = new SimpleLightbox('.gallery a', {});
+    var gallery = null;
+    try {
+      if (typeof SimpleLightbox !== 'undefined' && document.querySelectorAll('.gallery a').length) {
+        gallery = new SimpleLightbox('.gallery a', {});
+      }
+    } catch (e) {
+      console.warn('warehouse SimpleLightbox init skipped', e);
+    }
 
     if($('#dropzoneDragArea').length > 0){
+      try {
       expenseDropzone = new Dropzone(".commodity_list-add-edit", appCreateDropzoneOptions({
         autoProcessQueue: false,
         clickable: '#dropzoneDragArea',
@@ -104,6 +112,9 @@
       },
 
     }));
+      } catch (e) {
+        console.warn('warehouse Dropzone init skipped', e);
+      }
     }
 
     $( document ).ready(function() {
@@ -1045,95 +1056,104 @@ warehouse_type_value = warehouse_type;
   function new_commodity_item(){
     "use strict";
 
-    $.post(admin_url + 'warehouse/get_commodity_barcode').done(function(response) {
-      response = JSON.parse(response);
-      $('#commodity_list-add-edit input[name="commodity_barcode"]').val(response);
-    });
+    var $modal = $('#commodity_list-add-edit');
+    if (!$modal.length) {
+      console.error('commodity_list-add-edit modal not found');
+      return false;
+    }
 
-    $.post(admin_url + 'warehouse/get_variation_html_add').done(function(response) {
-      response = JSON.parse(response);
-        //variation value
-        $('.list_approve').html('');
-        $('.list_approve').append(response.variation_html);
-        addMoreVendorsInputKey = response.variation_index;
-
-        //parent id
-        // $("select[id='parent_id']").html('');
-        // $("select[id='parent_id']").append(response.item_html).selectpicker('refresh');
-        $("#parent_item_html").html(response.item_html);
-
-        //flag_is_parent
-        $(".parent_item_hide").removeClass("hide"); 
-        init_selectpicker(); 
-        $(".selectpicker").selectpicker('refresh');
-
-        init_ajax_search('items','#parent_id.ajax-search',undefined,admin_url+'warehouse/wh_parent_item_search');
-    });
-
-    $('#commodity_list-add-edit').modal('show');
-
-    $('#commodity_item_id').empty();
+    // Open modal first so a later JS error cannot make "Ajouter" look dead.
+    $modal.modal('show');
 
     $('.edit-commodity-title').addClass('hide');
     $('.add-commodity-title').removeClass('hide');
-
+    $('#commodity_item_id').empty();
     $('.dropzone-previews').empty();
     $('#images_old_preview').empty();
 
-    tinyMCE.activeEditor.setContent("");
+    $modal.find('input').not('input[type="hidden"]').val('');
+    $modal.find('textarea').val('');
 
-    $('#commodity_list-add-edit').find('input').not('input[type="hidden"]').val('');
+    try {
+      if (typeof tinyMCE !== 'undefined' && tinyMCE.activeEditor) {
+        tinyMCE.activeEditor.setContent('');
+      }
+    } catch (e) {}
 
-    $('#commodity_list-add-edit input[name="commodity_code"]').val('');
+    $.post(admin_url + 'warehouse/get_commodity_barcode').done(function(response) {
+      try {
+        response = typeof response === 'string' ? JSON.parse(response) : response;
+        var barcode = Array.isArray(response) ? response[0] : response;
+        $modal.find('input[name="commodity_barcode"]').val(barcode);
+      } catch (e) {}
+    });
 
-    $('#commodity_list-add-edit textarea[name="long_description"]').val('');
+    $.post(admin_url + 'warehouse/get_variation_html_add').done(function(response) {
+      try {
+        response = typeof response === 'string' ? JSON.parse(response) : response;
+        $('.list_approve').html('');
+        $('.list_approve').append(response.variation_html);
+        addMoreVendorsInputKey = response.variation_index;
+        $("#parent_item_html").html(response.item_html);
+        $(".parent_item_hide").removeClass("hide");
+        if (typeof init_selectpicker === 'function') {
+          init_selectpicker();
+        }
+        $modal.find(".selectpicker").selectpicker('refresh');
+        if (typeof init_ajax_search === 'function') {
+          init_ajax_search('items','#parent_id.ajax-search',undefined,admin_url+'warehouse/wh_parent_item_search');
+        }
+      } catch (e) {
+        console.warn('get_variation_html_add failed', e);
+      }
+    });
 
-    $('#commodity_list-add-edit input[name="description"]').val('');
-    $('#commodity_list-add-edit input[name="sku_code"]').val('');
-    $('#commodity_list-add-edit input[name="sku_name"]').val('');
-    $('#commodity_list-add-edit input[name="purchase_price"]').val('');
-    $('#commodity_list-add-edit input[name="description"]').val('');
-
-    $('#commodity_list-add-edit select[name="unit_id"]').val('').change();
-    $('#commodity_list-add-edit select[name="commodity_type"]').val('').change();
-    $('#commodity_list-add-edit select[name="group_id"]').val('').change();
-    $('#commodity_list-add-edit select[name="warehouse_id"]').val('').change();
-    $('#commodity_list-add-edit select[name="tax"]').val('').change();
-
-    sub_group_value = '';
-    $('#commodity_list-add-edit select[name="sub_group"]').val('').change();
-
-    $('#commodity_list-add-edit input[name="origin"]').val('');
-    $('#commodity_list-add-edit input[name="rate"]').val('');
-    $('#commodity_list-add-edit input[name="type_product"]').val('');
-    $('#commodity_list-add-edit input[name="guarantee"]').val('');
-    $('#commodity_list-add-edit input[name="profif_ratio"]').val('<?php echo get_warehouse_option('warehouse_selling_price_rule_profif_ratio'); ?>');
-
-    $('#commodity_list-add-edit select[name="style_id"]').val('').change();
-    $('#commodity_list-add-edit select[name="model_id"]').val('').change();
-    $('#commodity_list-add-edit select[name="size_id"]').val('').change();
-
-
-    $('#commodity_list-add-edit input[name="date_manufacture"]').val('').change();
-    $('#commodity_list-add-edit input[name="expiry_date"]').val('').change();
-    $('#commodity_list-add-edit img[id="wizardPicturePreview"]').attr('src', '<?php echo site_url(WAREHOUSE_PATH.'nul_image.jpg'); ?>');
+    $modal.find('input[name="commodity_code"]').val('');
+    $modal.find('input[name="description"]').val('');
+    $modal.find('input[name="sku_code"]').val('');
+    $modal.find('input[name="sku_name"]').val('');
+    $modal.find('input[name="purchase_price"]').val('');
+    $modal.find('select[name="unit_id"]').val('').change();
+    $modal.find('select[name="commodity_type"]').val('').change();
+    $modal.find('select[name="group_id"]').val('').change();
+    $modal.find('select[name="warehouse_id"]').val('').change();
+    $modal.find('select[name="tax"]').val('').change();
+    $modal.find('select[name="tax2"]').val('').change();
+    $modal.find('select[name="style_id"]').val('').change();
+    $modal.find('select[name="model_id"]').val('').change();
+    $modal.find('select[name="size_id"]').val('').change();
+    $modal.find('select[name="sub_group"]').val('').change();
+    $modal.find('select[name="color"]').val('').change();
+    $modal.find('select[name="parent_id"]').val('').change();
+    $modal.find('input[name="date_manufacture"]').val('').change();
+    $modal.find('input[name="expiry_date"]').val('').change();
+    $modal.find('input[name="origin"]').val('');
+    $modal.find('input[name="rate"]').val('');
+    $modal.find('input[name="type_product"]').val('');
+    $modal.find('input[name="guarantee"]').val('');
+    $modal.find('input[name="profif_ratio"]').val('<?php echo get_warehouse_option('warehouse_selling_price_rule_profif_ratio'); ?>');
+    $modal.find('img[id="wizardPicturePreview"]').attr('src', '<?php echo site_url(WAREHOUSE_PATH.'nul_image.jpg'); ?>');
 
     <?php if(get_warehouse_option('update_inventory_number') == 1){ ?>
-      $('#commodity_list-add-edit input[id="without_checking_warehouse"]').prop('checked', true);
+      $modal.find('input[id="without_checking_warehouse"]').prop('checked', true);
     <?php }else{ ?>
-      $('#commodity_list-add-edit input[id="without_checking_warehouse"]').removeAttr("checked");
+      $modal.find('input[id="without_checking_warehouse"]').prop('checked', false);
     <?php } ?>
 
-    $('#commodity_list-add-edit input[id="can_be_sold"]').prop('checked', true);
-    $('#commodity_list-add-edit input[id="can_be_purchased"]').prop('checked', true);
-    $('#commodity_list-add-edit input[id="can_be_manufacturing"]').prop('checked', true);
-    $('#commodity_list-add-edit input[id="can_be_inventory"]').prop('checked', true);
+    $modal.find('input[id="can_be_sold"]').prop('checked', true);
+    $modal.find('input[id="can_be_purchased"]').prop('checked', true);
+    $modal.find('input[id="can_be_manufacturing"]').prop('checked', true);
+    $modal.find('input[id="can_be_inventory"]').prop('checked', true);
 
     $('#tags_value').find('ul li.tagit-choice').remove();
-    /*init tags input*/
-    init_tags_inputs();
-    init_selectpicker();
+    if (typeof init_tags_inputs === 'function') {
+      init_tags_inputs();
+    }
+    if (typeof init_selectpicker === 'function') {
+      init_selectpicker();
+    }
 
+    return false;
   }
 
   $("body").on('click', '.tagit-close', function() {
