@@ -1453,7 +1453,7 @@ function saas_default_currency()
  * Used by accounting, cash_flow, warehouse, purchase, affiliate, etc. via get_base_currency().
  *
  * @param string|null $db_name Tenant database name, or null for current connection
- * @return bool
+ * @return int|false XAF currency id on success, false on failure
  */
 function saas_ensure_base_currency_xaf($db_name = null)
 {
@@ -1507,6 +1507,205 @@ function saas_ensure_base_currency_xaf($db_name = null)
 
     $CI->db->query("UPDATE {$qualified} SET `isdefault` = 0");
     $CI->db->query("UPDATE {$qualified} SET `isdefault` = 1 WHERE `id` = " . $xafId);
+
+    return $xafId;
+}
+
+/**
+ * Whether a table.column exists (optionally in another schema / tenant DB).
+ */
+function saas_db_has_column($table, $column, $db_name = null)
+{
+    $CI = &get_instance();
+    if (empty($CI->db)) {
+        return false;
+    }
+
+    $schema = $db_name ? $CI->db->escape_str($db_name) : $CI->db->escape_str($CI->db->database);
+    $row = $CI->db->query(
+        "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = '" . $schema . "'
+           AND TABLE_NAME = '" . $CI->db->escape_str($table) . "'
+           AND COLUMN_NAME = '" . $CI->db->escape_str($column) . "'
+         LIMIT 1"
+    )->row();
+
+    return !empty($row);
+}
+
+/**
+ * Force existing operational records from USD (and $) to XAF on a tenant/master DB.
+ * Idempotent: safe to run multiple times.
+ *
+ * @param string|null $db_name
+ * @return bool
+ */
+function saas_force_records_currency_to_xaf($db_name = null)
+{
+    $CI = &get_instance();
+    if (empty($CI->db)) {
+        return false;
+    }
+
+    $xafId = saas_ensure_base_currency_xaf($db_name);
+    if (!$xafId) {
+        return false;
+    }
+
+    $prefix = db_prefix();
+    $currenciesTable = $prefix . 'currencies';
+    $qCurrencies = $db_name
+        ? '`' . $CI->db->escape_str($db_name) . '`.`' . $currenciesTable . '`'
+        : '`' . $currenciesTable . '`';
+
+    $usd = $CI->db->query(
+        "SELECT `id` FROM {$qCurrencies} WHERE UPPER(`name`) = 'USD' LIMIT 1"
+    )->row();
+    $usdId = !empty($usd) ? (int) $usd->id : 0;
+
+    $q = function ($table) use ($db_name, $CI) {
+        return $db_name
+            ? '`' . $CI->db->escape_str($db_name) . '`.`' . $table . '`'
+            : '`' . $table . '`';
+    };
+
+    // INT currency columns (0 = inherit base — leave untouched)
+    $intColumns = [
+        [$prefix . 'clients', 'default_currency'],
+        [$prefix . 'invoices', 'currency'],
+        [$prefix . 'estimates', 'currency'],
+        [$prefix . 'proposals', 'currency'],
+        [$prefix . 'creditnotes', 'currency'],
+        [$prefix . 'expenses', 'currency'],
+        [$prefix . 'subscriptions', 'currency'],
+        [$prefix . 'cf_expenses', 'currency'],
+        [$prefix . 'goods_receipt', 'currency'],
+        [$prefix . 'goods_delivery', 'currency'],
+        [$prefix . 'wh_packing_lists', 'currency'],
+        [$prefix . 'wh_order_returns', 'currency'],
+        [$prefix . 'pur_vendor', 'default_currency'],
+        [$prefix . 'pur_estimates', 'currency'],
+        [$prefix . 'pur_request', 'currency'],
+        [$prefix . 'pur_orders', 'currency'],
+        [$prefix . 'pur_invoices', 'currency'],
+        [$prefix . 'pur_debit_notes', 'currency'],
+        [$prefix . 'pur_faf_requests', 'currency'],
+        [$prefix . 'product_gift_cards', 'currency'],
+        [$prefix . 'product_prices', 'currency_id'],
+        [$prefix . 'order_master', 'currency'],
+        [$prefix . 'coupons', 'currency'],
+        [$prefix . 'currency_rates', 'from_currency_id'],
+        [$prefix . 'currency_rates', 'to_currency_id'],
+        [$prefix . 'currency_rate_logs', 'from_currency_id'],
+        [$prefix . 'currency_rate_logs', 'to_currency_id'],
+    ];
+
+    foreach ($intColumns as $pair) {
+        list($table, $column) = $pair;
+        if (!saas_db_has_column($table, $column, $db_name)) {
+            continue;
+        }
+        $qt = $q($table);
+        // Explicit USD id
+        if ($usdId > 0 && $usdId !== (int) $xafId) {
+            $CI->db->query(
+                "UPDATE {$qt} SET `{$column}` = " . (int) $xafId . " WHERE `{$column}` = " . (int) $usdId
+            );
+        }
+        // Orphan / unknown non-XAF currencies (anything still pointing at non-default codes besides XAF)
+        // Only remap rows still on USD symbol via join when usd id missing
+    }
+
+    // Purchase VARCHAR fields that store currency id as string
+    $varcharIdColumns = [
+        [$prefix . 'pur_request', 'from_currency'],
+        [$prefix . 'pur_request', 'to_currency'],
+        [$prefix . 'pur_estimates', 'from_currency'],
+        [$prefix . 'pur_estimates', 'to_currency'],
+        [$prefix . 'pur_orders', 'from_currency'],
+        [$prefix . 'pur_orders', 'to_currency'],
+        [$prefix . 'pur_invoices', 'from_currency'],
+        [$prefix . 'pur_invoices', 'to_currency'],
+    ];
+
+    foreach ($varcharIdColumns as $pair) {
+        list($table, $column) = $pair;
+        if (!saas_db_has_column($table, $column, $db_name)) {
+            continue;
+        }
+        $qt = $q($table);
+        $sets = ["'USD'", "'usd'", "'$'", "'Dollar'"];
+        if ($usdId > 0) {
+            $sets[] = "'" . (int) $usdId . "'";
+        }
+        $CI->db->query(
+            "UPDATE {$qt} SET `{$column}` = '" . (int) $xafId . "' WHERE `{$column}` IN (" . implode(',', $sets) . ")"
+        );
+    }
+
+    // ISO code string columns
+    $nameColumns = [
+        [$prefix . 'currency_rates', 'from_currency_name'],
+        [$prefix . 'currency_rates', 'to_currency_name'],
+        [$prefix . 'currency_rate_logs', 'from_currency_name'],
+        [$prefix . 'currency_rate_logs', 'to_currency_name'],
+        [$prefix . 'acc_checks', 'currency_display_name'],
+    ];
+
+    foreach ($nameColumns as $pair) {
+        list($table, $column) = $pair;
+        if (!saas_db_has_column($table, $column, $db_name)) {
+            continue;
+        }
+        $qt = $q($table);
+        $CI->db->query(
+            "UPDATE {$qt} SET `{$column}` = 'XAF'
+             WHERE UPPER(TRIM(`{$column}`)) IN ('USD', 'DOLLAR', 'DOLLARS', '$', 'US DOLLAR')"
+        );
+        // Display name for checks: prefer FCFA label
+        if ($column === 'currency_display_name') {
+            $CI->db->query(
+                "UPDATE {$qt} SET `{$column}` = 'FCFA' WHERE UPPER(TRIM(`{$column}`)) IN ('XAF', 'FCFA')"
+            );
+        }
+    }
+
+    // Options that store currency ids as CSV
+    $optionsTable = $prefix . 'options';
+    if (saas_db_has_column($optionsTable, 'name', $db_name) && $usdId > 0 && $usdId !== (int) $xafId) {
+        $qo = $q($optionsTable);
+        foreach (['product_currencies_enabled', 'product_currencies_no_tax'] as $optName) {
+            $row = $CI->db->query(
+                "SELECT `id`, `value` FROM {$qo} WHERE `name` = '" . $CI->db->escape_str($optName) . "' LIMIT 1"
+            )->row();
+            if (empty($row) || $row->value === '' || $row->value === null) {
+                continue;
+            }
+            $parts = array_filter(array_map('trim', explode(',', (string) $row->value)), 'strlen');
+            $changed = false;
+            $newParts = [];
+            foreach ($parts as $part) {
+                if ((string) $part === (string) $usdId) {
+                    $newParts[] = (string) $xafId;
+                    $changed = true;
+                } else {
+                    $newParts[] = $part;
+                }
+            }
+            $newParts = array_values(array_unique($newParts));
+            if ($changed) {
+                $CI->db->query(
+                    "UPDATE {$qo} SET `value` = '" . $CI->db->escape_str(implode(',', $newParts)) . "' WHERE `id` = " . (int) $row->id
+                );
+            }
+        }
+
+        $CI->db->query(
+            "UPDATE {$qo} SET `value` = 'XAF'
+             WHERE `name` = 'saas_default_currency'
+               AND (UPPER(TRIM(`value`)) IN ('USD', '$', '') OR `value` IS NULL)"
+        );
+    }
 
     return true;
 }

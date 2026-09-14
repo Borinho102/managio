@@ -573,7 +573,7 @@
     <div class="modal" id="commodity_list-add-edit" tabindex="-1" role="dialog">
     <div class="modal-dialog ht-dialog-width">
 
-        <?php echo form_open_multipart(admin_url('warehouse/commodity_list_add_edit'),array('class'=>'commodity_list-add-edit dropzone dropzone-manual','autocomplete'=>'off', 'onsubmit'=>'return false;')); ?>
+        <?php echo form_open_multipart(admin_url('warehouse/commodity_list_add_edit'),array('class'=>'commodity_list-add-edit','id'=>'commodity_list_form','autocomplete'=>'off', 'onsubmit'=>'return false;')); ?>
 
       <div class="modal-content">
 
@@ -753,12 +753,12 @@
                                 </div>
                             </div>
 
-                            <?php if(!isset($expense) || (isset($expense) && $expense->attachment == '')){ ?>
-                            <div id="dropzoneDragArea" class="dz-default dz-message">
-                               <span><?php echo _l('attach_images'); ?></span>
+                            <div id="dropzoneDragArea" class="commodity-dropzone-area">
+                               <div class="dz-message">
+                                 <span><?php echo _l('attach_images'); ?></span>
+                               </div>
                             </div>
                             <div class="dropzone-previews"></div>
-                            <?php } ?>
 
                             <div id="images_old_preview">
                               
@@ -914,11 +914,10 @@
               <button type="button" class="btn btn-default" data-dismiss="modal"><?php echo _l('close') ?></button>
                 <button type="button" class="btn btn-info submit_btn" id="commodity_list_save_btn"><?php echo _l('save'); ?></button>
             </div>
-          </div>
-
-          </div>
-        </div>
-            <?php echo form_close(); ?>
+          </div><!-- /.modal-content -->
+        <?php echo form_close(); ?>
+        </div><!-- /.modal-dialog -->
+    </div><!-- /#commodity_list-add-edit -->
 
 <!-- add one commodity list sibar end -->  
 <div class="modal fade" id="show_detail" tabindex="-1" role="dialog">

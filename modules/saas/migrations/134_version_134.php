@@ -2,33 +2,29 @@
 
 defined('BASEPATH') or exit('No direct script access allowed');
 
-class Migration_Version_133 extends App_module_migration
+/**
+ * Force remap existing USD records to XAF on all tenant DBs.
+ * Runs even if migration 133 already applied (only set base currency).
+ */
+class Migration_Version_134 extends App_module_migration
 {
     public function up()
     {
         if (function_exists('update_option')) {
             update_option('saas_default_currency', 'XAF');
-        } elseif (function_exists('add_option')) {
-            add_option('saas_default_currency', 'XAF');
         }
 
-        $forceFn = function_exists('saas_force_records_currency_to_xaf')
-            ? 'saas_force_records_currency_to_xaf'
-            : (function_exists('saas_ensure_base_currency_xaf') ? 'saas_ensure_base_currency_xaf' : null);
-
-        if (!$forceFn) {
+        if (!function_exists('saas_force_records_currency_to_xaf')) {
             return;
         }
 
-        // Master DB (Perfex admin)
-        $forceFn();
+        saas_force_records_currency_to_xaf();
 
         $CI = &get_instance();
         if (empty($CI->db) || !$CI->db->table_exists('tbl_saas_companies')) {
             return;
         }
 
-        // All tenant DBs including seed DBs (so new companies also get XAF).
         $companies = $CI->db
             ->select('db_name')
             ->from('tbl_saas_companies')
@@ -42,9 +38,9 @@ class Migration_Version_133 extends App_module_migration
                 continue;
             }
             try {
-                $forceFn($company->db_name);
+                saas_force_records_currency_to_xaf($company->db_name);
             } catch (Throwable $e) {
-                log_message('error', '[saas migration 133] XAF currency sync failed for ' . $company->db_name . ': ' . $e->getMessage());
+                log_message('error', '[saas migration 134] Force XAF remap failed for ' . $company->db_name . ': ' . $e->getMessage());
             }
         }
 

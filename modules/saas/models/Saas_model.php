@@ -979,7 +979,10 @@ class Saas_model extends App_Model
         $this->db->query("UPDATE `" . $db_name . "`.`" . db_prefix() . "options` SET `value` = '" . $company_country . "' WHERE `" . db_prefix() . "options`.`name` = 'invoice_company_country_code'");
 
         // New modules inherit Perfex base currency — force XAF (FCFA) for Cameroon tenants.
-        if (function_exists('saas_ensure_base_currency_xaf')) {
+        // Also remap any USD rows copied from the seed DB.
+        if (function_exists('saas_force_records_currency_to_xaf')) {
+            saas_force_records_currency_to_xaf($db_name);
+        } elseif (function_exists('saas_ensure_base_currency_xaf')) {
             saas_ensure_base_currency_xaf($db_name);
         }
 

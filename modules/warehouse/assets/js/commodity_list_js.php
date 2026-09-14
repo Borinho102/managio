@@ -67,29 +67,35 @@
 
     // Dropzone must be created when the modal is visible — init on a hidden
     // modal leaves the clickable area with 0 size so "Joindre des images" looks dead.
+    // Init on #dropzoneDragArea (not the form) to avoid "Invalid dropzone element"
+    // from vendor-admin autoDiscover on .dropzone forms.
     function initCommodityImageDropzone() {
       if (typeof Dropzone === 'undefined' || typeof appCreateDropzoneOptions !== 'function') {
         return;
       }
-      if ($('#dropzoneDragArea').length === 0) {
+      var $area = $('#commodity_list-add-edit #dropzoneDragArea');
+      if (!$area.length) {
         return;
       }
-      var formEl = document.querySelector('form.commodity_list-add-edit');
-      if (!formEl) {
+      var el = $area.get(0);
+      if (!el) {
         return;
       }
       try {
-        if (formEl.dropzone) {
+        if (el.dropzone) {
+          expenseDropzone = el.dropzone;
           return;
         }
         if (expenseDropzone) {
           try { expenseDropzone.destroy(); } catch (e) {}
           expenseDropzone = null;
         }
-        expenseDropzone = new Dropzone(formEl, appCreateDropzoneOptions({
+        var previewEl = $('#commodity_list-add-edit .dropzone-previews').get(0) || el;
+        expenseDropzone = new Dropzone(el, appCreateDropzoneOptions({
+          url: admin_url + 'warehouse/add_commodity_attachment/0',
           autoProcessQueue: false,
-          clickable: '#dropzoneDragArea',
-          previewsContainer: '.dropzone-previews',
+          clickable: true,
+          previewsContainer: previewEl,
           addRemoveLinks: true,
           maxFiles: 10,
           acceptedFiles: 'image/*',
@@ -108,7 +114,7 @@
                   return;
                 }
                 var check_id = $('#commodity_item_id').html();
-                alert_float('success', check_id ? "<?php echo _l('updated_successfully') ?>" : "<?php echo _l('added_successfully') ?>");
+                alert_float('success', check_id ? <?php echo json_encode(_l('updated_successfully')); ?> : <?php echo json_encode(_l('added_successfully')); ?>);
                 $('#commodity_list-add-edit').modal('hide');
                 if ($.fn.DataTable.isDataTable('table.table-table_commodity_list')) {
                   $('table.table-table_commodity_list').DataTable().ajax.reload(null, false);
@@ -191,7 +197,7 @@
           }
         });
 
-        var message = "<?php echo _l('commodity_save_validation_failed'); ?>";
+        var message = <?php echo json_encode(_l('commodity_save_validation_failed')); ?>;
         if (labels.length) {
           message += ' ' + labels.join(', ');
         }
@@ -219,6 +225,25 @@
 
       appValidateForm($commodityForm, commodityFormRules, expenseSubmitHandler);
 
+      // Required fields live on the first tab only — ignore Propriétés / Variation / custom fields.
+      function applyCommodityFirstTabOnlyValidation($form) {
+        var validator = $form.data('validator');
+        if (!validator) {
+          return;
+        }
+        validator.settings.ignore = function (index, element) {
+          var $el = $(element);
+          if (!$el.closest('#interview_infor').length) {
+            return true;
+          }
+          if ($el.is('select') || $el.hasClass('selectpicker')) {
+            return false;
+          }
+          return $el.is(':hidden');
+        };
+      }
+      applyCommodityFirstTabOnlyValidation($commodityForm);
+
       // When validation fails (often on fields scrolled out of view), surface feedback.
       $commodityForm.off('invalid-form.commoditySave').on('invalid-form.commoditySave', function (e, validator) {
         showCommoditySaveValidationErrors(validator);
@@ -241,6 +266,7 @@
         if (!$form.data('validator')) {
           appValidateForm($form, commodityFormRules, expenseSubmitHandler);
         }
+        applyCommodityFirstTabOnlyValidation($form);
         hideCommoditySaveValidationAlert();
         // Native onsubmit=return false blocks browser POST; jQuery validate still handles this event
         // and retries after remote validation (unlike .valid() which does not).
@@ -367,10 +393,10 @@
       "use strict";
 
           var type_products ={};
-          type_products['1'] ='<?php echo _l('materials') ; ?>';
-          type_products['2'] ='<?php echo _l('tools') ; ?>';
-          type_products['3'] ='<?php echo _l('service') ; ?>';
-          type_products['4'] ='<?php echo _l('foods') ; ?>';
+          type_products['1'] =<?php echo json_encode(_l('materials')); ?>;
+          type_products['2'] =<?php echo json_encode(_l('tools')); ?>;
+          type_products['3'] =<?php echo json_encode(_l('service')); ?>;
+          type_products['4'] =<?php echo json_encode(_l('foods')); ?>;
 
           function rendererDropdown(instance, td, row, col, prop, value, cellProperties) {
             "use strict";
@@ -485,98 +511,98 @@
             columns: [
             {
               type: 'text',
-              data: '<?php echo _l('commodity_code'); ?>',
+              data: <?php echo json_encode(_l('commodity_code')); ?>,
             },
             {
               type: 'text',
-              data: '<?php echo _l('commodity_barcode'); ?>',
+              data: <?php echo json_encode(_l('commodity_barcode')); ?>,
 
             },
             {
               type: 'text',
-              data: '<?php echo _l('description'); ?>',
+              data: <?php echo json_encode(_l('description')); ?>,
 
             },
             {
               type: 'text',
-              data: '<?php echo _l('unit_id'); ?>',
+              data: <?php echo json_encode(_l('unit_id')); ?>,
             },
             {
               type: 'text',
-              data:'<?php echo _l('commodity_type'); ?>',
+              data:<?php echo json_encode(_l('commodity_type')); ?>,
 
             },
             {
               type: 'text',
-              data: '<?php echo _l('warehouse_id') ?>',
+              data: <?php echo json_encode(_l('warehouse_id')); ?>,
 
             },
             {
               type: 'text',
-              data: '<?php echo _l('commodity_group'); ?>',
+              data: <?php echo json_encode(_l('commodity_group')); ?>,
             },
             {
               type: 'text',
-              data: '<?php echo _l('tax_rate'); ?>',
+              data: <?php echo json_encode(_l('tax_rate')); ?>,
             },
             {
               type: 'text',
-              data: '<?php echo _l('origin'); ?>',
+              data: <?php echo json_encode(_l('origin')); ?>,
             },
             {
               type: 'text',
-              data: '<?php echo _l('style_id'); ?>',
+              data: <?php echo json_encode(_l('style_id')); ?>,
             },
             {
               type: 'text',
-              data: '<?php echo _l('model_id'); ?>',
+              data: <?php echo json_encode(_l('model_id')); ?>,
             },
             {
               type: 'text',
-              data: '<?php echo _l('size_id'); ?>',
+              data: <?php echo json_encode(_l('size_id')); ?>,
             },
             {
               type: 'text',
-              data: '<?php echo _l('commodity_images'); ?>',  
+              data: <?php echo json_encode(_l('commodity_images')); ?>,  
             },
             {
               type: 'text',
-              data: '<?php echo _l('date_manufacture'); ?>',
+              data: <?php echo json_encode(_l('date_manufacture')); ?>,
             },
             {
               type: 'text',
-              data: '<?php echo _l('expiry_date'); ?>',
+              data: <?php echo json_encode(_l('expiry_date')); ?>,
             },
             {
               type: 'text',
-              data: '<?php echo _l('rate'); ?>',
+              data: <?php echo json_encode(_l('rate')); ?>,
             },
             {
               type: 'text',
-              data: '<?php echo _l('type_product'); ?>',
+              data: <?php echo json_encode(_l('type_product')); ?>,
             },
 
 
             ],
 
             colHeaders: [
-            "<?php echo _l('commodity_code'); ?>",
-            "<?php echo _l('commodity_barcode'); ?>",
-            "<?php echo _l('description'); ?>",
-            "<?php echo _l('unit_id'); ?>",
-            "<?php echo _l('commodity_type'); ?>",
-            "<?php echo _l('warehouse_id'); ?>",
-            "<?php echo _l('commodity_group'); ?>",
-            "<?php echo _l('tax_rate'); ?>",
-            "<?php echo _l('origin'); ?>",
-            "<?php echo _l('style_id'); ?>",
-            "<?php echo _l('model_id'); ?>",
-            "<?php echo _l('size_id'); ?>",
-            "<?php echo _l('commodity_images'); ?>",
-            "<?php echo _l('date_manufacture'); ?>",
-            "<?php echo _l('expiry_date'); ?>",
-            "<?php echo _l('rate'); ?>",
-            "<?php echo _l('type_product'); ?>",
+            <?php echo json_encode(_l('commodity_code')); ?>,
+            <?php echo json_encode(_l('commodity_barcode')); ?>,
+            <?php echo json_encode(_l('description')); ?>,
+            <?php echo json_encode(_l('unit_id')); ?>,
+            <?php echo json_encode(_l('commodity_type')); ?>,
+            <?php echo json_encode(_l('warehouse_id')); ?>,
+            <?php echo json_encode(_l('commodity_group')); ?>,
+            <?php echo json_encode(_l('tax_rate')); ?>,
+            <?php echo json_encode(_l('origin')); ?>,
+            <?php echo json_encode(_l('style_id')); ?>,
+            <?php echo json_encode(_l('model_id')); ?>,
+            <?php echo json_encode(_l('size_id')); ?>,
+            <?php echo json_encode(_l('commodity_images')); ?>,
+            <?php echo json_encode(_l('date_manufacture')); ?>,
+            <?php echo json_encode(_l('expiry_date')); ?>,
+            <?php echo json_encode(_l('rate')); ?>,
+            <?php echo json_encode(_l('type_product')); ?>,
 
             ],
 
@@ -606,7 +632,7 @@ warehouse_type_value = warehouse_type;
     var valid_warehouse_type = $('#hot_warehouse_type').find('.htInvalid').html();
 
     if(valid_warehouse_type){
-      alert_float('danger', "<?php echo _l('data_must_number') ; ?>");
+      alert_float('danger', <?php echo json_encode(_l('data_must_number')); ?>);
     }else{
 
       $('input[name="hot_warehouse_type"]').val(warehouse_type_value.getData());
@@ -769,7 +795,7 @@ warehouse_type_value = warehouse_type;
         return;
       }
 
-      alert_float(check_id ? 'success' : 'warning', check_id ? "<?php echo _l('updated_successfully') ?>" : "<?php echo _l('Add_commodity_type_false') ?>");
+      alert_float(check_id ? 'success' : 'warning', check_id ? <?php echo json_encode(_l('updated_successfully')); ?> : <?php echo json_encode(_l('Add_commodity_type_false')); ?>);
       $('#commodity_list-add-edit').modal('hide');
       if ($.fn.DataTable.isDataTable('table.table-table_commodity_list')) {
         $('table.table-table_commodity_list').DataTable().ajax.reload(null, false);
@@ -786,12 +812,12 @@ warehouse_type_value = warehouse_type;
         response = typeof response === 'string' ? JSON.parse(response) : response;
       } catch (e) {
         $('.submit_btn').removeAttr('disabled');
-        alert_float('warning', "<?php echo _l('something_went_wrong') ?>");
+        alert_float('warning', <?php echo json_encode(_l('something_went_wrong')); ?>);
         return;
       }
 
       if (response.message == 'false' || response.message == false) {
-        alert_float('warning', "<?php echo _l('sku_code_already_exists') ?>");
+        alert_float('warning', <?php echo json_encode(_l('sku_code_already_exists')); ?>);
         $('.submit_btn').removeAttr('disabled');
         return;
       }
@@ -814,11 +840,11 @@ warehouse_type_value = warehouse_type;
             return;
           }
         } catch (e) {}
-        alert_float('danger', "<?php echo _l('something_went_wrong') ?>");
+        alert_float('danger', <?php echo json_encode(_l('something_went_wrong')); ?>);
       });
     }).fail(function () {
       $('.submit_btn').removeAttr('disabled');
-      alert_float('danger', "<?php echo _l('something_went_wrong') ?>");
+      alert_float('danger', <?php echo json_encode(_l('something_went_wrong')); ?>);
     });
 
     return false;
@@ -841,10 +867,10 @@ warehouse_type_value = warehouse_type;
            } else {
              totalAttachmentsIndicator.text(totalAttachments-1);
            }
-           alert_float('success', "<?php echo _l('delete_commodity_file_success') ?>");
+           alert_float('success', <?php echo json_encode(_l('delete_commodity_file_success')); ?>);
 
          } else {
-           alert_float('danger', "<?php echo _l('delete_commodity_file_false') ?>");
+           alert_float('danger', <?php echo json_encode(_l('delete_commodity_file_false')); ?>);
          }
        }, 'json');
        }
@@ -867,10 +893,10 @@ warehouse_type_value = warehouse_type;
             } else {
               totalAttachmentsIndicator.text(totalAttachments-1);
             }
-            alert_float('success', "<?php echo _l('delete_commodity_file_success') ?>");
+            alert_float('success', <?php echo json_encode(_l('delete_commodity_file_success')); ?>);
 
           } else {
-            alert_float('danger', "<?php echo _l('delete_commodity_file_false') ?>");
+            alert_float('danger', <?php echo json_encode(_l('delete_commodity_file_false')); ?>);
           }
         }, 'json');
       }
@@ -1469,7 +1495,7 @@ function staff_export_item(){
     $.post(admin_url + 'warehouse/warehouse_export_item_checked', data).done(function(response) {
       response = JSON.parse(response);
       if(response.success == true){
-        alert_float('success', "<?php echo _l("create_export_file_success") ?>");
+        alert_float('success', <?php echo json_encode(_l('create_export_file_success')); ?>);
 
         $('#dowload_items').removeClass('hide');
 
@@ -1477,7 +1503,7 @@ function staff_export_item(){
          href  : site_url +response.filename});
 
       }else{
-        alert_float('success', "<?php echo _l("create_export_file_false") ?>");
+        alert_float('success', <?php echo json_encode(_l('create_export_file_false')); ?>);
 
       }
 
