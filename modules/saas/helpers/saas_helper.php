@@ -236,7 +236,7 @@ function saas_ensure_payin_schema()
     }
 
     if (function_exists('add_option')) {
-        add_option('saas_default_currency', '');
+        add_option('saas_default_currency', 'XAF');
         if (get_option('saas_payin_perfex_gateway_bootstrapped') != '1') {
             add_option('paymentmethod_payin_active', '1');
             update_option('paymentmethod_payin_active', '1');
@@ -1445,7 +1445,70 @@ function saas_default_currency()
         return strtoupper($base->name);
     }
 
-    return 'USD';
+    return 'XAF';
+}
+
+/**
+ * Ensure XAF (FCFA) exists and is the Perfex base currency for a DB.
+ * Used by accounting, cash_flow, warehouse, purchase, affiliate, etc. via get_base_currency().
+ *
+ * @param string|null $db_name Tenant database name, or null for current connection
+ * @return bool
+ */
+function saas_ensure_base_currency_xaf($db_name = null)
+{
+    $CI = &get_instance();
+    if (empty($CI->db)) {
+        return false;
+    }
+
+    $table = db_prefix() . 'currencies';
+    $qualified = $db_name
+        ? '`' . $CI->db->escape_str($db_name) . '`.`' . $table . '`'
+        : '`' . $table . '`';
+
+    if ($db_name) {
+        $exists = $CI->db->query(
+            "SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '" . $CI->db->escape_str($db_name) . "' AND TABLE_NAME = '" . $CI->db->escape_str($table) . "' LIMIT 1"
+        )->row();
+        if (empty($exists)) {
+            return false;
+        }
+    } elseif (!$CI->db->table_exists($table)) {
+        return false;
+    }
+
+    $xaf = $CI->db->query(
+        "SELECT `id` FROM {$qualified} WHERE `name` IN ('XAF', 'FCFA') ORDER BY CASE WHEN `name` = 'XAF' THEN 0 ELSE 1 END LIMIT 1"
+    )->row();
+
+    if (empty($xaf)) {
+        $CI->db->query(
+            "INSERT INTO {$qualified} (`symbol`, `name`, `decimal_separator`, `thousand_separator`, `placement`, `isdefault`)
+             VALUES ('FCFA', 'XAF', ',', ' ', 'after', 0)"
+        );
+        $xafId = (int) $CI->db->insert_id();
+    } else {
+        $xafId = (int) $xaf->id;
+        $CI->db->query(
+            "UPDATE {$qualified}
+             SET `name` = 'XAF',
+                 `symbol` = 'FCFA',
+                 `decimal_separator` = ',',
+                 `thousand_separator` = ' ',
+                 `placement` = 'after'
+             WHERE `id` = " . $xafId
+        );
+    }
+
+    if ($xafId <= 0) {
+        return false;
+    }
+
+    $CI->db->query("UPDATE {$qualified} SET `isdefault` = 0");
+    $CI->db->query("UPDATE {$qualified} SET `isdefault` = 1 WHERE `id` = " . $xafId);
+
+    return true;
 }
 
 function saas_tenant_locale()
@@ -1498,7 +1561,7 @@ function saas_tenant_currency($fallback = null)
 
     $currency = strtoupper(trim((string) ($currency !== '' ? $currency : ($fallback ?: saas_default_currency()))));
 
-    return $currency !== '' ? $currency : 'USD';
+    return $currency !== '' ? $currency : 'XAF';
 }
 
 function default_currency()

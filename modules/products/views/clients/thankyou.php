@@ -51,9 +51,10 @@
     var gid = '<?php echo addslashes($remarketing['google_id'] ?? ''); ?>';
     var glabel = '<?php echo addslashes($remarketing['google_label'] ?? ''); ?>';
     var total = <?php echo (float) $total; ?>;
+    var currency = '<?php echo addslashes($remarketing['currency'] ?? 'XAF'); ?>';
     if (fb) {
         if (typeof fbq !== 'undefined') {
-            fbq('track', 'Purchase', {value: total, currency: 'USD'});
+            fbq('track', 'Purchase', {value: total, currency: currency});
         }
     }
     if (gid) {

@@ -977,6 +977,12 @@ class Saas_model extends App_Model
         $this->db->query("UPDATE `" . $db_name . "`.`" . db_prefix() . "options` SET `value` = '" . $company_city . "' WHERE `" . db_prefix() . "options`.`name` = 'invoice_company_city'");
         $this->db->query("UPDATE `" . $db_name . "`.`" . db_prefix() . "options` SET `value` = '" . $company_phone . "' WHERE `" . db_prefix() . "options`.`name` = 'invoice_company_phonenumber'");
         $this->db->query("UPDATE `" . $db_name . "`.`" . db_prefix() . "options` SET `value` = '" . $company_country . "' WHERE `" . db_prefix() . "options`.`name` = 'invoice_company_country_code'");
+
+        // New modules inherit Perfex base currency — force XAF (FCFA) for Cameroon tenants.
+        if (function_exists('saas_ensure_base_currency_xaf')) {
+            saas_ensure_base_currency_xaf($db_name);
+        }
+
         return true;
     }
 

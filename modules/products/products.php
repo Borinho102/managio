@@ -130,7 +130,7 @@ function products_remarketing_head()
         $CI->load->model('currencies_model');
     }
     $base = $CI->currencies_model->get_base_currency();
-    $currency = $base ? $base->name : 'USD';
+    $currency = $base ? $base->name : 'XAF';
     $config = ['facebook' => $fb, 'google_id' => $gid, 'google_label' => get_option('product_remarketing_google_label') ?: '', 'currency' => $currency];
     if ($fb || $gid) {
         echo '<script>var _productsRemarketing=' . json_encode($config) . ';</script>' . "\n";

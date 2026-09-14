@@ -3,7 +3,7 @@
     var cfg = _productsRemarketing;
     var fb = cfg.facebook;
     var gid = cfg.google_id;
-    var currency = (cfg.currency || 'USD').toUpperCase();
+    var currency = (cfg.currency || 'XAF').toUpperCase();
 
     function fireAddToCart(productId, productName, value, qty) {
         if (fb && typeof fbq !== 'undefined') {

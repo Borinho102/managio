@@ -587,7 +587,11 @@
 
             <div class="modal-body">
                 <div id="commodity_item_id"></div>
-
+                <div id="commodity_save_validation_alert" class="alert alert-warning hide" role="alert" style="position:sticky;top:0;z-index:5;margin-bottom:15px;">
+                  <button type="button" class="close" aria-label="Close" onclick="$('#commodity_save_validation_alert').addClass('hide');"><span aria-hidden="true">&times;</span></button>
+                  <strong><?php echo _l('commodity_save_missing_fields'); ?> :</strong>
+                  <span class="commodity-save-validation-text"></span>
+                </div>
 
                 <div class="horizontal-scrollable-tabs preview-tabs-top">
                   <div class="scroller arrow-left"><i class="fa fa-angle-left"></i></div>

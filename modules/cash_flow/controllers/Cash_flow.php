@@ -137,14 +137,15 @@ class Cash_flow extends AdminController
 
     public function table($buisness_id, $clientid = '')
     {
-        // $this->load->model('payment_modes_model');
-        // $data['payment_modes'] = $this->payment_modes_model->get('', [], true);
-        // $data['buisness_id'] = $buisness_id;
-        // $this->app->get_table_data(module_views_path('cash_flow', 'admin/cf_expenses'), [
-        //     'clientid' => $clientid,
-        //     'data' => $data,
-        // ]);
-        App_table::find('cf_expenses')->output();
+        $this->load->model('payment_modes_model');
+        $data['payment_modes'] = $this->payment_modes_model->get('', [], true);
+        $data['buisness_id'] = $buisness_id;
+
+        App_table::find('cf_expenses')->output([
+            'buisness_id' => $buisness_id,
+            'clientid'    => $clientid,
+            'data'        => $data,
+        ]);
     }
 
     public function expense($buisness_id, $id = '')

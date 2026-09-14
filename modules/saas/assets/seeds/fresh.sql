@@ -512,8 +512,9 @@ CREATE TABLE `tblcurrencies` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `tblcurrencies` (`id`, `symbol`, `name`, `decimal_separator`, `thousand_separator`, `placement`, `isdefault`) VALUES
-                                                                                                                              (1, '$', 'USD', '.', ',', 'before', 1),
-                                                                                                                              (2, '€', 'EUR', ',', '.', 'before', 0);
+                                                                                                                              (1, 'FCFA', 'XAF', ',', ' ', 'after', 1),
+                                                                                                                              (2, '€', 'EUR', ',', '.', 'before', 0),
+                                                                                                                              (3, '$', 'USD', '.', ',', 'before', 0);
 
 CREATE TABLE `tblcustomers_groups` (
                                        `id` int NOT NULL,
