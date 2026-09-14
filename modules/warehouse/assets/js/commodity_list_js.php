@@ -161,22 +161,69 @@
             }
           }
         },
-
+        description: 'required',
         'unit_id': 'required',
         'rate': 'required',
       }, expenseSubmitHandler);
 
-      // Explicit save click — never rely on native form POST (shows raw JSON).
+      // When validation fails (often on fields scrolled out of view), surface feedback.
+      $commodityForm.off('invalid-form.commoditySave').on('invalid-form.commoditySave', function (e, validator) {
+        if (!validator || !validator.errorList || !validator.errorList.length) {
+          return;
+        }
+        var first = validator.errorList[0].element;
+        var $first = $(first);
+        var $pane = $first.closest('.tab-pane');
+        if ($pane.length && !$pane.hasClass('active')) {
+          $('a[href="#' + $pane.attr('id') + '"]').tab('show');
+        }
+        var $modalBody = $('#commodity_list-add-edit .modal-body');
+        if ($modalBody.length && $first.length) {
+          var offsetTop = 0;
+          try {
+            offsetTop = $first.offset().top - $modalBody.offset().top + $modalBody.scrollTop() - 40;
+          } catch (err) {}
+          $modalBody.animate({ scrollTop: Math.max(offsetTop, 0) }, 250);
+        }
+        try { $first.focus(); } catch (err) {}
+        var fieldLabel = $.trim($first.closest('.form-group').find('label').first().clone().children().remove().end().text()) || $first.attr('name');
+        alert_float('warning', fieldLabel ? (fieldLabel + " : <?php echo _l('not_yet_entered'); ?>") : "<?php echo _l('something_went_wrong'); ?>");
+      });
+
+      // Explicit save click — use jQuery validate submit so remote checks can finish,
+      // then expenseSubmitHandler runs via appValidateForm onSubmit (AJAX only).
       $(document).off('click.commoditySave', '#commodity_list_save_btn').on('click.commoditySave', '#commodity_list_save_btn', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        var form = document.querySelector('form.commodity_list-add-edit');
-        if (!form) {
+        var $form = $('form.commodity_list-add-edit');
+        if (!$form.length) {
           return false;
         }
-        if ($(form).valid()) {
-          expenseSubmitHandler(form);
+        if (!$form.data('validator')) {
+          appValidateForm($form, {
+            commodity_code: {
+              required: true,
+              remote: {
+                url: admin_url + "warehouse/wh_check_commodity_code_exit",
+                type: 'post',
+                data: {
+                  commodity_code: function() {
+                    return $('input[name="commodity_code"]').val();
+                  },
+                  commodity_item_id: function() {
+                    return $('input[name="id"]').val();
+                  }
+                }
+              }
+            },
+            description: 'required',
+            unit_id: 'required',
+            rate: 'required',
+          }, expenseSubmitHandler);
         }
+        // Native onsubmit=return false blocks browser POST; jQuery validate still handles this event
+        // and retries after remote validation (unlike .valid() which does not).
+        $form.trigger('submit');
         return false;
       });
     });
@@ -1091,34 +1138,7 @@ warehouse_type_value = warehouse_type;
       }
     } catch (e) {}
 
-    $.post(admin_url + 'warehouse/get_commodity_barcode').done(function(response) {
-      try {
-        response = typeof response === 'string' ? JSON.parse(response) : response;
-        var barcode = Array.isArray(response) ? response[0] : response;
-        $modal.find('input[name="commodity_barcode"]').val(barcode);
-      } catch (e) {}
-    });
-
-    $.post(admin_url + 'warehouse/get_variation_html_add').done(function(response) {
-      try {
-        response = typeof response === 'string' ? JSON.parse(response) : response;
-        $('.list_approve').html('');
-        $('.list_approve').append(response.variation_html);
-        addMoreVendorsInputKey = response.variation_index;
-        $("#parent_item_html").html(response.item_html);
-        $(".parent_item_hide").removeClass("hide");
-        if (typeof init_selectpicker === 'function') {
-          init_selectpicker();
-        }
-        $modal.find(".selectpicker").selectpicker('refresh');
-        if (typeof init_ajax_search === 'function') {
-          init_ajax_search('items','#parent_id.ajax-search',undefined,admin_url+'warehouse/wh_parent_item_search');
-        }
-      } catch (e) {
-        console.warn('get_variation_html_add failed', e);
-      }
-    });
-
+    // Reset selects/defaults BEFORE barcode AJAX so prefilled commodity_code is not wiped.
     $modal.find('input[name="commodity_code"]').val('');
     $modal.find('input[name="description"]').val('');
     $modal.find('input[name="sku_code"]').val('');
@@ -1144,6 +1164,38 @@ warehouse_type_value = warehouse_type;
     $modal.find('input[name="guarantee"]').val('');
     $modal.find('input[name="profif_ratio"]').val('<?php echo get_warehouse_option('warehouse_selling_price_rule_profif_ratio'); ?>');
     $modal.find('img[id="wizardPicturePreview"]').attr('src', '<?php echo site_url(WAREHOUSE_PATH.'nul_image.jpg'); ?>');
+
+    $.post(admin_url + 'warehouse/get_commodity_barcode').done(function(response) {
+      try {
+        response = typeof response === 'string' ? JSON.parse(response) : response;
+        var barcode = Array.isArray(response) ? response[0] : response;
+        $modal.find('input[name="commodity_barcode"]').val(barcode);
+        // Prefill required commodity_code — users often scroll past it and Save looks dead.
+        if (!$modal.find('input[name="commodity_code"]').val()) {
+          $modal.find('input[name="commodity_code"]').val(barcode);
+        }
+      } catch (e) {}
+    });
+
+    $.post(admin_url + 'warehouse/get_variation_html_add').done(function(response) {
+      try {
+        response = typeof response === 'string' ? JSON.parse(response) : response;
+        $('.list_approve').html('');
+        $('.list_approve').append(response.variation_html);
+        addMoreVendorsInputKey = response.variation_index;
+        $("#parent_item_html").html(response.item_html);
+        $(".parent_item_hide").removeClass("hide");
+        if (typeof init_selectpicker === 'function') {
+          init_selectpicker();
+        }
+        $modal.find(".selectpicker").selectpicker('refresh');
+        if (typeof init_ajax_search === 'function') {
+          init_ajax_search('items','#parent_id.ajax-search',undefined,admin_url+'warehouse/wh_parent_item_search');
+        }
+      } catch (e) {
+        console.warn('get_variation_html_add failed', e);
+      }
+    });
 
     <?php if(get_warehouse_option('update_inventory_number') == 1){ ?>
       $modal.find('input[id="without_checking_warehouse"]').prop('checked', true);
