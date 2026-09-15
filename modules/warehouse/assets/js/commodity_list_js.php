@@ -1173,7 +1173,7 @@ warehouse_type_value = warehouse_type;
 
 
 
-  function new_commodity_item(){
+  window.new_commodity_item = function new_commodity_item(){
     "use strict";
 
     var $modal = $('#commodity_list-add-edit');
@@ -1183,103 +1183,115 @@ warehouse_type_value = warehouse_type;
     }
 
     // Open modal first so a later JS error cannot make "Ajouter" look dead.
-    $modal.modal('show');
-
-    $('.edit-commodity-title').addClass('hide');
-    $('.add-commodity-title').removeClass('hide');
-    $('#commodity_item_id').empty();
-    $('.dropzone-previews').empty();
-    $('#images_old_preview').empty();
-
-    $modal.find('input').not('input[type="hidden"]').val('');
-    $modal.find('textarea').val('');
+    try {
+      $modal.modal('show');
+    } catch (eShow) {
+      console.warn('commodity modal show failed', eShow);
+      $modal.addClass('in').css('display', 'block').attr('aria-hidden', 'false');
+      if (!$('.modal-backdrop').length) {
+        $('<div class="modal-backdrop fade in"></div>').appendTo(document.body);
+      }
+    }
 
     try {
-      if (typeof tinyMCE !== 'undefined' && tinyMCE.activeEditor) {
-        tinyMCE.activeEditor.setContent('');
-      }
-    } catch (e) {}
+      $('.edit-commodity-title').addClass('hide');
+      $('.add-commodity-title').removeClass('hide');
+      $('#commodity_item_id').empty();
+      $('.dropzone-previews').empty();
+      $('#images_old_preview').empty();
 
-    // Reset selects/defaults BEFORE barcode AJAX so prefilled commodity_code is not wiped.
-    $modal.find('input[name="commodity_code"]').val('');
-    $modal.find('input[name="description"]').val('');
-    $modal.find('input[name="sku_code"]').val('');
-    $modal.find('input[name="sku_name"]').val('');
-    $modal.find('input[name="purchase_price"]').val('');
-    $modal.find('select[name="unit_id"]').val('').change();
-    $modal.find('select[name="commodity_type"]').val('').change();
-    $modal.find('select[name="group_id"]').val('').change();
-    $modal.find('select[name="warehouse_id"]').val('').change();
-    $modal.find('select[name="tax"]').val('').change();
-    $modal.find('select[name="tax2"]').val('').change();
-    $modal.find('select[name="style_id"]').val('').change();
-    $modal.find('select[name="model_id"]').val('').change();
-    $modal.find('select[name="size_id"]').val('').change();
-    $modal.find('select[name="sub_group"]').val('').change();
-    $modal.find('select[name="color"]').val('').change();
-    $modal.find('select[name="parent_id"]').val('').change();
-    $modal.find('input[name="date_manufacture"]').val('').change();
-    $modal.find('input[name="expiry_date"]').val('').change();
-    $modal.find('input[name="origin"]').val('');
-    $modal.find('input[name="rate"]').val('');
-    $modal.find('input[name="type_product"]').val('');
-    $modal.find('input[name="guarantee"]').val('');
-    $modal.find('input[name="profif_ratio"]').val('<?php echo get_warehouse_option('warehouse_selling_price_rule_profif_ratio'); ?>');
-    $modal.find('img[id="wizardPicturePreview"]').attr('src', '<?php echo site_url(WAREHOUSE_PATH.'nul_image.jpg'); ?>');
+      $modal.find('input').not('input[type="hidden"]').val('');
+      $modal.find('textarea').val('');
 
-    $.post(admin_url + 'warehouse/get_commodity_barcode').done(function(response) {
       try {
-        response = typeof response === 'string' ? JSON.parse(response) : response;
-        var barcode = Array.isArray(response) ? response[0] : response;
-        $modal.find('input[name="commodity_barcode"]').val(barcode);
-        // Prefill required commodity_code — users often scroll past it and Save looks dead.
-        if (!$modal.find('input[name="commodity_code"]').val()) {
-          $modal.find('input[name="commodity_code"]').val(barcode);
+        if (typeof tinyMCE !== 'undefined' && tinyMCE.activeEditor) {
+          tinyMCE.activeEditor.setContent('');
         }
       } catch (e) {}
-    });
 
-    $.post(admin_url + 'warehouse/get_variation_html_add').done(function(response) {
-      try {
-        response = typeof response === 'string' ? JSON.parse(response) : response;
-        $('.list_approve').html('');
-        $('.list_approve').append(response.variation_html);
-        addMoreVendorsInputKey = response.variation_index;
-        $("#parent_item_html").html(response.item_html);
-        $(".parent_item_hide").removeClass("hide");
-        if (typeof init_selectpicker === 'function') {
-          init_selectpicker();
+      // Reset selects/defaults BEFORE barcode AJAX so prefilled commodity_code is not wiped.
+      $modal.find('input[name="commodity_code"]').val('');
+      $modal.find('input[name="description"]').val('');
+      $modal.find('input[name="sku_code"]').val('');
+      $modal.find('input[name="sku_name"]').val('');
+      $modal.find('input[name="purchase_price"]').val('');
+      try { $modal.find('select[name="unit_id"]').val('').change(); } catch (e) {}
+      try { $modal.find('select[name="commodity_type"]').val('').change(); } catch (e) {}
+      try { $modal.find('select[name="group_id"]').val('').change(); } catch (e) {}
+      try { $modal.find('select[name="warehouse_id"]').val('').change(); } catch (e) {}
+      try { $modal.find('select[name="tax"]').val('').change(); } catch (e) {}
+      try { $modal.find('select[name="tax2"]').val('').change(); } catch (e) {}
+      try { $modal.find('select[name="style_id"]').val('').change(); } catch (e) {}
+      try { $modal.find('select[name="model_id"]').val('').change(); } catch (e) {}
+      try { $modal.find('select[name="size_id"]').val('').change(); } catch (e) {}
+      try { $modal.find('select[name="sub_group"]').val('').change(); } catch (e) {}
+      try { $modal.find('select[name="color"]').val('').change(); } catch (e) {}
+      try { $modal.find('select[name="parent_id"]').val('').change(); } catch (e) {}
+      try { $modal.find('input[name="date_manufacture"]').val('').change(); } catch (e) {}
+      try { $modal.find('input[name="expiry_date"]').val('').change(); } catch (e) {}
+      $modal.find('input[name="origin"]').val('');
+      $modal.find('input[name="rate"]').val('');
+      $modal.find('input[name="type_product"]').val('');
+      $modal.find('input[name="guarantee"]').val('');
+      $modal.find('input[name="profif_ratio"]').val(<?php echo json_encode((string) get_warehouse_option('warehouse_selling_price_rule_profif_ratio')); ?>);
+      $modal.find('img[id="wizardPicturePreview"]').attr('src', <?php echo json_encode(site_url(WAREHOUSE_PATH.'nul_image.jpg')); ?>);
+
+      $.post(admin_url + 'warehouse/get_commodity_barcode').done(function(response) {
+        try {
+          response = typeof response === 'string' ? JSON.parse(response) : response;
+          var barcode = Array.isArray(response) ? response[0] : response;
+          $modal.find('input[name="commodity_barcode"]').val(barcode);
+          // Prefill required commodity_code — users often scroll past it and Save looks dead.
+          if (!$modal.find('input[name="commodity_code"]').val()) {
+            $modal.find('input[name="commodity_code"]').val(barcode);
+          }
+        } catch (e) {}
+      });
+
+      $.post(admin_url + 'warehouse/get_variation_html_add').done(function(response) {
+        try {
+          response = typeof response === 'string' ? JSON.parse(response) : response;
+          $('.list_approve').html('');
+          $('.list_approve').append(response.variation_html);
+          addMoreVendorsInputKey = response.variation_index;
+          $("#parent_item_html").html(response.item_html);
+          $(".parent_item_hide").removeClass("hide");
+          if (typeof init_selectpicker === 'function') {
+            init_selectpicker();
+          }
+          $modal.find(".selectpicker").selectpicker('refresh');
+          if (typeof init_ajax_search === 'function') {
+            init_ajax_search('items','#parent_id.ajax-search',undefined,admin_url+'warehouse/wh_parent_item_search');
+          }
+        } catch (e) {
+          console.warn('get_variation_html_add failed', e);
         }
-        $modal.find(".selectpicker").selectpicker('refresh');
-        if (typeof init_ajax_search === 'function') {
-          init_ajax_search('items','#parent_id.ajax-search',undefined,admin_url+'warehouse/wh_parent_item_search');
-        }
-      } catch (e) {
-        console.warn('get_variation_html_add failed', e);
+      });
+
+      <?php if(get_warehouse_option('update_inventory_number') == 1){ ?>
+        $modal.find('input[id="without_checking_warehouse"]').prop('checked', true);
+      <?php }else{ ?>
+        $modal.find('input[id="without_checking_warehouse"]').prop('checked', false);
+      <?php } ?>
+
+      $modal.find('input[id="can_be_sold"]').prop('checked', true);
+      $modal.find('input[id="can_be_purchased"]').prop('checked', true);
+      $modal.find('input[id="can_be_manufacturing"]').prop('checked', true);
+      $modal.find('input[id="can_be_inventory"]').prop('checked', true);
+
+      $('#tags_value').find('ul li.tagit-choice').remove();
+      if (typeof init_tags_inputs === 'function') {
+        init_tags_inputs();
       }
-    });
-
-    <?php if(get_warehouse_option('update_inventory_number') == 1){ ?>
-      $modal.find('input[id="without_checking_warehouse"]').prop('checked', true);
-    <?php }else{ ?>
-      $modal.find('input[id="without_checking_warehouse"]').prop('checked', false);
-    <?php } ?>
-
-    $modal.find('input[id="can_be_sold"]').prop('checked', true);
-    $modal.find('input[id="can_be_purchased"]').prop('checked', true);
-    $modal.find('input[id="can_be_manufacturing"]').prop('checked', true);
-    $modal.find('input[id="can_be_inventory"]').prop('checked', true);
-
-    $('#tags_value').find('ul li.tagit-choice').remove();
-    if (typeof init_tags_inputs === 'function') {
-      init_tags_inputs();
-    }
-    if (typeof init_selectpicker === 'function') {
-      init_selectpicker();
+      if (typeof init_selectpicker === 'function') {
+        init_selectpicker();
+      }
+    } catch (eReset) {
+      console.warn('new_commodity_item reset failed (modal should still be open)', eReset);
     }
 
     return false;
-  }
+  };
 
   $("body").on('click', '.tagit-close', function() {
     "use strict";

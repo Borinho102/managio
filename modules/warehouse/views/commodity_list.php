@@ -21,11 +21,12 @@
                         <?php if (has_permission('warehouse_item', '', 'create') || is_admin() || has_permission('warehouse_item', '', 'edit') ) { ?>
 
                           
-                        <a href="#"
-                           onclick="if (typeof new_commodity_item === 'function') { new_commodity_item(); return false; }"
+                        <a href="#commodity_list-add-edit"
+                           id="wh_btn_add_commodity"
                            class="btn btn-info pull-left display-block mr-4 button-margin-r-b"
                            data-toggle="modal"
-                           data-target="#commodity_list-add-edit">
+                           data-target="#commodity_list-add-edit"
+                           role="button">
                             <?php echo _l('add'); ?>
                         </a>
 
@@ -570,7 +571,7 @@
 
   <!-- add one commodity list sibar start-->       
 
-    <div class="modal" id="commodity_list-add-edit" tabindex="-1" role="dialog">
+    <div class="modal fade" id="commodity_list-add-edit" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog ht-dialog-width">
 
         <?php echo form_open_multipart(admin_url('warehouse/commodity_list_add_edit'),array('class'=>'commodity_list-add-edit','id'=>'commodity_list_form','autocomplete'=>'off', 'onsubmit'=>'return false;')); ?>

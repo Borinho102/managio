@@ -7,6 +7,51 @@
 (function ($) {
   'use strict';
 
+  function openCommodityModalFallback() {
+    var $modal = $('#commodity_list-add-edit');
+    if (!$modal.length) {
+      return false;
+    }
+    try {
+      $modal.modal('show');
+    } catch (e) {
+      $modal.addClass('in').css('display', 'block').attr('aria-hidden', 'false');
+      if (!$('.modal-backdrop').length) {
+        $('<div class="modal-backdrop fade in"></div>').appendTo(document.body);
+      }
+    }
+    try {
+      $('.edit-commodity-title').addClass('hide');
+      $('.add-commodity-title').removeClass('hide');
+      $('#commodity_item_id').empty();
+    } catch (e2) {}
+    return false;
+  }
+
+  // Ajouter must work even if commodity_list_js.php failed to define new_commodity_item.
+  if (typeof window.new_commodity_item !== 'function') {
+    window.new_commodity_item = openCommodityModalFallback;
+  }
+
+  if (!window.__commodityStandaloneAddBound) {
+    window.__commodityStandaloneAddBound = true;
+    $(document).on('click', '#wh_btn_add_commodity', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        if (typeof window.new_commodity_item === 'function') {
+          window.new_commodity_item();
+        } else {
+          openCommodityModalFallback();
+        }
+      } catch (err) {
+        console.warn('[commodity add]', err);
+        openCommodityModalFallback();
+      }
+      return false;
+    });
+  }
+
   if (window.__commodityStandaloneSaveBound) {
     return;
   }
