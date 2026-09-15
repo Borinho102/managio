@@ -148,6 +148,7 @@ class affiliate extends AdminController
                 if (!affiliate_has_permission('settings', '', 'create')) {
                     access_denied('settings');
                 }
+                unset($data['id']);
                 $id      = $this->affiliate_model->add_member_group($data);
                 $message = $id ? _l('added_successfully', _l('member_group')) : '';
                 echo json_encode([
@@ -655,6 +656,7 @@ class affiliate extends AdminController
         if ($this->input->is_ajax_request()) {
             $data = $this->input->post();
             if ($data['id'] == '') {
+                unset($data['id']);
                 $id      = $this->affiliate_model->add_program_category($data);
                 $message = $id ? _l('added_successfully', _l('program_category')) : '';
                 echo json_encode([

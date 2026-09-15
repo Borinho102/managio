@@ -20,7 +20,7 @@
                     <span class="add-title"><?php echo _l('program_category_add_heading'); ?></span>
                 </h4>
             </div>
-            <?php echo form_open('affiliate/program_category',array('id'=>'program-category-modal')); ?>
+            <?php echo form_open(admin_url('affiliate/program_category'), array('id'=>'program-category-modal')); ?>
             <div class="modal-body">
                 <div class="row">
                     <div class="col-md-12">

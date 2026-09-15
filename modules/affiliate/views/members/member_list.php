@@ -102,7 +102,7 @@
                     <span class="add-title"><?php echo _l('transaction_add_heading'); ?></span>
                 </h4>
             </div>
-            <?php echo form_open('affiliate/add_transaction',array('id'=>'add-transaction-modal')); ?>
+            <?php echo form_open(admin_url('affiliate/add_transaction'), array('id'=>'add-transaction-modal')); ?>
             <div class="modal-body">
                 <div class="row">
                     <div class="col-md-12">

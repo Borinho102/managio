@@ -20,7 +20,7 @@
                     <span class="add-title"><?php echo _l('member_group_add_heading'); ?></span>
                 </h4>
             </div>
-            <?php echo form_open('affiliate/member_group',array('id'=>'member-group-modal')); ?>
+            <?php echo form_open(admin_url('affiliate/member_group'), array('id'=>'member-group-modal')); ?>
             <div class="modal-body">
                 <div class="row">
                     <div class="col-md-12">

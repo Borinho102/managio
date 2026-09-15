@@ -51,55 +51,83 @@
 
 function new_member_group(){
   "use strict";
+  $('#member_group_modal .add-title').removeClass('hide');
+  $('#member_group_modal .edit-title').addClass('hide');
+  $('#member_group_modal input[name="id"]').val('');
+  $('#member_group_modal input[name="name"]').val('');
   $('#member_group_modal').modal('show');
 }
 
 function manage_member_groups(form) {
   "use strict";
-    var data = $(form).serialize();
-    
-    if($.trim($('#name').val()) == ''){
-      $('#name').val('').focus();
-    }else{
-      var url = form.action;
-      $.post(url, data).done(function(response) {
-          response = JSON.parse(response);
-          if (response.success == true) {
-              if($.fn.DataTable.isDataTable('.table-member-groups')){
-                  $('.table-member-groups').DataTable().ajax.reload();
-              }
-              alert_float('success', response.message);
-              $('#member_group_modal').modal('hide');
-          }
-      });
+    var $form = $(form);
+    var $name = $form.find('input[name="name"]');
+    if($.trim($name.val()) == ''){
+      $name.val('').focus();
+      return false;
     }
+    // Force admin endpoint — SaaS route affiliate/(:any) hijacks non-admin URLs.
+    var url = admin_url + 'affiliate/member_group';
+    var data = $form.serialize();
+    $.post(url, data).done(function(response) {
+        try {
+          response = typeof response === 'string' ? JSON.parse(response) : response;
+        } catch (e) {
+          alert_float('danger', 'Erreur lors de l\'enregistrement du groupe.');
+          return;
+        }
+        if (response.success == true) {
+            if($.fn.DataTable.isDataTable('.table-member-groups')){
+                $('.table-member-groups').DataTable().ajax.reload();
+            }
+            alert_float('success', response.message);
+            $('#member_group_modal').modal('hide');
+        } else {
+            alert_float('warning', response.message || 'Impossible d\'enregistrer le groupe.');
+        }
+    }).fail(function () {
+        alert_float('danger', 'Erreur lors de l\'enregistrement du groupe.');
+    });
     return false;
 }
 
 function new_program_category(){
   	"use strict";
-
+  	$('#program_category_modal .add-title').removeClass('hide');
+  	$('#program_category_modal .edit-title').addClass('hide');
+  	$('#program_category_modal input[name="id"]').val('');
+  	$('#program_category_modal input[name="name"]').val('');
   	$('#program_category_modal').modal('show');
 }
 
 function manage_program_category(form) {
   	"use strict";
-    if($.trim($('#name').val()) == ''){
-      $('#name').val('').focus();
-    }else{
-      var data = $(form).serialize();
-      var url = form.action;
-      $.post(url, data).done(function(response) {
-          response = JSON.parse(response);
-          if (response.success == true) {
-              if($.fn.DataTable.isDataTable('.table-program-category')){
-                  $('.table-program-category').DataTable().ajax.reload();
-              }
-              alert_float('success', response.message);
-              $('#program_category_modal').modal('hide');
-          }
-      });
+    var $form = $(form);
+    var $name = $form.find('input[name="name"]');
+    if($.trim($name.val()) == ''){
+      $name.val('').focus();
+      return false;
     }
+    var url = admin_url + 'affiliate/program_category';
+    var data = $form.serialize();
+    $.post(url, data).done(function(response) {
+        try {
+          response = typeof response === 'string' ? JSON.parse(response) : response;
+        } catch (e) {
+          alert_float('danger', 'Erreur lors de l\'enregistrement de la catégorie.');
+          return;
+        }
+        if (response.success == true) {
+            if($.fn.DataTable.isDataTable('.table-program-category')){
+                $('.table-program-category').DataTable().ajax.reload();
+            }
+            alert_float('success', response.message);
+            $('#program_category_modal').modal('hide');
+        } else {
+            alert_float('warning', response.message || 'Impossible d\'enregistrer la catégorie.');
+        }
+    }).fail(function () {
+        alert_float('danger', 'Erreur lors de l\'enregistrement de la catégorie.');
+    });
     return false;
 }
-
