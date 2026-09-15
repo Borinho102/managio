@@ -11,14 +11,15 @@ return App_table::find('cf_expenses')
         try {
             $aColumns = [
                 db_prefix() . 'cf_expenses.id as id',
-                'expense_name',
-                'operation',
-                'date',
+                db_prefix() . 'cf_expenses.expense_name as expense_name',
+                db_prefix() . 'cf_expenses.operation as operation',
+                db_prefix() . 'cf_expenses.date as date',
                 get_sql_select_client_company(),
                 db_prefix() . 'cf_expenses.id as reference_id',
-                'amount',
-                'amount as disbursement_amount',
-                'balance',
+                db_prefix() . 'cf_expenses.amount as amount',
+                db_prefix() . 'cf_expenses.amount as disbursement_amount',
+                // Qualify: accounting adds clients.balance — bare "balance" is ambiguous
+                db_prefix() . 'cf_expenses.balance as balance',
             ];
 
             $sIndexColumn = 'id';
@@ -59,7 +60,7 @@ return App_table::find('cf_expenses')
             $result = data_tables_init($aColumns, $sIndexColumn, $sTable, $join, $where, [
                 db_prefix() . 'currencies.name as currency_name',
                 db_prefix() . 'cf_expenses.clientid',
-                'buisness_id',
+                db_prefix() . 'cf_expenses.buisness_id as buisness_id',
             ]);
 
             $output  = $result['output'];

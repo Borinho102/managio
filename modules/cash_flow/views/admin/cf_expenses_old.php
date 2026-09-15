@@ -26,14 +26,15 @@ $_operations = [
 
 $aColumns = [
     db_prefix() . 'cf_expenses.id as id',
-    'expense_name',
-    'operation',
-    'date',
+    db_prefix() . 'cf_expenses.expense_name as expense_name',
+    db_prefix() . 'cf_expenses.operation as operation',
+    db_prefix() . 'cf_expenses.date as date',
     get_sql_select_client_company(),
     db_prefix() . 'cf_expenses.id as reference_id',
-    'amount',
-    'amount as disbursement_amount',
-    'balance',
+    db_prefix() . 'cf_expenses.amount as amount',
+    db_prefix() . 'cf_expenses.amount as disbursement_amount',
+    // Qualify: accounting adds clients.balance — bare "balance" is ambiguous
+    db_prefix() . 'cf_expenses.balance as balance',
 ];
 
 $join = [
@@ -55,7 +56,7 @@ foreach ($categories as $c) {
     }
 }
 if (count($_categories) > 0) {
-    $filter[] = 'AND category IN (' . implode(', ', $_categories) . ')';
+    $filter[] = 'AND ' . db_prefix() . 'cf_expenses.category IN (' . implode(', ', $_categories) . ')';
 }
 
 $_months = [];
@@ -65,7 +66,7 @@ for ($m = 1; $m <= 12; $m++) {
     }
 }
 if (count($_months) > 0) {
-    $filter[] = 'AND MONTH(date) IN (' . implode(', ', $_months) . ')';
+    $filter[] = 'AND MONTH(' . db_prefix() . 'cf_expenses.date) IN (' . implode(', ', $_months) . ')';
 }
 
 $years = [];
@@ -88,12 +89,12 @@ foreach ($years as $year) {
     }
 }
 if (count($_years) > 0) {
-    $filter[] = 'AND YEAR(date) IN (' . implode(', ', $_years) . ')';
+    $filter[] = 'AND YEAR(' . db_prefix() . 'cf_expenses.date) IN (' . implode(', ', $_years) . ')';
 }
 
 foreach ($_operations as $operation) {
     if ($this->ci->input->post('expenses_by_operation_' . $operation['name'])) {
-        $filter[] = 'AND operation = "' . $operation['id'] . '"';
+        $filter[] = 'AND ' . db_prefix() . 'cf_expenses.operation = "' . $operation['id'] . '"';
     }
 }
 
@@ -126,7 +127,7 @@ $sTable       = db_prefix() . 'cf_expenses';
 $result = data_tables_init($aColumns, $sIndexColumn, $sTable, $join, $where, [
     db_prefix() . 'currencies.name as currency_name',
     db_prefix() . 'cf_expenses.clientid',
-    'buisness_id',
+    db_prefix() . 'cf_expenses.buisness_id as buisness_id',
 ]);
 
 $output  = $result['output'];
