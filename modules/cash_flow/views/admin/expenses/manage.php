@@ -164,6 +164,20 @@
         });
         initDataTable('.table-cf_expenses', admin_url + 'cash_flow/table/' + buisness_id, [0], [0], Expenses_ServerParams,[2,'DESC']);
 
+        // Stop infinite spinner if the AJAX endpoint returns HTML/500 instead of JSON.
+        if ($.fn.DataTable.isDataTable('.table-cf_expenses')) {
+            $('.table-cf_expenses').DataTable().on('error.dt', function (e, settings, techNote, message) {
+                console.error('[cash_flow] DataTable error', message);
+                try {
+                    $('.table-cf_expenses').parents('.table-loading').removeClass('table-loading');
+                    $('.dataTables_processing').hide();
+                } catch (err) {}
+                if (typeof alert_float === 'function') {
+                    alert_float('danger', 'Impossible de charger les dépenses. Réessayez ou contactez le support.');
+                }
+            });
+        }
+
         init_cf_expense();
 
         $('#expense_convert_helper_modal').on('show.bs.modal', function() {

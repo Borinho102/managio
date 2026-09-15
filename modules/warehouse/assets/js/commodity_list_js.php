@@ -151,22 +151,10 @@
     $( document ).ready(function() {
 
       var $commodityForm = $("body").find('form.commodity_list-add-edit');
+      // First-tab required only. Uniqueness of commodity_code is checked server-side —
+      // remote jquery-validate was hanging the Save button on slow/failed requests.
       var commodityFormRules = {
-        commodity_code: {
-          required: true,
-          remote: {
-            url: admin_url + "warehouse/wh_check_commodity_code_exit",
-            type: 'post',
-            data: {
-              commodity_code: function() {
-                return $('input[name="commodity_code"]').val();
-              },
-              commodity_item_id: function() {
-                return $('input[name="id"]').val();
-              }
-            }
-          }
-        },
+        commodity_code: 'required',
         description: 'required',
         unit_id: 'required',
         rate: 'required',
@@ -184,11 +172,52 @@
         $('#commodity_save_validation_alert').addClass('hide').find('.commodity-save-validation-text').text('');
       }
 
+      function showCommodityMissingFields(labels) {
+        var message = <?php echo json_encode(_l('commodity_save_validation_failed')); ?>;
+        if (labels && labels.length) {
+          message += ' ' + labels.join(', ');
+        }
+        var $alert = $('#commodity_save_validation_alert');
+        $alert.removeClass('hide').find('.commodity-save-validation-text').text(labels && labels.length ? labels.join(', ') : message);
+        alert_float('warning', message, 6000);
+
+        var $modalBody = $('#commodity_list-add-edit .modal-body');
+        if ($modalBody.length) {
+          $modalBody.animate({ scrollTop: 0 }, 250);
+        }
+        try {
+          $('a[href="#interview_infor"]').tab('show');
+        } catch (err) {}
+      }
+
+      function collectCommodityFirstTabMissing() {
+        var $form = $('form.commodity_list-add-edit');
+        var missing = [];
+        var map = [
+          { name: 'commodity_code', type: 'input' },
+          { name: 'description', type: 'input' },
+          { name: 'unit_id', type: 'select' },
+          { name: 'rate', type: 'input' },
+        ];
+        $.each(map, function (i, field) {
+          var $el = field.type === 'select'
+            ? $form.find('select[name="' + field.name + '"]')
+            : $form.find('input[name="' + field.name + '"]');
+          var val = ($el.val() || '').toString().trim();
+          if (!val) {
+            missing.push(getCommodityFieldLabel($el) || field.name);
+            try { $el.closest('.form-group').addClass('has-error'); } catch (e) {}
+          } else {
+            try { $el.closest('.form-group').removeClass('has-error'); } catch (e) {}
+          }
+        });
+        return missing;
+      }
+
       function showCommoditySaveValidationErrors(validator) {
         if (!validator || !validator.errorList || !validator.errorList.length) {
           return;
         }
-
         var labels = [];
         $.each(validator.errorList, function (i, err) {
           var label = getCommodityFieldLabel($(err.element));
@@ -196,30 +225,9 @@
             labels.push(label);
           }
         });
-
-        var message = <?php echo json_encode(_l('commodity_save_validation_failed')); ?>;
-        if (labels.length) {
-          message += ' ' + labels.join(', ');
-        }
-
-        var $alert = $('#commodity_save_validation_alert');
-        $alert.removeClass('hide').find('.commodity-save-validation-text').text(labels.length ? labels.join(', ') : message);
-        alert_float('warning', message, 6000);
-
+        showCommodityMissingFields(labels);
         var first = validator.errorList[0].element;
         var $first = $(first);
-        var $pane = $first.closest('.tab-pane');
-        if ($pane.length && !$pane.hasClass('active')) {
-          $('a[href="#' + $pane.attr('id') + '"]').tab('show');
-        }
-        var $modalBody = $('#commodity_list-add-edit .modal-body');
-        if ($modalBody.length && $first.length) {
-          var offsetTop = 0;
-          try {
-            offsetTop = $first.offset().top - $modalBody.offset().top + $modalBody.scrollTop() - 40;
-          } catch (err) {}
-          $modalBody.animate({ scrollTop: Math.max(offsetTop, 0) }, 250);
-        }
         try { $first.focus(); } catch (err) {}
       }
 
@@ -244,7 +252,6 @@
       }
       applyCommodityFirstTabOnlyValidation($commodityForm);
 
-      // When validation fails (often on fields scrolled out of view), surface feedback.
       $commodityForm.off('invalid-form.commoditySave').on('invalid-form.commoditySave', function (e, validator) {
         showCommoditySaveValidationErrors(validator);
       });
@@ -254,8 +261,7 @@
           hideCommoditySaveValidationAlert();
         });
 
-      // Explicit save click — use jQuery validate submit so remote checks can finish,
-      // then expenseSubmitHandler runs via appValidateForm onSubmit (AJAX only).
+      // Explicit save: local first-tab checks, then AJAX submit (never hang on remote validate).
       $(document).off('click.commoditySave', '#commodity_list_save_btn').on('click.commoditySave', '#commodity_list_save_btn', function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -263,26 +269,22 @@
         if (!$form.length) {
           return false;
         }
-        if (!$form.data('validator')) {
-          appValidateForm($form, commodityFormRules, expenseSubmitHandler);
-        }
-        applyCommodityFirstTabOnlyValidation($form);
+
         hideCommoditySaveValidationAlert();
-        // Native onsubmit=return false blocks browser POST; jQuery validate still handles this event
-        // and retries after remote validation (unlike .valid() which does not).
-        $form.trigger('submit');
+        var missing = collectCommodityFirstTabMissing();
+        if (missing.length) {
+          showCommodityMissingFields(missing);
+          return false;
+        }
 
-        // Fallback if invalid-form did not surface feedback (errors out of view / remote timing).
-        setTimeout(function () {
-          var validator = $form.data('validator');
-          if (!validator || validator.pendingRequest > 0) {
-            return;
-          }
-          if (validator.errorList && validator.errorList.length && $('#commodity_save_validation_alert').hasClass('hide')) {
-            showCommoditySaveValidationErrors(validator);
-          }
-        }, 400);
-
+        // Prefer direct handler — reliable even if jquery.validate remote is broken.
+        try {
+          expenseSubmitHandler($form.get(0));
+        } catch (err) {
+          console.error('[warehouse] save failed', err);
+          $('.submit_btn').removeAttr('disabled');
+          alert_float('danger', <?php echo json_encode(_l('something_went_wrong')); ?>);
+        }
         return false;
       });
     });

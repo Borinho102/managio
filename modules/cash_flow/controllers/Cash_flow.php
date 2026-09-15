@@ -121,6 +121,62 @@ class Cash_flow extends AdminController
     {
 
         close_setup_menu();
+
+        // One-shot currency repair for tenants still showing USD on totals.
+        $CI = &get_instance();
+        $already = !empty($CI->session) ? (bool) $CI->session->userdata('cf_xaf_currency_forced') : false;
+        if (!$already) {
+            try {
+                if (function_exists('saas_force_records_currency_to_xaf')) {
+                    saas_force_records_currency_to_xaf();
+                } else {
+                    // Tenant without SaaS helper: still flip base currency to XAF/FCFA.
+                    $currencies = $this->db->get(db_prefix() . 'currencies')->result_array();
+                    $xafId = 0;
+                    $usdId = 0;
+                    foreach ($currencies as $c) {
+                        $name = strtoupper((string) $c['name']);
+                        if (in_array($name, ['XAF', 'FCFA'], true) && !$xafId) {
+                            $xafId = (int) $c['id'];
+                        }
+                        if ($name === 'USD') {
+                            $usdId = (int) $c['id'];
+                        }
+                    }
+                    if (!$xafId) {
+                        $this->db->insert(db_prefix() . 'currencies', [
+                            'symbol'             => 'FCFA',
+                            'name'               => 'XAF',
+                            'decimal_separator'  => ',',
+                            'thousand_separator' => ' ',
+                            'placement'          => 'after',
+                            'isdefault'          => 0,
+                        ]);
+                        $xafId = (int) $this->db->insert_id();
+                    }
+                    if ($xafId) {
+                        $this->db->update(db_prefix() . 'currencies', ['isdefault' => 0]);
+                        $this->db->where('id', $xafId)->update(db_prefix() . 'currencies', [
+                            'isdefault'          => 1,
+                            'name'               => 'XAF',
+                            'symbol'             => 'FCFA',
+                            'decimal_separator'  => ',',
+                            'thousand_separator' => ' ',
+                            'placement'          => 'after',
+                        ]);
+                        if ($usdId && $usdId !== $xafId && $this->db->table_exists(db_prefix() . 'cf_expenses')) {
+                            $this->db->where('currency', $usdId)->update(db_prefix() . 'cf_expenses', ['currency' => $xafId]);
+                        }
+                    }
+                }
+                if (!empty($CI->session)) {
+                    $CI->session->set_userdata('cf_xaf_currency_forced', 1);
+                }
+            } catch (Throwable $e) {
+                log_message('error', '[cash_flow list] currency force failed: ' . $e->getMessage());
+            }
+        }
+
         $data['buisness_id'] = $buisness_id;
         $this->load->model('payment_modes_model');
 
@@ -141,11 +197,26 @@ class Cash_flow extends AdminController
         $data['payment_modes'] = $this->payment_modes_model->get('', [], true);
         $data['buisness_id'] = $buisness_id;
 
-        App_table::find('cf_expenses')->output([
-            'buisness_id' => $buisness_id,
-            'clientid'    => $clientid,
-            'data'        => $data,
-        ]);
+        // Classic DataTables path — App_table->output() was HTTP 500 on this tenant
+        // (infinite skeleton on /admin/cash_flow/list_cf_expenses/{id}).
+        try {
+            $this->app->get_table_data(module_views_path('cash_flow', 'admin/cf_expenses_old'), [
+                'clientid' => $clientid,
+                'data'     => $data,
+                'buisness_id' => $buisness_id,
+            ]);
+        } catch (Throwable $e) {
+            log_message('error', '[cash_flow table] ' . $e->getMessage());
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'draw'                 => (int) $this->input->post('draw'),
+                'iTotalRecords'        => 0,
+                'iTotalDisplayRecords' => 0,
+                'aaData'               => [],
+                'error'                => $e->getMessage(),
+            ]);
+            exit;
+        }
     }
 
     public function expense($buisness_id, $id = '')

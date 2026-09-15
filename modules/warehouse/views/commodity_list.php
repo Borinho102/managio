@@ -1003,6 +1003,14 @@ if (empty($GLOBALS['warehouse_commodity_list_js_loaded'])) {
     require 'modules/warehouse/assets/js/commodity_list_js.php';
     require 'modules/warehouse/assets/js/inventory/scan_barcode_js.php';
 }
+// Always load standalone save LAST — survives parse/runtime errors in commodity_list_js.php.
+if (empty($GLOBALS['warehouse_commodity_save_standalone_loaded'])) {
+    $GLOBALS['warehouse_commodity_save_standalone_loaded'] = true;
+    $standalone = module_dir_path(WAREHOUSE_MODULE_NAME, 'assets/js/commodity_list_save_standalone.php');
+    if (is_file($standalone)) {
+        require $standalone;
+    }
+}
 ?>
 </body>
 </html>

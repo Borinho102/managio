@@ -421,6 +421,15 @@ function warehouse_load_js(){
             require $scan_barcode_js;
         }
     }
+
+    // Commodity save standalone — always last on this page (survives errors in commodity_list_js).
+    if (!(strpos($viewuri, '/admin/warehouse/commodity_list') === false) && empty($GLOBALS['warehouse_commodity_save_standalone_loaded'])) {
+        $GLOBALS['warehouse_commodity_save_standalone_loaded'] = true;
+        $standalone = module_dir_path(WAREHOUSE_MODULE_NAME, 'assets/js/commodity_list_save_standalone.php');
+        if (is_file($standalone)) {
+            require $standalone;
+        }
+    }
     
 	if (!(strpos($viewuri, '/admin/warehouse/add_loss_adjustment') === false)) {
          echo '<script src="' . module_dir_url(WAREHOUSE_MODULE_NAME, 'assets/plugins/handsontable/chosen.jquery.js') . '"></script>';
