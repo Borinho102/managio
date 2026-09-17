@@ -3204,6 +3204,12 @@ $lang['smtp_test_hint_generic']                            = 'Check host, port, 
 $lang['smtp_test_hint_connection_failed']                  = 'Could not connect to the SMTP server. Check host, port, and encryption (TLS/SSL).';
 $lang['smtp_test_hint_provider_rejected']                  = 'Connected and authenticated, but the provider rejected the message.';
 $lang['smtp_test_hint_zoho_blocked']                       = 'Zoho blocked sending due to unusual activity. <a href="https://mail.zoho.com/UnblockMe" target="_blank" rel="noopener">Unblock your Zoho account</a>, then retry.';
+$lang['smtp_zeptomail_setup_hint']                         = 'ZeptoMail: host <code>smtp.zeptomail.com</code>, port <code>587</code> + TLS, username must be <code>emailapikey</code>, password = <strong>Send Mail Token</strong> from ZeptoMail → Agent → SMTP/API (not your Zoho Mail login password). From address domain must be verified on that Agent. <a href="https://www.zoho.com/zeptomail/help/smtp-home.html" target="_blank" rel="noopener">ZeptoMail SMTP docs</a>.';
+$lang['zeptomail_api_key_label']                           = 'ZeptoMail Send Mail Token (SMTP password)';
+$lang['zeptomail_api_key_placeholder']                     = 'Paste Send Mail Token from ZeptoMail Agent';
+$lang['zeptomail_api_key_required']                        = 'No ZeptoMail token saved yet. Paste the Send Mail Token, then Save, then send a test email.';
+$lang['zeptomail_api_key_decrypt_failed']                  = 'Stored ZeptoMail token cannot be decrypted (or is empty). Clear the field, paste a fresh Send Mail Token from ZeptoMail → Agent → SMTP/API, then Save.';
+$lang['smtp_test_hint_zeptomail_auth_failed']              = 'ZeptoMail rejected the credentials (535). Use username <code>emailapikey</code> and the Agent <strong>Send Mail Token</strong> as password (SMTP/API tab). Do not use a Zoho Mail mailbox password. Also check Agent credits are not expired/blocked.';
 $lang['disable']                                           = 'Disable';
 $lang['enable']                                            = 'Enable';
 $lang['auto_dismiss_desktop_notifications_after']          = 'Auto Dismiss Desktop Notifications After X Seconds (0 to disable)';

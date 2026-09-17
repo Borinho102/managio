@@ -33,9 +33,21 @@ if (get_option('email_protocol') === 'zeptomail') {
     $config['smtp_port']   = 587;
     $config['smtp_user']   = 'emailapikey';
     $config['smtp_crypto'] = 'tls';
-    $_zk_raw               = get_option('zeptomail_api_key');
-    $_zk_dec               = !empty($_zk_raw) ? get_instance()->encryption->decrypt($_zk_raw) : '';
-    $config['smtp_pass']         = ($_zk_dec !== false && $_zk_dec !== '') ? $_zk_dec : $_zk_raw;
+    $_zk_raw = get_option('zeptomail_api_key');
+    $_zk_dec = ($_zk_raw !== '' && $_zk_raw !== null)
+        ? get_instance()->encryption->decrypt($_zk_raw)
+        : '';
+    if ($_zk_dec === false || $_zk_dec === null || $_zk_dec === '') {
+        log_message('error', '[email] zeptomail_api_key decrypt failed or empty — re-enter Send Mail Token in Settings → Email');
+        $config['smtp_pass'] = '';
+    } else {
+        // Tokens sometimes pasted with surrounding whitespace / "Zoho-enczapikey " prefix from API docs.
+        $_zk_dec = trim((string) $_zk_dec);
+        if (stripos($_zk_dec, 'zoho-enczapikey') === 0) {
+            $_zk_dec = trim(substr($_zk_dec, strlen('zoho-enczapikey')));
+        }
+        $config['smtp_pass'] = $_zk_dec;
+    }
     $config['zeptomail_api_key'] = $config['smtp_pass'];
 } else {
     $config['zeptomail_api_key'] = get_instance()->encryption->decrypt(get_option('zeptomail_api_key'));

@@ -121,19 +121,27 @@
 
         <div class="tw-my-8 tw-border tw-border-solid tw-rounded-md tw-border-neutral-200 tw-px-3 tw-py-4 zeptomail-fields<?= get_option('email_protocol') !== 'zeptomail' ? ' hide' : ''; ?>">
             <p class="tw-font-semibold">ZeptoMail SMTP</p>
-            <p class="text-muted">Connection is pre-configured: <code>smtp.zeptomail.com:587 TLS</code> &mdash; username <code>emailapikey</code>. Only your API key (password) is required.</p>
+            <p class="text-muted"><?= _l('smtp_zeptomail_setup_hint'); ?></p>
+            <?php
+            $zkStored    = get_option('zeptomail_api_key');
+            $zkDecryptOk = false;
+            if (! empty($zkStored)) {
+                $zkDec = $this->encryption->decrypt($zkStored);
+                $zkDecryptOk = ($zkDec !== false && $zkDec !== null && $zkDec !== '');
+            }
+            if (! empty($zkStored) && ! $zkDecryptOk) {
+                echo '<div class="alert alert-danger">' . _l('zeptomail_api_key_decrypt_failed') . '</div>';
+            } elseif (empty($zkStored)) {
+                echo '<div class="alert alert-warning">' . _l('zeptomail_api_key_required') . '</div>';
+            }
+            ?>
             <div class="form-group">
-                <label for="zeptomail_api_key">ZeptoMail API Key (SMTP Password)</label>
+                <label for="zeptomail_api_key"><?= _l('zeptomail_api_key_label'); ?></label>
                 <input type="password" class="form-control" id="zeptomail_api_key"
                     name="settings[zeptomail_api_key]"
-                    autocomplete="off"
-                    value="<?php
-                        $zk = get_option('zeptomail_api_key');
-                        if (!empty($zk)) {
-                            $zk_dec = $this->encryption->decrypt($zk);
-                            echo htmlspecialchars($zk_dec !== false ? $zk_dec : $zk, ENT_QUOTES);
-                        }
-                    ?>" />
+                    autocomplete="new-password"
+                    value=""
+                    placeholder="<?= e(! empty($zkStored) && $zkDecryptOk ? _l('smtp_password_unchanged_hint') : _l('zeptomail_api_key_placeholder')); ?>" />
             </div>
         </div>
 

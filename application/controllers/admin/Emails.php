@@ -277,16 +277,27 @@ class Emails extends AdminController
                     $hint = saas_smtp_test_error_hint($debug);
                 } else {
                     $lower = strtolower(strip_tags($debug));
-                    if (strpos($lower, 'authentication failed') !== false || strpos($lower, '535') !== false) {
+                    if ((strpos($lower, 'authentication failed') !== false || strpos($lower, '535') !== false)
+                        && get_option('email_protocol') === 'zeptomail') {
+                        $hint = _l('smtp_test_hint_zeptomail_auth_failed');
+                    } elseif (strpos($lower, 'authentication failed') !== false || strpos($lower, '535') !== false) {
                         $hint = _l('smtp_test_hint_auth_failed');
                     } elseif (strpos(strtolower((string) get_option('smtp_host')), 'zoho') !== false) {
                         $hint = _l('smtp_zoho_setup_hint');
                     }
                 }
-                $passCheck = get_option('smtp_password');
-                $passDec   = $passCheck !== '' ? $this->encryption->decrypt($passCheck) : '';
-                if ($passCheck !== '' && ($passDec === false || $passDec === '')) {
-                    $hint = _l('smtp_password_decrypt_failed') . ($hint ? '<br><br>' . $hint : '');
+                if (get_option('email_protocol') === 'zeptomail') {
+                    $zkCheck = get_option('zeptomail_api_key');
+                    $zkDec   = $zkCheck !== '' ? $this->encryption->decrypt($zkCheck) : '';
+                    if ($zkCheck === '' || $zkDec === false || $zkDec === '') {
+                        $hint = _l('zeptomail_api_key_decrypt_failed') . ($hint ? '<br><br>' . $hint : '');
+                    }
+                } else {
+                    $passCheck = get_option('smtp_password');
+                    $passDec   = $passCheck !== '' ? $this->encryption->decrypt($passCheck) : '';
+                    if ($passCheck !== '' && ($passDec === false || $passDec === '')) {
+                        $hint = _l('smtp_password_decrypt_failed') . ($hint ? '<br><br>' . $hint : '');
+                    }
                 }
 
                 set_debug_alert(

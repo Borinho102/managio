@@ -74,8 +74,15 @@ class Settings extends AdminController
         } else {
             unset($post_data['settings']['smtp_password']);
         }
-        if (!empty($post_data['settings']['zeptomail_api_key'])) {
-            $post_data['settings']['zeptomail_api_key'] = encrypt($post_data['settings']['zeptomail_api_key']);
+        if (isset($tmpData['settings']['zeptomail_api_key']) && $tmpData['settings']['zeptomail_api_key'] !== '') {
+            $newKey = $tmpData['settings']['zeptomail_api_key'];
+            $stored = get_option('zeptomail_api_key');
+            $dec    = !empty($stored) ? $this->encryption->decrypt($stored) : false;
+            if (($dec !== false && $dec === $newKey) || $newKey === $stored) {
+                unset($post_data['settings']['zeptomail_api_key']);
+            } else {
+                $post_data['settings']['zeptomail_api_key'] = encrypt($newKey);
+            }
         } else {
             unset($post_data['settings']['zeptomail_api_key']);
         }

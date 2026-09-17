@@ -4,7 +4,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 
 class Settings_model extends App_Model
 {
-    private $encrypted_fields = ['smtp_password', 'microsoft_mail_client_secret', 'google_mail_client_secret'];
+    private $encrypted_fields = ['smtp_password', 'zeptomail_api_key', 'microsoft_mail_client_secret', 'google_mail_client_secret'];
 
     public function __construct()
     {

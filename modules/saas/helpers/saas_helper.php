@@ -740,11 +740,20 @@ function saas_build_email_config_from_post(array $settings)
             ? $settings['zeptomail_api_key']
             : get_option('zeptomail_api_key');
         if (array_key_exists('zeptomail_api_key', $settings) && $settings['zeptomail_api_key'] !== '') {
-            $config['smtp_pass'] = $settings['zeptomail_api_key'];
+            $pass = trim((string) $settings['zeptomail_api_key']);
         } else {
             $decKey = !empty($rawKey) ? $CI->encryption->decrypt($rawKey) : '';
-            $config['smtp_pass'] = ($decKey !== false && $decKey !== '') ? $decKey : $rawKey;
+            if ($decKey === false || $decKey === null || $decKey === '') {
+                log_message('error', '[saas] zeptomail_api_key decrypt failed or empty');
+                $pass = '';
+            } else {
+                $pass = trim((string) $decKey);
+            }
         }
+        if ($pass !== '' && stripos($pass, 'zoho-enczapikey') === 0) {
+            $pass = trim(substr($pass, strlen('zoho-enczapikey')));
+        }
+        $config['smtp_pass']         = $pass;
         $config['zeptomail_api_key'] = $config['smtp_pass'];
     } else {
         $config['smtp_host'] = trim((string) $pick('smtp_host'));
@@ -891,6 +900,10 @@ function saas_smtp_test_error_hint($debug)
     }
 
     if (strpos($lower, 'authentication failed') !== false || strpos($lower, '535') !== false) {
+        if (strpos($lower, 'zeptomail') !== false || get_option('email_protocol') === 'zeptomail') {
+            return _l('smtp_test_hint_zeptomail_auth_failed');
+        }
+
         return _l('smtp_test_hint_auth_failed');
     }
 
