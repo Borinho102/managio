@@ -96,7 +96,12 @@
 
 <?php echo csrf_jquery_token() ?>
 <?php
-if (empty($affiliate) || !is_affiliate()) {
+$useNativeSaasAffiliatePortal = !empty($affiliate)
+    && function_exists('is_affiliate')
+    && is_affiliate()
+    && !(function_exists('saas_affiliate_management_active') && saas_affiliate_management_active());
+
+if (!$useNativeSaasAffiliatePortal) {
     $menu_list = get_old_result('tbl_saas_front_menus', array('slug' => 'main-menu'), false);
     if (!empty($menu_list)) {
         $this->load->model('cms_menuitems_model');
@@ -203,7 +208,7 @@ if (empty($affiliate) || !is_affiliate()) {
     ];
 }
 
-if (empty($affiliate) || is_affiliate()) {
+if (true) {
     ?>
     <!-- Navbar STart -->
     <header id="topnav" class="defaultscroll sticky bg-white">
@@ -233,7 +238,7 @@ if (empty($affiliate) || is_affiliate()) {
 
             <!--Login button Start-->
             <?php
-            if (empty($affiliate) || !is_affiliate()) {
+            if (!$useNativeSaasAffiliatePortal) {
                 ?>
                 <ul class="buy-button list-inline mb-0">
                     <li class="list-inline-item mb-0">
@@ -291,7 +296,7 @@ if (empty($affiliate) || is_affiliate()) {
 
                                     ?>
 
-                                    <a href="<?php echo $url; ?>" <?php echo $top_new_tab; ?>><?php echo _l($menu_value['slug']); ?></a>
+                                    <a href="<?php echo $url; ?>" <?php echo $top_new_tab; ?>><?php echo html_escape($menu_value['menu'] ?: _l($menu_value['slug'])); ?></a>
 
                                     <?php
                                 } else {

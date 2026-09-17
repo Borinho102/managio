@@ -16,19 +16,91 @@ $route['register'] = 'saas/frontcms/home/register';
 $route['register/(:any)'] = 'saas/frontcms/home/register/$1';
 $route['frontcms/(:any)'] = 'saas/frontcms/home/page/$1';
 $route['front'] = 'saas/frontcms/home/index';
-$route['affiliate-program'] = 'saas/frontcms/home/affiliate_program';
-$route['become_affiliator'] = 'saas/frontcms/home/become_affiliator';
-$route['affiliate'] = 'saas/frontcms/home/affiliate_program';
-$route['affiliate/verify/(:any)'] = 'saas/affiliate/auth/verify/$1';
-$route['affiliate/dashboard'] = 'saas/affiliate/dashboard';
-$route['affiliate/commissions'] = 'saas/affiliate/dashboard/commissions';
-$route['affiliate/payouts'] = 'saas/affiliate/dashboard/payouts';
-$route['affiliate/delete_payouts/(:any)'] = 'saas/affiliate/dashboard/delete_payouts/$1';
-$route['affiliate/payouts/(:any)/(:any)'] = 'saas/affiliate/dashboard/$1/$2';
-$route['affiliate/referrals'] = 'saas/affiliate/dashboard/referrals';
-$route['affiliate/settings'] = 'saas/affiliate/dashboard/settings';
-$route['affiliate/(:any)'] = 'saas/affiliate/auth/$1';
-$route['affiliate/auth/(:any)'] = 'saas/affiliate/auth/$1';
+
+/**
+ * Prefer Affiliate Management module over native SaaS affiliate when the module is active.
+ * Route file loads early — use a lightweight DB check (same pattern as saas_init).
+ */
+if (!function_exists('saas_affiliate_management_active')) {
+    function saas_affiliate_management_active()
+    {
+        static $active = null;
+        if ($active !== null) {
+            return $active;
+        }
+        $active = false;
+        if (!is_dir(FCPATH . 'modules/affiliate')) {
+            return $active;
+        }
+        try {
+            if (function_exists('get_instance')) {
+                $CI = @get_instance();
+                if ($CI && isset($CI->app_modules) && method_exists($CI->app_modules, 'is_active')) {
+                    $active = (bool) $CI->app_modules->is_active('affiliate');
+
+                    return $active;
+                }
+            }
+        } catch (Throwable $e) {
+            // fall through to mysqli
+        }
+        if (!function_exists('config_item')) {
+            return $active;
+        }
+        $host = config_item('database_hostname') ?: (defined('APP_DB_HOSTNAME') ? APP_DB_HOSTNAME : '');
+        $user = config_item('database_username') ?: (defined('APP_DB_USERNAME') ? APP_DB_USERNAME : '');
+        $pass = config_item('database_password') ?: (defined('APP_DB_PASSWORD') ? APP_DB_PASSWORD : '');
+        $name = config_item('default_database') ?: (defined('APP_DB_NAME') ? APP_DB_NAME : '');
+        if ($host === '' || $name === '') {
+            // Module present: prefer it over native when DB is not readable yet.
+            $active = true;
+
+            return $active;
+        }
+        $db = @mysqli_connect($host, $user, $pass, $name);
+        if (!$db) {
+            $active = true;
+
+            return $active;
+        }
+        $prefix = function_exists('db_prefix') ? db_prefix() : 'tbl';
+        $sql = "SELECT active FROM `{$prefix}modules` WHERE module_name = 'affiliate' LIMIT 1";
+        $result = @mysqli_query($db, $sql);
+        if ($result && ($row = mysqli_fetch_assoc($result))) {
+            $active = ((string) $row['active'] === '1' || (int) $row['active'] === 1);
+        } else {
+            // Module folder exists but not registered yet — still prefer it over native.
+            $active = true;
+        }
+        mysqli_close($db);
+
+        return $active;
+    }
+}
+
+// Native SaaS affiliate routes ONLY when Affiliate Management is not active.
+// The catch-all affiliate/(:any) was hijacking authentication_affiliate, usercontrol, store.
+if (!saas_affiliate_management_active()) {
+    $route['affiliate-program'] = 'saas/frontcms/home/affiliate_program';
+    $route['become_affiliator'] = 'saas/frontcms/home/become_affiliator';
+    $route['affiliate'] = 'saas/frontcms/home/affiliate_program';
+    $route['affiliate/verify/(:any)'] = 'saas/affiliate/auth/verify/$1';
+    $route['affiliate/dashboard'] = 'saas/affiliate/dashboard';
+    $route['affiliate/commissions'] = 'saas/affiliate/dashboard/commissions';
+    $route['affiliate/payouts'] = 'saas/affiliate/dashboard/payouts';
+    $route['affiliate/delete_payouts/(:any)'] = 'saas/affiliate/dashboard/delete_payouts/$1';
+    $route['affiliate/payouts/(:any)/(:any)'] = 'saas/affiliate/dashboard/$1/$2';
+    $route['affiliate/referrals'] = 'saas/affiliate/dashboard/referrals';
+    $route['affiliate/settings'] = 'saas/affiliate/dashboard/settings';
+    $route['affiliate/(:any)'] = 'saas/affiliate/auth/$1';
+    $route['affiliate/auth/(:any)'] = 'saas/affiliate/auth/$1';
+} else {
+    // Keep old marketing URLs but send visitors to Affiliate Management portal.
+    $route['affiliate-program'] = 'affiliate/authentication_affiliate/register';
+    $route['become_affiliator'] = 'affiliate/authentication_affiliate/register';
+    $route['affiliate'] = 'affiliate/authentication_affiliate/register';
+}
+
 $route['home'] = 'saas/frontcms/home/index';
 $route['signed_up'] = 'saas/gb/signed_up';
 $route['setup'] = 'saas/setup';

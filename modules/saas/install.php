@@ -246,7 +246,7 @@ function installed()
 (NULL, 'saas_front_slider', '1', 1),
 (NULL, 'home_slider_speed', '10', 1),
 (NULL, 'saas_server_wildcard', 'on', 1),
-(NULL, 'enable_affiliate', 'TRUE', 1),
+(NULL, 'enable_affiliate', 'FALSE', 1),
 (NULL, 'affiliate_commission_amount', '203', 1),
 (NULL, 'payment_rules_for_affiliates', 'no_payment_required', 1),
 (NULL, 'withdrawal_payment_method', 'a:2:{i:0;s:1:\"1\";i:1;s:9:\"instamojo\";}', 1),

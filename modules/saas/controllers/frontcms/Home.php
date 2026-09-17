@@ -311,6 +311,9 @@ class Home extends App_Controller
     public
     function affiliate_program($slug = null)
     {
+        if (function_exists('saas_affiliate_management_active') && saas_affiliate_management_active()) {
+            redirect(site_url('affiliate/authentication_affiliate/register'));
+        }
         $data['active_menu'] = 'affiliate';
         $data['title'] = _l('affiliate_program');
         $data['subview'] = $this->load->view('frontcms/frontend/affiliate', $data, true);
@@ -329,6 +332,9 @@ class Home extends App_Controller
     public
     function become_affiliator($slug = null)
     {
+        if (function_exists('saas_affiliate_management_active') && saas_affiliate_management_active()) {
+            redirect(site_url('affiliate/authentication_affiliate/register'));
+        }
         $data['active_menu'] = 'affiliate';
         $data['title'] = _l('affiliate_program');
         $data['subview'] = $this->load->view('affiliates/user/register', $data, true);

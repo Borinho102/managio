@@ -235,7 +235,9 @@ class Saas_model extends App_Model
             'href' => saas_url('coupons'),
             'children' => array(),
         );
-        // affiliates
+        // affiliates (native SaaS) — hidden when Affiliate Management module is active
+        if (!(function_exists('saas_affiliate_management_active') && saas_affiliate_management_active())
+            && get_option('enable_affiliate') == 'TRUE') {
         $menu['affiliates'] = array(
             'slug' => 'affiliates',
             'name' => _l('affiliates'),
@@ -273,6 +275,7 @@ class Saas_model extends App_Model
 
             ),
         );
+        }
         // front CMS
         $menu['front_cms'] = array(
             'slug' => 'front_cms',

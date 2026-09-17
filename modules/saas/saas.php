@@ -2,12 +2,12 @@
 /*
 Module Name: Perfect SaaS - Powerful Multi-Tenancy Module for Perfex CRM
 Description: this is a module for Perfex CRM that allows you to create a SaaS or multi-company enabled setup.
-Version: 1.3.5
+Version: 1.3.6
 Requires at least: 2.3.*
 */
 
 define('SaaS_MODULE', 'saas');
-define('SAAS_VERSION', '1.3.5');
+define('SAAS_VERSION', '1.3.6');
 
 
 $CI = &get_instance();
@@ -106,6 +106,7 @@ hooks()->add_action('admin_init', 'saas_init_menu_items');
 hooks()->add_action('app_init', 'saas_init');
 hooks()->add_action('app_init', 'saas_ensure_credentials_email_template', 20);
 hooks()->add_action('app_init', 'saas_ensure_tenant_email_settings', 25);
+hooks()->add_action('app_init', 'saas_prefer_affiliate_management_over_native', 26);
 hooks()->add_action('after_settings_updated', 'saas_after_settings_updated_sync_tenant_email', 20);
 hooks()->add_action('after_staff_login', 'check_login');
 register_merge_fields('saas/merge_fields/saas_company_merge_fields');
@@ -613,6 +614,27 @@ function saas_after_company_database_created_email($companyInfo)
     }
 }
 
+/**
+ * When Affiliate Management is installed/active, keep native SaaS affiliate off
+ * so landing menus and /affiliate URLs point to the module portal.
+ */
+function saas_prefer_affiliate_management_over_native()
+{
+    static $ran = false;
+    if ($ran) {
+        return;
+    }
+    $ran = true;
+
+    if (!function_exists('saas_affiliate_management_active') || !saas_affiliate_management_active()) {
+        return;
+    }
+
+    if (get_option('enable_affiliate') === 'TRUE') {
+        update_option('enable_affiliate', 'FALSE');
+    }
+}
+
 function saas_after_company_database_created_payin($companyInfo)
 {
     if (empty($companyInfo) || empty($companyInfo->domain) || !empty($companyInfo->for_seed)) {
@@ -994,12 +1016,20 @@ function saas_init_client_items()
                     'href' => site_url('pricing'),
                     'position' => 2,
                 ]);
-                // affiliate
-                add_theme_menu_item('affiliate', [
-                    'name' => _l('affiliate'),
-                    'href' => site_url('affiliate'),
-                    'position' => 3,
-                ]);
+                // Prefer Affiliate Management portal over native SaaS affiliate landing.
+                if (function_exists('saas_affiliate_management_active') && saas_affiliate_management_active()) {
+                    add_theme_menu_item('affiliate', [
+                        'name' => _l('affiliate'),
+                        'href' => site_url('affiliate/authentication_affiliate/register'),
+                        'position' => 3,
+                    ]);
+                } elseif (get_option('enable_affiliate') == 'TRUE') {
+                    add_theme_menu_item('affiliate', [
+                        'name' => _l('affiliate'),
+                        'href' => site_url('affiliate'),
+                        'position' => 3,
+                    ]);
+                }
                 add_theme_menu_item('find_my_company', [
                     'name' => _l('find_my_company'),
                     'href' => site_url('find-my-company'),
@@ -1041,7 +1071,8 @@ function saas_init_client_items()
                         'badge' => [],
                     ]);
                 }
-                if (get_option('enable_affiliate') == 'TRUE') {
+                if (get_option('enable_affiliate') == 'TRUE'
+                    && !(function_exists('saas_affiliate_management_active') && saas_affiliate_management_active())) {
                     add_theme_menu_item('referrals', [
                         'name' => _l('referrals'),
                         'href' => site_url('clients/referrals'),

@@ -9,6 +9,11 @@ echo form_open(admin_url('saas/affiliates/settings'), ['id' => 'settings-form'])
     </div>
     <!-- ************** general *************-->
     <div class="panel-body">
+        <?php if (function_exists('saas_affiliate_management_active') && saas_affiliate_management_active()) { ?>
+            <div class="alert alert-warning">
+                <?php echo _l('saas_native_affiliate_disabled_by_module'); ?>
+            </div>
+        <?php } ?>
         <div class="col-md-6">
             <div class="form-group">
                 <div class="checkbox checkbox-primary">
@@ -17,7 +22,8 @@ echo form_open(admin_url('saas/affiliates/settings'), ['id' => 'settings-form'])
                         echo 'checked';
                     }
                     ?>
-                           id="enable_affiliate">
+                           id="enable_affiliate"
+                           <?php echo (function_exists('saas_affiliate_management_active') && saas_affiliate_management_active()) ? 'disabled' : ''; ?>>
                     <label>
                         <?php echo _l('enable_affiliate'); ?>
                     </label>

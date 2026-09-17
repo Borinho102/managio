@@ -353,6 +353,7 @@ $lang['referral'] = "Referral";
 $lang['minimum'] = "Minimum";
 $lang['withdrawal'] = "Withdrawal";
 $lang['enable_affiliate'] = "Enable Affiliate";
+$lang['saas_native_affiliate_disabled_by_module'] = "Affiliate Management is active. The native Managio/SaaS affiliate landing and portal are disabled. Public visitors are sent to Affiliate Management registration (<code>affiliate/authentication_affiliate/register</code>). Use the Affiliate sidebar menu to manage programs.";
 $lang['payment_rules_for_affiliates'] = "Payment Rules for Affiliates";
 $lang['affiliate_rule'] = "Affiliate Rule";
 $lang['only_first_subscription_payment'] = "Only first subscription payment";
