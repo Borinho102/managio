@@ -21,6 +21,11 @@
 </div>
 <div class="tab-content mtop15">
     <div role="tabpanel" class="tab-pane active" id="email_config">
+        <?php if (function_exists('is_subdomain') && is_subdomain() && (string) get_option('saas_use_own_email_settings') !== '1') { ?>
+        <div class="alert alert-info">
+            <?= _l('saas_tenant_email_inherited_notice'); ?>
+        </div>
+        <?php } ?>
         <?php
         if (! empty(get_option('smtp_email'))) {
             if (get_option('email_protocol') !== 'google' && preg_match('/gmail.com/', get_option('smtp_email'))) {

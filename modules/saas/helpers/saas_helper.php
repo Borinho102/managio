@@ -919,6 +919,130 @@ function saas_smtp_test_error_hint($debug)
 }
 
 /**
+ * Whether the current instance has usable mail settings for its protocol.
+ */
+function saas_tenant_email_settings_ready()
+{
+    $protocol = (string) get_option('email_protocol');
+    $from     = trim((string) get_option('smtp_email'));
+    if ($from === '') {
+        return false;
+    }
+
+    if ($protocol === 'zeptomail') {
+        $key = get_option('zeptomail_api_key');
+
+        return $key !== '' && $key !== null && $key !== false;
+    }
+
+    if (in_array($protocol, ['microsoft', 'google'], true)) {
+        return true;
+    }
+
+    if ($protocol === 'mail' || $protocol === 'sendmail') {
+        return true;
+    }
+
+    // Classic SMTP
+    return trim((string) get_option('smtp_host')) !== ''
+        && trim((string) get_option('smtp_password')) !== '';
+}
+
+/**
+ * Fingerprint of master email options (stored on master DB).
+ */
+function saas_compute_email_settings_fingerprint_from_values(array $values)
+{
+    $parts = [];
+    foreach (saas_master_email_option_keys() as $name) {
+        $parts[] = $name . '=' . (string) ($values[$name] ?? '');
+    }
+
+    return md5(implode('|', $parts));
+}
+
+/**
+ * Read master email option values (name => value).
+ *
+ * @return array<string,string>
+ */
+function saas_get_master_email_option_values()
+{
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+
+    $cache = [];
+    if (!function_exists('config_db')) {
+        return $cache;
+    }
+
+    $masterDb = config_db(null, true);
+    if (empty($masterDb)) {
+        return $cache;
+    }
+
+    $optionsTable = db_prefix() . 'options';
+    if (!$masterDb->table_exists($optionsTable)) {
+        return $cache;
+    }
+
+    foreach (saas_master_email_option_keys() as $name) {
+        $row = $masterDb->get_where($optionsTable, ['name' => $name])->row();
+        $cache[$name] = (!empty($row) && $row->value !== null) ? (string) $row->value : '';
+    }
+
+    return $cache;
+}
+
+/**
+ * Refresh Perfex option cache for the current request after raw DB writes.
+ *
+ * @param array<string,string> $values
+ */
+function saas_refresh_option_cache(array $values)
+{
+    if (empty($values)) {
+        return;
+    }
+
+    static $map = [];
+    static $registered = false;
+    $map = array_merge($map, $values);
+
+    if ($registered) {
+        return;
+    }
+    $registered = true;
+
+    hooks()->add_filter('get_option', function ($val, $name) use (&$map) {
+        if (array_key_exists($name, $map)) {
+            return $map[$name];
+        }
+
+        return $val;
+    }, 1);
+}
+
+/**
+ * Persist / refresh master email fingerprint option after SMTP changes.
+ */
+function saas_update_master_email_settings_fingerprint()
+{
+    if (!function_exists('saas_is_master_instance') || !saas_is_master_instance()) {
+        return;
+    }
+
+    $values = [];
+    foreach (saas_master_email_option_keys() as $name) {
+        $values[$name] = (string) get_option($name);
+    }
+    $fp = saas_compute_email_settings_fingerprint_from_values($values);
+    update_option('saas_email_settings_fingerprint', $fp);
+}
+
+/**
  * Copy master SMTP/email settings into a tenant database.
  */
 function saas_sync_master_email_settings_to_tenant($db_name = null, $only_if_empty = true)
@@ -942,9 +1066,8 @@ function saas_sync_master_email_settings_to_tenant($db_name = null, $only_if_emp
         return false;
     }
 
-    $tenantDb = (!empty($CI->db->database) && $CI->db->database === $db_name)
-        ? $CI->db
-        : config_db($db_name);
+    $isCurrentTenant = (!empty($CI->db->database) && $CI->db->database === $db_name);
+    $tenantDb = $isCurrentTenant ? $CI->db : config_db($db_name);
     if (empty($tenantDb)) {
         return false;
     }
@@ -955,9 +1078,21 @@ function saas_sync_master_email_settings_to_tenant($db_name = null, $only_if_emp
     }
 
     $synced = 0;
+    $applied = [];
     foreach (saas_master_email_option_keys() as $name) {
         $masterRow = $masterDb->get_where($optionsTable, ['name' => $name])->row();
-        if (empty($masterRow) || $masterRow->value === '' || $masterRow->value === null) {
+        $masterVal = (!empty($masterRow) && $masterRow->value !== null) ? (string) $masterRow->value : '';
+
+        // Force mode: clear stale tenant secrets when master has no value for that key.
+        if ($masterVal === '') {
+            if (!$only_if_empty) {
+                $tenantRow = $tenantDb->get_where($optionsTable, ['name' => $name])->row();
+                if (!empty($tenantRow) && $tenantRow->value !== '' && $tenantRow->value !== null) {
+                    $tenantDb->where('name', $name)->update($optionsTable, ['value' => '']);
+                    $synced++;
+                    $applied[$name] = '';
+                }
+            }
             continue;
         }
 
@@ -965,21 +1100,117 @@ function saas_sync_master_email_settings_to_tenant($db_name = null, $only_if_emp
         if (empty($tenantRow)) {
             $tenantDb->insert($optionsTable, [
                 'name'     => $name,
-                'value'    => $masterRow->value,
+                'value'    => $masterVal,
                 'autoload' => 1,
             ]);
             $synced++;
-        } elseif (!$only_if_empty || empty($tenantRow->value)) {
-            $tenantDb->where('name', $name)->update($optionsTable, ['value' => $masterRow->value]);
+            $applied[$name] = $masterVal;
+        } elseif (!$only_if_empty) {
+            if ((string) $tenantRow->value !== $masterVal) {
+                $tenantDb->where('name', $name)->update($optionsTable, ['value' => $masterVal]);
+                $synced++;
+                $applied[$name] = $masterVal;
+            }
+        } elseif (empty($tenantRow->value)) {
+            $tenantDb->where('name', $name)->update($optionsTable, ['value' => $masterVal]);
             $synced++;
+            $applied[$name] = $masterVal;
         }
+    }
+
+    if ($synced > 0 && $isCurrentTenant) {
+        saas_refresh_option_cache($applied);
     }
 
     return $synced > 0;
 }
 
 /**
- * On tenant requests, inherit master SMTP when tenant mail is not configured.
+ * Push master email settings to every tenant company database.
+ *
+ * @param bool $force When true, overwrite existing tenant SMTP/ZeptoMail values.
+ * @return int Number of tenants updated
+ */
+function saas_sync_master_email_settings_to_all_tenants($force = true)
+{
+    $CI = &get_instance();
+    if (empty($CI->db) || !$CI->db->table_exists('tbl_saas_companies')) {
+        return 0;
+    }
+
+    if (function_exists('saas_is_master_instance') && !saas_is_master_instance()) {
+        return 0;
+    }
+
+    saas_update_master_email_settings_fingerprint();
+
+    $companies = $CI->db
+        ->select('db_name')
+        ->from('tbl_saas_companies')
+        ->where('db_name IS NOT NULL', null, false)
+        ->where('db_name !=', '')
+        ->group_start()
+            ->where('for_seed IS NULL', null, false)
+            ->or_where('for_seed', 0)
+            ->or_where('for_seed', '0')
+        ->group_end()
+        ->get()
+        ->result();
+
+    $updated = 0;
+    foreach ($companies as $company) {
+        if (empty($company->db_name)) {
+            continue;
+        }
+        try {
+            if (saas_sync_master_email_settings_to_tenant($company->db_name, !$force)) {
+                $updated++;
+            }
+        } catch (Throwable $e) {
+            log_message('error', '[saas] email sync to ' . $company->db_name . ' failed: ' . $e->getMessage());
+        }
+    }
+
+    return $updated;
+}
+
+/**
+ * After master SMTP/email settings are saved, push them to all tenants.
+ *
+ * @param array $data
+ * @param int   $affectedRows
+ */
+function saas_after_settings_updated_sync_tenant_email($data, $affectedRows = 0)
+{
+    if (!function_exists('saas_is_master_instance') || !saas_is_master_instance()) {
+        return;
+    }
+
+    $settings = isset($data['settings']) && is_array($data['settings']) ? $data['settings'] : [];
+    if (empty($settings)) {
+        return;
+    }
+
+    $emailKeys = array_flip(saas_master_email_option_keys());
+    $touched   = false;
+    foreach ($settings as $name => $_val) {
+        if (isset($emailKeys[$name])) {
+            $touched = true;
+            break;
+        }
+    }
+
+    if (!$touched) {
+        return;
+    }
+
+    $count = saas_sync_master_email_settings_to_all_tenants(true);
+    log_message('info', '[saas] master email settings pushed to ' . $count . ' tenant(s)');
+}
+
+/**
+ * On tenant requests, keep SMTP in sync with the working master configuration.
+ * Tenants may opt out with option saas_use_own_email_settings = 1.
  */
 function saas_ensure_tenant_email_settings()
 {
@@ -993,11 +1224,65 @@ function saas_ensure_tenant_email_settings()
         return;
     }
 
-    if (!empty(get_option('smtp_host')) && !empty(get_option('smtp_email'))) {
+    // Explicit opt-out: tenant manages its own SMTP.
+    if ((string) get_option('saas_use_own_email_settings') === '1') {
+        if (!saas_tenant_email_settings_ready()) {
+            saas_sync_master_email_settings_to_tenant(null, true);
+        }
+
         return;
     }
 
-    saas_sync_master_email_settings_to_tenant(null, true);
+    if (!function_exists('config_db')) {
+        return;
+    }
+
+    $masterDb = config_db(null, true);
+    if (empty($masterDb)) {
+        return;
+    }
+
+    $optionsTable = db_prefix() . 'options';
+    if (!$masterDb->table_exists($optionsTable)) {
+        return;
+    }
+
+    $fpRow = $masterDb->get_where($optionsTable, ['name' => 'saas_email_settings_fingerprint'])->row();
+    $masterFp = (!empty($fpRow) && $fpRow->value !== '') ? (string) $fpRow->value : '';
+
+    if ($masterFp === '') {
+        $masterValues = saas_get_master_email_option_values();
+        if (empty($masterValues['smtp_email'])
+            && empty($masterValues['zeptomail_api_key'])
+            && empty($masterValues['smtp_password'])
+            && empty($masterValues['smtp_host'])) {
+            return;
+        }
+        $masterFp = saas_compute_email_settings_fingerprint_from_values($masterValues);
+        $existing = $masterDb->get_where($optionsTable, ['name' => 'saas_email_settings_fingerprint'])->row();
+        if (empty($existing)) {
+            $masterDb->insert($optionsTable, [
+                'name'     => 'saas_email_settings_fingerprint',
+                'value'    => $masterFp,
+                'autoload' => 1,
+            ]);
+        } else {
+            $masterDb->where('name', 'saas_email_settings_fingerprint')->update($optionsTable, ['value' => $masterFp]);
+        }
+    }
+
+    $localValues = [];
+    foreach (saas_master_email_option_keys() as $name) {
+        $localValues[$name] = (string) get_option($name);
+    }
+    $localFp = saas_compute_email_settings_fingerprint_from_values($localValues);
+
+    if ($masterFp === $localFp && saas_tenant_email_settings_ready()) {
+        return;
+    }
+
+    // Force overwrite so broken/outdated tenant SMTP matches parent Managio.
+    saas_sync_master_email_settings_to_tenant(null, false);
 }
 
 /**

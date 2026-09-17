@@ -2,12 +2,12 @@
 /*
 Module Name: Perfect SaaS - Powerful Multi-Tenancy Module for Perfex CRM
 Description: this is a module for Perfex CRM that allows you to create a SaaS or multi-company enabled setup.
-Version: 1.3.4
+Version: 1.3.5
 Requires at least: 2.3.*
 */
 
 define('SaaS_MODULE', 'saas');
-define('SAAS_VERSION', '1.3.4');
+define('SAAS_VERSION', '1.3.5');
 
 
 $CI = &get_instance();
@@ -106,6 +106,7 @@ hooks()->add_action('admin_init', 'saas_init_menu_items');
 hooks()->add_action('app_init', 'saas_init');
 hooks()->add_action('app_init', 'saas_ensure_credentials_email_template', 20);
 hooks()->add_action('app_init', 'saas_ensure_tenant_email_settings', 25);
+hooks()->add_action('after_settings_updated', 'saas_after_settings_updated_sync_tenant_email', 20);
 hooks()->add_action('after_staff_login', 'check_login');
 register_merge_fields('saas/merge_fields/saas_company_merge_fields');
 register_merge_fields('saas/merge_fields/affiliate_merge_fields');
@@ -607,7 +608,8 @@ function saas_after_company_database_created_email($companyInfo)
     }
 
     if (function_exists('saas_sync_master_email_settings_to_tenant')) {
-        saas_sync_master_email_settings_to_tenant($companyInfo->db_name, true);
+        // Force copy so new tenants get the working parent SMTP immediately.
+        saas_sync_master_email_settings_to_tenant($companyInfo->db_name, false);
     }
 }
 

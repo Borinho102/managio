@@ -3226,6 +3226,7 @@ $lang['zeptomail_api_key_placeholder']                     = 'Coller le Send Mai
 $lang['zeptomail_api_key_required']                        = 'Aucun token ZeptoMail enregistré. Collez le Send Mail Token, Enregistrer, puis testez.';
 $lang['zeptomail_api_key_decrypt_failed']                  = 'Le token ZeptoMail stocké est illisible ou vide. Videz le champ, collez un nouveau Send Mail Token (Agent → SMTP/API), puis Enregistrer.';
 $lang['smtp_test_hint_zeptomail_auth_failed']              = 'ZeptoMail a refusé les identifiants (535). Utilisez l\'utilisateur <code>emailapikey</code> et le <strong>Send Mail Token</strong> de l\'Agent (onglet SMTP/API). Pas le mot de passe Zoho Mail. Vérifiez aussi que les crédits Agent ne sont pas expirés/bloqués.';
+$lang['saas_tenant_email_inherited_notice']                = 'Les paramètres SMTP de ce compte client sont synchronisés automatiquement avec le site parent Managio. Toute modification locale sera écrasée au prochain chargement sauf si l\'option <code>saas_use_own_email_settings</code> vaut 1.';
 $lang['disable']                                           = 'Désactiver';
 $lang['enable']                                            = 'Activer';
 $lang['auto_dismiss_desktop_notifications_after']          = 'Rejet automatique des notifications après X seconds (0 pour désactiver)';

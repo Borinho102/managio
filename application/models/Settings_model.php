@@ -210,6 +210,8 @@ class Settings_model extends App_Model
             }
         }
 
+        hooks()->do_action('after_settings_updated', $data, $affectedRows);
+
         return $affectedRows;
     }
 
