@@ -118,9 +118,27 @@ echo form_open_multipart($actionUrl, $formAttributes);
         var slug = "<?= e($group['id']); ?>";
 
         <?php if ($group['id'] == 'email') { ?>
-        init_editor('.email-html-editor', {
-            append_plugins: 'preview',
-            toolbar: "fontfamily fontsize | forecolor backcolor | bold italic | alignleft aligncenter alignright alignjustify | image link | bullist numlist | restoredraft | preview",
+        try {
+            if (typeof init_editor === 'function' && $('.email-html-editor').length) {
+                init_editor('.email-html-editor', {
+                    append_plugins: 'preview',
+                    toolbar: "fontfamily fontsize | forecolor backcolor | bold italic | alignleft aligncenter alignright alignjustify | image link | bullist numlist | restoredraft | preview",
+                });
+            }
+        } catch (e) {
+            console.warn('email editor init skipped', e);
+        }
+
+        // Explicit tab switch — nested tabs inside settings form can fail silently.
+        $('#settings-form a[data-toggle="tab"]').on('click', function(e) {
+            e.preventDefault();
+            var target = $(this).attr('href');
+            $(this).tab('show');
+            if (target) {
+                $(target).addClass('active').siblings('.tab-pane').removeClass('active');
+                $(this).closest('ul').find('li').removeClass('active');
+                $(this).parent('li').addClass('active');
+            }
         });
         <?php } ?>
 

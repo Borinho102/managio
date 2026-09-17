@@ -42,9 +42,12 @@
         <!-- fake fields are a workaround for chrome autofill getting the wrong fields -->
         <input type="text" class="fake-autofill-field" name="fakeusernameremembered" value='' tabindex="-1"/>
         <input type="password" class="fake-autofill-field" name="fakepasswordremembered" value='' tabindex="-1"/>
-        <h4 style="margin-top:-20px;" class="tw-font-semibold"><?php echo _l('settings_smtp_settings_heading'); ?>
-            <small class="text-muted"><?php echo _l('settings_smtp_settings_subheading'); ?></small>
-        </h4>
+        <div class="tw-flex tw-items-center tw-justify-between tw-gap-3 tw-mb-4">
+            <h4 class="tw-font-semibold tw-m-0"><?php echo _l('settings_smtp_settings_heading'); ?>
+                <small class="text-muted"><?php echo _l('settings_smtp_settings_subheading'); ?></small>
+            </h4>
+            <button type="submit" class="btn btn-primary"><?php echo _l('settings_save'); ?></button>
+        </div>
         <hr/>
         <div class="form-group">
 
@@ -257,10 +260,18 @@
         </div>
         <?php echo render_input('settings[smtp_email_charset]', 'settings_email_charset', get_option('smtp_email_charset')); ?>
         <?php echo render_input('settings[bcc_emails]', 'bcc_all_emails', get_option('bcc_emails')); ?>
-        <?php echo render_textarea('settings[email_signature]', 'settings_email_signature', get_option('email_signature'), [], '', '', 'tinymce tinymce-manual email-html-editor'); ?>
-        <hr/>
-        <?php echo render_textarea('settings[email_header]', 'email_header', get_option('email_header'), ['rows' => 15], '', '', 'tinymce tinymce-manual email-html-editor'); ?>
-        <?php echo render_textarea('settings[email_footer]', 'email_footer', get_option('email_footer'), ['rows' => 15], '', '', 'tinymce tinymce-manual email-html-editor'); ?>
+        <?php
+        // Avoid TinyMCE/html_purify fatals that truncate the settings page mid-render.
+        try {
+            echo render_textarea('settings[email_signature]', 'settings_email_signature', get_option('email_signature'), ['data-entities-encode' => 'true']);
+            echo '<hr/>';
+            echo render_textarea('settings[email_header]', 'email_header', get_option('email_header'), ['rows' => 15, 'data-entities-encode' => 'true']);
+            echo render_textarea('settings[email_footer]', 'email_footer', get_option('email_footer'), ['rows' => 15, 'data-entities-encode' => 'true']);
+        } catch (Throwable $e) {
+            log_message('error', '[saas email settings] textarea render failed: ' . $e->getMessage());
+            echo '<div class="alert alert-warning">Email signature/header/footer could not be loaded. SMTP settings can still be saved.</div>';
+        }
+        ?>
         <hr/>
         <h4><?php echo _l('settings_send_test_email_heading'); ?></h4>
         <p class="text-muted"><?php echo _l('settings_send_test_email_subheading'); ?></p>
@@ -324,11 +335,15 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     onProtocolChange();
 
-    if (typeof init_editor === 'function') {
-        init_editor('.email-html-editor', {
-            append_plugins: 'preview',
-            toolbar: "fontfamily fontsize | forecolor backcolor | bold italic | alignleft aligncenter alignright alignjustify | image link | bullist numlist | restoredraft | preview",
-        });
+    try {
+        if (typeof init_editor === 'function' && document.querySelector('.email-html-editor')) {
+            init_editor('.email-html-editor', {
+                append_plugins: 'preview',
+                toolbar: "fontfamily fontsize | forecolor backcolor | bold italic | alignleft aligncenter alignright alignjustify | image link | bullist numlist | restoredraft | preview",
+            });
+        }
+    } catch (e) {
+        console.warn('saas email editor init skipped', e);
     }
 
     var runTest = function () {

@@ -42,11 +42,15 @@
         <!-- fake fields are a workaround for chrome autofill getting the wrong fields -->
         <input type="text" class="fake-autofill-field" name="fakeusernameremembered" value='' tabindex="-1" />
         <input type="password" class="fake-autofill-field" name="fakepasswordremembered" value='' tabindex="-1" />
-        <h4 style="margin-top:-20px;" class="tw-font-semibold">
-            <?= _l('settings_smtp_settings_heading'); ?>
-            <small
-                class="text-muted"><?= _l('settings_smtp_settings_subheading'); ?></small>
-        </h4>
+        <div class="tw-flex tw-items-center tw-justify-between tw-gap-3 tw-mb-4">
+            <h4 class="tw-font-semibold tw-m-0">
+                <?= _l('settings_smtp_settings_heading'); ?>
+                <small class="text-muted"><?= _l('settings_smtp_settings_subheading'); ?></small>
+            </h4>
+            <button type="submit" class="btn btn-primary" form="settings-form">
+                <?= _l('settings_save'); ?>
+            </button>
+        </div>
         <hr />
         <div class="form-group">
 
@@ -144,21 +148,21 @@
                         class="tw-select-all"><?= admin_url('smtp_oauth_microsoft/token'); ?></span>
                 </p>
                 <div class="form-group">
-                    <label for="ClientId">Client Id</label>
-                    <input type="text" class="form-control" id="ClientId" name="settings[microsoft_mail_client_id]"
-                        value="<?= get_option('microsoft_mail_client_id'); ?>" />
+                    <label for="microsoft_mail_client_id">Client Id</label>
+                    <input type="text" class="form-control" id="microsoft_mail_client_id" name="settings[microsoft_mail_client_id]"
+                        value="<?= e(get_option('microsoft_mail_client_id')); ?>" />
                 </div>
                 <div class="form-group">
-                    <label for="clientSecret">Client Secret</label>
-                    <input type="password" class="form-control" id="clientSecret"
+                    <label for="microsoft_mail_client_secret">Client Secret</label>
+                    <input type="password" class="form-control" id="microsoft_mail_client_secret"
                         name="settings[microsoft_mail_client_secret]"
-                        value="<?= $this->encryption->decrypt(get_option('microsoft_mail_client_secret')); ?>" />
+                        value="<?= htmlspecialchars((string) ($this->encryption->decrypt(get_option('microsoft_mail_client_secret')) ?: ''), ENT_QUOTES, 'UTF-8'); ?>" />
                 </div>
                 <div class="form-group">
-                    <label for="tenantId">Tenant ID (only relevant for Azure)</label>
-                    <input type="text" class="form-control" id="tenantId"
+                    <label for="microsoft_mail_azure_tenant_id">Tenant ID (only relevant for Azure)</label>
+                    <input type="text" class="form-control" id="microsoft_mail_azure_tenant_id"
                         name="settings[microsoft_mail_azure_tenant_id]"
-                        value="<?= get_option('microsoft_mail_azure_tenant_id'); ?>" />
+                        value="<?= e(get_option('microsoft_mail_azure_tenant_id')); ?>" />
                 </div>
                 <?php if (! empty(get_option('microsoft_mail_client_id')) && ! empty(get_option('microsoft_mail_client_secret'))) { ?>
                 <a href="<?= admin_url('smtp_oauth_microsoft/token'); ?>"
@@ -184,15 +188,15 @@
                         class="tw-select-all"><?= admin_url('smtp_oauth_google/token'); ?></span>
                 </p>
                 <div class="form-group">
-                    <label for="ClientId">Client Id</label>
-                    <input type="text" class="form-control" id="ClientId" name="settings[google_mail_client_id]"
-                        value="<?= get_option('google_mail_client_id'); ?>" />
+                    <label for="google_mail_client_id">Client Id</label>
+                    <input type="text" class="form-control" id="google_mail_client_id" name="settings[google_mail_client_id]"
+                        value="<?= e(get_option('google_mail_client_id')); ?>" />
                 </div>
                 <div class="form-group">
-                    <label for="clientSecret">Client Secret</label>
-                    <input type="password" class="form-control" id="clientSecret"
+                    <label for="google_mail_client_secret">Client Secret</label>
+                    <input type="password" class="form-control" id="google_mail_client_secret"
                         name="settings[google_mail_client_secret]"
-                        value="<?= $this->encryption->decrypt(get_option('google_mail_client_secret')); ?>" />
+                        value="<?= htmlspecialchars((string) ($this->encryption->decrypt(get_option('google_mail_client_secret')) ?: ''), ENT_QUOTES, 'UTF-8'); ?>" />
                 </div>
                 <?php if (! empty(get_option('google_mail_client_id')) && ! empty(get_option('google_mail_client_secret'))) { ?>
                 <a href="<?= admin_url('smtp_oauth_google/token'); ?>"
@@ -207,17 +211,13 @@
             </div>
 
             <div class="form-group mtop15">
-                <label
-                    for="smtp_encryption"><?= _l('smtp_encryption'); ?></label><br />
-                <select name="settings[smtp_encryption]" class="selectpicker" data-width="100%">
+                <label for="smtp_encryption"><?= _l('smtp_encryption'); ?></label><br />
+                <select name="settings[smtp_encryption]" id="smtp_encryption" class="form-control selectpicker" data-width="100%">
                     <option value="" <?= get_option('smtp_encryption') == '' ? 'selected' : '' ?>>
                         <?= _l('smtp_encryption_none'); ?>
                     </option>
-                    <option value="ssl" <?= get_option('smtp_encryption') == 'ssl' ? 'selected' : '' ?>>SSL
-                    </option>
-                    <option value="tls" <?= get_option('smtp_encryption') == 'tls' ? 'selected' : '' ?>>TLS
-                    </option>
-
+                    <option value="ssl" <?= get_option('smtp_encryption') == 'ssl' ? 'selected' : '' ?>>SSL</option>
+                    <option value="tls" <?= get_option('smtp_encryption') == 'tls' ? 'selected' : '' ?>>TLS</option>
                 </select>
             </div>
             <?= render_input('settings[smtp_host]', 'settings_email_host', get_option('smtp_host')); ?>
@@ -251,10 +251,19 @@ echo render_input('settings[smtp_password]', 'settings_email_password', $ps, 'pa
         </div>
         <?= render_input('settings[smtp_email_charset]', 'settings_email_charset', get_option('smtp_email_charset')); ?>
         <?= render_input('settings[bcc_emails]', 'bcc_all_emails', get_option('bcc_emails')); ?>
-        <?= render_textarea('settings[email_signature]', 'settings_email_signature', get_option('email_signature'), [], '', '', 'tinymce tinymce-manual email-html-editor'); ?>
-        <hr />
-        <?= render_textarea('settings[email_header]', 'email_header', get_option('email_header'), ['rows' => 15], '', '', 'tinymce tinymce-manual email-html-editor'); ?>
-        <?= render_textarea('settings[email_footer]', 'email_footer', get_option('email_footer'), ['rows' => 15], '', '', 'tinymce tinymce-manual email-html-editor'); ?>
+        <?php
+        // Plain textareas (not TinyMCE): tinymce class triggers html_purify() which can fatal
+        // mid-page on some tenants and hide Save + break tabs. Keep entities-encode like core.
+        try {
+            echo render_textarea('settings[email_signature]', 'settings_email_signature', get_option('email_signature'), ['data-entities-encode' => 'true']);
+            echo '<hr />';
+            echo render_textarea('settings[email_header]', 'email_header', get_option('email_header'), ['rows' => 15, 'data-entities-encode' => 'true']);
+            echo render_textarea('settings[email_footer]', 'email_footer', get_option('email_footer'), ['rows' => 15, 'data-entities-encode' => 'true']);
+        } catch (Throwable $e) {
+            log_message('error', '[email settings] textarea render failed: ' . $e->getMessage());
+            echo '<div class="alert alert-warning">Email signature/header/footer could not be loaded. SMTP settings below can still be saved.</div>';
+        }
+        ?>
         <hr />
         <h4><?= _l('settings_send_test_email_heading'); ?>
         </h4>
@@ -269,6 +278,11 @@ echo render_input('settings[smtp_password]', 'settings_email_password', $ps, 'pa
                     <button type="button" class="btn btn-info test_email">Test</button>
                 </div>
             </div>
+        </div>
+        <div class="text-right mtop15 mbot10">
+            <button type="submit" class="btn btn-primary" form="settings-form">
+                <?= _l('settings_save'); ?>
+            </button>
         </div>
     </div>
 
@@ -285,7 +299,18 @@ echo render_input('settings[smtp_password]', 'settings_email_password', $ps, 'pa
         <hr />
         <?php render_yes_no_option('email_queue_skip_with_attachments', 'email_queue_skip_attachments', 'Most likely you will encounter problems with the email queue if the system needs to add big files to the queue. If you plan to use this option consult with your server administrator/hosting provider to increase the max_allowed_packet and wait_timeout options in your server config, otherwise when this option is set to yes the system won\'t add emails with attachments in the queue and will be sent immediately.'); ?>
         <?php
-        $queueEmails = $this->email->get_queue_emails();
+        $queueEmails = [];
+        try {
+            if (isset($this->email) && method_exists($this->email, 'get_queue_emails')) {
+                $queueEmails = $this->email->get_queue_emails();
+                if (! is_array($queueEmails)) {
+                    $queueEmails = [];
+                }
+            }
+        } catch (Throwable $e) {
+            log_message('error', '[email settings] queue load failed: ' . $e->getMessage());
+            $queueEmails = [];
+        }
 ?>
         <hr />
         <h4 class="mbot15">
@@ -303,21 +328,34 @@ echo render_input('settings[smtp_password]', 'settings_email_password', $ps, 'pa
             </thead>
             <tbody>
                 <?php foreach ($queueEmails as $email) {
-                    $headers = unserialize($email->headers); ?>
+                    $headers = [];
+                    if (! empty($email->headers)) {
+                        $un = @unserialize($email->headers);
+                        if (is_array($un)) {
+                            $headers = $un;
+                        }
+                    } ?>
                 <tr>
-                    <td><?= e($headers['subject']); ?>
+                    <td><?= e($headers['subject'] ?? ''); ?>
                     </td>
-                    <td><?= e($email->email); ?></td>
-                    <td><?= e($email->status); ?></td>
+                    <td><?= e($email->email ?? ''); ?></td>
+                    <td><?= e($email->status ?? ''); ?></td>
                     <td>
+                        <?php if (! empty($email->id)) { ?>
                         <a href="<?= admin_url('emails/delete_queued_email/' . $email->id); ?>"
                             class="text-danger">
                             <i class="fa fa-trash"></i>
                         </a>
+                        <?php } ?>
                     </td>
                 </tr>
                 <?php } ?>
             </tbody>
         </table>
+        <div class="text-right mtop15">
+            <button type="submit" class="btn btn-primary" form="settings-form">
+                <?= _l('settings_save'); ?>
+            </button>
+        </div>
     </div>
 </div>
