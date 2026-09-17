@@ -12,6 +12,10 @@
                 <a href="#email_queue" aria-controls="email_queue" role="tab"
                     data-toggle="tab"><?= _l('email_queue'); ?></a>
             </li>
+            <li role="presentation">
+                <a href="#email_diagnostics" aria-controls="email_diagnostics" role="tab"
+                    data-toggle="tab"><?= _l('email_diagnostics'); ?></a>
+            </li>
         </ul>
     </div>
 </div>
@@ -357,5 +361,82 @@ echo render_input('settings[smtp_password]', 'settings_email_password', $ps, 'pa
                 <?= _l('settings_save'); ?>
             </button>
         </div>
+    </div>
+
+    <div role="tabpanel" class="tab-pane" id="email_diagnostics">
+        <?php
+        $this->load->helper('email_diagnostics');
+        $diagProcesses = managio_email_diagnostic_processes();
+        $defaultDiagEmail = '';
+        if (function_exists('get_staff_user_id') && get_staff_user_id()) {
+            $staffRow = get_staff(get_staff_user_id());
+            if (! empty($staffRow->email)) {
+                $defaultDiagEmail = $staffRow->email;
+            }
+        }
+        if ($defaultDiagEmail === '' && ! empty(get_option('smtp_email'))) {
+            $defaultDiagEmail = get_option('smtp_email');
+        }
+        ?>
+        <h4 class="tw-font-semibold tw-mt-0"><?= _l('email_diagnostics'); ?></h4>
+        <p class="text-muted"><?= _l('email_diagnostics_subheading'); ?></p>
+        <div class="alert alert-info">
+            <?= _l('email_diagnostics_info'); ?>
+        </div>
+
+        <div class="form-group">
+            <label for="email_diag_test_email"><?= _l('settings_send_test_email_string'); ?></label>
+            <input type="email" class="form-control" id="email_diag_test_email"
+                data-ays-ignore="true"
+                value="<?= e($defaultDiagEmail); ?>"
+                placeholder="<?= _l('settings_send_test_email_string'); ?>">
+        </div>
+
+        <div class="checkbox checkbox-primary mbot15">
+            <input type="checkbox" id="email_diag_send_all_slugs" data-ays-ignore="true">
+            <label for="email_diag_send_all_slugs"><?= _l('email_diag_send_all_slugs'); ?></label>
+        </div>
+
+        <div class="tw-flex tw-flex-wrap tw-gap-2 mbot20">
+            <button type="button" class="btn btn-primary" id="email_diag_run_all">
+                <i class="fa fa-play"></i> <?= _l('email_diag_run_all'); ?>
+            </button>
+            <button type="button" class="btn btn-default" id="email_diag_clear_log">
+                <?= _l('email_diag_clear_log'); ?>
+            </button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered" id="email_diag_processes_table">
+                <thead>
+                    <tr>
+                        <th><?= _l('email_diag_process'); ?></th>
+                        <th><?= _l('email_diag_description'); ?></th>
+                        <th style="width:120px;"><?= _l('options'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($diagProcesses as $proc) { ?>
+                    <tr data-process-id="<?= e($proc['id']); ?>">
+                        <td>
+                            <strong><?= e($proc['label']); ?></strong>
+                            <br><small class="text-muted"><?= e($proc['id']); ?></small>
+                        </td>
+                        <td><?= e($proc['description']); ?></td>
+                        <td>
+                            <button type="button" class="btn btn-default btn-sm email-diag-run-one"
+                                data-process-id="<?= e($proc['id']); ?>">
+                                <?= _l('email_diag_run_one'); ?>
+                            </button>
+                        </td>
+                    </tr>
+                    <?php } ?>
+                </tbody>
+            </table>
+        </div>
+
+        <h5 class="bold"><?= _l('email_diag_results'); ?></h5>
+        <div id="email_diag_results" class="tw-border tw-border-solid tw-border-neutral-200 tw-rounded-md tw-p-3 tw-bg-neutral-50"
+            style="min-height:120px;max-height:420px;overflow:auto;font-family:Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;"></div>
     </div>
 </div>

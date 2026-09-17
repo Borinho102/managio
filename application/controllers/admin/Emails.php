@@ -287,4 +287,60 @@ class Emails extends AdminController
 
         redirect(admin_url('settings?group=email&tab=email_queue'));
     }
+
+    /**
+     * Run email process diagnostics (Settings → Email → Diagnostics tab).
+     * POST: test_email, process_id (optional, all if empty), send_all_slugs (0|1)
+     */
+    public function run_email_process_tests()
+    {
+        if (staff_cant('view', 'settings') && staff_cant('edit', 'settings') && ! is_admin()) {
+            ajax_access_denied();
+        }
+
+        if (! $this->input->is_ajax_request() && ! $this->input->post()) {
+            show_404();
+        }
+
+        $to = trim((string) $this->input->post('test_email'));
+        if ($to === '' || ! filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => false,
+                'message' => _l('email_diag_invalid_email'),
+                'results' => [],
+            ]);
+
+            return;
+        }
+
+        $this->load->helper('email_diagnostics');
+        $processId    = trim((string) $this->input->post('process_id'));
+        $sendAllSlugs = (string) $this->input->post('send_all_slugs') === '1';
+        $processes    = managio_email_diagnostic_processes();
+        $results      = [];
+
+        foreach ($processes as $process) {
+            if ($processId !== '' && $process['id'] !== $processId) {
+                continue;
+            }
+            $results[] = managio_run_email_diagnostic_process($process, $to, $sendAllSlugs);
+        }
+
+        $okCount = 0;
+        foreach ($results as $r) {
+            if (! empty($r['ok'])) {
+                $okCount++;
+            }
+        }
+
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success'   => $okCount > 0,
+            'message'   => sprintf(_l('email_diag_summary'), $okCount, count($results)),
+            'ok_count'  => $okCount,
+            'total'     => count($results),
+            'results'   => $results,
+        ]);
+    }
 }

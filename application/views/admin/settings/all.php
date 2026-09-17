@@ -140,6 +140,82 @@ echo form_open_multipart($actionUrl, $formAttributes);
                 $(this).parent('li').addClass('active');
             }
         });
+
+        function emailDiagAppendLog(html) {
+            var $log = $('#email_diag_results');
+            $log.append(html + '\n');
+            $log.scrollTop($log[0].scrollHeight);
+        }
+
+        function emailDiagRenderResults(payload) {
+            if (!payload || !payload.results) {
+                emailDiagAppendLog('<span class="text-danger">Invalid response</span>');
+                return;
+            }
+            emailDiagAppendLog('<strong>' + (payload.message || '') + '</strong>');
+            (payload.results || []).forEach(function(r) {
+                var icon = r.ok ? '✓' : '✗';
+                var color = r.ok ? 'text-success' : 'text-danger';
+                emailDiagAppendLog('<span class="' + color + '">' + icon + ' ' + (r.label || r.id) + '</span>');
+                (r.details || []).forEach(function(d) {
+                    var c = d.status === 'success' ? 'text-success' : (d.status === 'skip' ? 'text-muted' : 'text-danger');
+                    var line = '  - [' + (d.status || '') + '] ';
+                    if (d.slug) {
+                        line += d.slug + ': ';
+                    }
+                    line += (d.message || '');
+                    emailDiagAppendLog('<span class="' + c + '">' + $('<div/>').text(line).html() + '</span>');
+                });
+            });
+            emailDiagAppendLog('---');
+        }
+
+        function emailDiagRun(processId) {
+            var email = $.trim($('#email_diag_test_email').val() || '');
+            if (!email) {
+                alert_float('warning', <?= json_encode(_l('settings_send_test_email_string')); ?>);
+                return;
+            }
+            var $btns = $('#email_diag_run_all, .email-diag-run-one');
+            $btns.prop('disabled', true);
+            emailDiagAppendLog('<span class="text-info">' + (processId ? ('Running: ' + processId) : 'Running all processes...') + '</span>');
+
+            $.post(admin_url + 'emails/run_email_process_tests', {
+                test_email: email,
+                process_id: processId || '',
+                send_all_slugs: $('#email_diag_send_all_slugs').is(':checked') ? '1' : '0'
+            }).done(function(resp) {
+                try {
+                    if (typeof resp === 'string') {
+                        resp = JSON.parse(resp);
+                    }
+                } catch (e) {
+                    emailDiagAppendLog('<span class="text-danger">Bad JSON response</span>');
+                    return;
+                }
+                emailDiagRenderResults(resp);
+                if (resp.success) {
+                    alert_float('success', resp.message || 'OK');
+                } else {
+                    alert_float('warning', resp.message || 'Some tests failed');
+                }
+            }).fail(function(xhr) {
+                emailDiagAppendLog('<span class="text-danger">HTTP ' + xhr.status + ': ' + (xhr.responseText || '').substring(0, 300) + '</span>');
+                alert_float('danger', <?= json_encode(_l('something_went_wrong')); ?>);
+            }).always(function() {
+                $btns.prop('disabled', false);
+            });
+        }
+
+        $('#email_diag_run_all').on('click', function() {
+            emailDiagRun('');
+        });
+        $(document).on('click', '.email-diag-run-one', function() {
+            emailDiagRun($(this).data('process-id'));
+        });
+        $('#email_diag_clear_log').on('click', function() {
+            $('#email_diag_results').empty();
+        });
         <?php } ?>
 
         $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
