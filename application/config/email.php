@@ -45,7 +45,17 @@ if (get_option('email_protocol') === 'zeptomail') {
     } else {
         $config['smtp_user'] = trim(get_option('smtp_username'));
     }
-    $config['smtp_pass']   = get_instance()->encryption->decrypt(get_option('smtp_password'));
+    // Never pass boolean false to PHPMailer (casts badly and causes Zoho/Gmail 535).
+    $_smtp_pass_raw = get_option('smtp_password');
+    $_smtp_pass_dec = ($_smtp_pass_raw !== '' && $_smtp_pass_raw !== null)
+        ? get_instance()->encryption->decrypt($_smtp_pass_raw)
+        : '';
+    if ($_smtp_pass_dec === false || $_smtp_pass_dec === null) {
+        log_message('error', '[email] smtp_password decrypt failed — re-enter SMTP password in Settings → Email');
+        $config['smtp_pass'] = '';
+    } else {
+        $config['smtp_pass'] = (string) $_smtp_pass_dec;
+    }
     $config['smtp_port']   = trim(get_option('smtp_port'));
     $config['smtp_crypto'] = get_option('smtp_encryption');
 }

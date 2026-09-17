@@ -271,7 +271,29 @@ class Emails extends AdminController
                 set_alert('success', 'Seems like your SMTP settings is set correctly. Check your email now.');
                 hooks()->do_action('smtp_test_email_success');
             } else {
-                set_debug_alert('<h1>Your SMTP settings are not set correctly here is the debug log.</h1><br />' . $this->email->print_debugger() . (isset($GLOBALS['debug']) ? $GLOBALS['debug'] : ''));
+                $debug = $this->email->print_debugger() . (isset($GLOBALS['debug']) ? $GLOBALS['debug'] : '');
+                $hint  = '';
+                if (function_exists('saas_smtp_test_error_hint')) {
+                    $hint = saas_smtp_test_error_hint($debug);
+                } else {
+                    $lower = strtolower(strip_tags($debug));
+                    if (strpos($lower, 'authentication failed') !== false || strpos($lower, '535') !== false) {
+                        $hint = _l('smtp_test_hint_auth_failed');
+                    } elseif (strpos(strtolower((string) get_option('smtp_host')), 'zoho') !== false) {
+                        $hint = _l('smtp_zoho_setup_hint');
+                    }
+                }
+                $passCheck = get_option('smtp_password');
+                $passDec   = $passCheck !== '' ? $this->encryption->decrypt($passCheck) : '';
+                if ($passCheck !== '' && ($passDec === false || $passDec === '')) {
+                    $hint = _l('smtp_password_decrypt_failed') . ($hint ? '<br><br>' . $hint : '');
+                }
+
+                set_debug_alert(
+                    '<h1>Your SMTP settings are not set correctly here is the debug log.</h1>'
+                    . ($hint ? '<div class="alert alert-warning" style="margin:15px 0;">' . $hint . '</div>' : '')
+                    . '<br />' . $debug
+                );
 
                 hooks()->do_action('smtp_test_email_failed');
             }

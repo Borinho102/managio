@@ -249,14 +249,21 @@
             <?php echo render_input('settings[smtp_username]', 'smtp_username', get_option('smtp_username')); ?>
             <?php
             $ps = get_option('smtp_password');
+            $psDecryptOk = false;
             if (!empty($ps)) {
-                if (false == $this->encryption->decrypt($ps)) {
-                    $ps = $ps;
-                } else {
-                    $ps = $this->encryption->decrypt($ps);
+                $psDec = $this->encryption->decrypt($ps);
+                $psDecryptOk = ($psDec !== false && $psDec !== null && $psDec !== '');
+                if (!$psDecryptOk) {
+                    echo '<div class="alert alert-danger">' . _l('smtp_password_decrypt_failed') . '</div>';
                 }
             }
-            echo render_input('settings[smtp_password]', 'settings_email_password', $ps, 'password', ['autocomplete' => 'off']); ?>
+            echo render_input('settings[smtp_password]', 'settings_email_password', '', 'password', [
+                'autocomplete' => 'new-password',
+                'placeholder'  => !empty($ps) && $psDecryptOk ? _l('smtp_password_unchanged_hint') : '',
+            ]); ?>
+            <?php if (strpos(strtolower((string) get_option('smtp_host')), 'zoho') !== false) {
+                echo '<div class="alert alert-warning mtop10">' . _l('smtp_zoho_setup_hint') . '</div>';
+            } ?>
         </div>
         <?php echo render_input('settings[smtp_email_charset]', 'settings_email_charset', get_option('smtp_email_charset')); ?>
         <?php echo render_input('settings[bcc_emails]', 'bcc_all_emails', get_option('bcc_emails')); ?>

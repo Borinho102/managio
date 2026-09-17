@@ -117,19 +117,25 @@ class Settings_model extends App_Model
                 $val = strip_tags($val);
                 $val = nl2br($val);
             } elseif (in_array($name, $this->encrypted_fields)) {
+                // Keep existing secret when the field is left blank (password inputs).
+                if ($val === '' || $val === null) {
+                    continue;
+                }
                 // Check if not empty $val password
                 // Get original
                 // Decrypt original
                 // Compare with $val password
                 // If equal unset
                 // If not encrypt and save
-                if (! empty($val)) {
-                    $or_decrypted = $this->encryption->decrypt($original_encrypted_fields[$name]);
-                    if ($or_decrypted == $val) {
-                        continue;
-                    }
-                    $val = $this->encryption->encrypt($val);
+                $or_decrypted = $this->encryption->decrypt($original_encrypted_fields[$name]);
+                // Avoid double-encrypting: if the posted value is the raw ciphertext already stored
+                if ($val === $original_encrypted_fields[$name]) {
+                    continue;
                 }
+                if ($or_decrypted !== false && $or_decrypted === $val) {
+                    continue;
+                }
+                $val = $this->encryption->encrypt($val);
             } elseif ($name == 'staff_notify_completed_but_not_billed_tasks' || $name == 'reminder_for_completed_but_not_billed_tasks_days') {
                 $val = json_encode($val);
             }

@@ -757,7 +757,13 @@ function saas_build_email_config_from_post(array $settings)
             $config['smtp_pass'] = $settings['smtp_password'];
         } else {
             $stored = get_option('smtp_password');
-            $config['smtp_pass'] = !empty($stored) ? $CI->encryption->decrypt($stored) : '';
+            $dec    = !empty($stored) ? $CI->encryption->decrypt($stored) : '';
+            if ($dec === false || $dec === null) {
+                log_message('error', '[saas] smtp_password decrypt failed');
+                $config['smtp_pass'] = '';
+            } else {
+                $config['smtp_pass'] = (string) $dec;
+            }
         }
 
         $config['zeptomail_api_key'] = $CI->encryption->decrypt(get_option('zeptomail_api_key'));

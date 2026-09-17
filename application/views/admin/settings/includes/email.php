@@ -243,15 +243,27 @@
                 data-title="<?= _l('smtp_username_help'); ?>"></i>
             <?= render_input('settings[smtp_username]', 'smtp_username', get_option('smtp_username')); ?>
             <?php
-            $ps = get_option('smtp_password');
-if (! empty($ps)) {
-    if ($this->encryption->decrypt($ps) == false) {
-        $ps = $ps;
-    } else {
-        $ps = $this->encryption->decrypt($ps);
-    }
-}
-echo render_input('settings[smtp_password]', 'settings_email_password', $ps, 'password', ['autocomplete' => 'off']); ?>
+            $psStored    = get_option('smtp_password');
+            $psDecryptOk = false;
+            if (! empty($psStored)) {
+                $psDec = $this->encryption->decrypt($psStored);
+                $psDecryptOk = ($psDec !== false && $psDec !== null && $psDec !== '');
+            }
+            // Always leave password blank in the UI. Empty on save keeps the stored secret.
+            // Never echo ciphertext (double-encrypt) or plaintext (XSS/logs).
+            if (! empty($psStored) && ! $psDecryptOk) {
+                echo '<div class="alert alert-danger">' . _l('smtp_password_decrypt_failed') . '</div>';
+            }
+            echo render_input('settings[smtp_password]', 'settings_email_password', '', 'password', [
+                'autocomplete' => 'new-password',
+                'placeholder'  => ! empty($psStored) && $psDecryptOk ? _l('smtp_password_unchanged_hint') : '',
+            ]); ?>
+            <?php
+            $smtpHostLower = strtolower((string) get_option('smtp_host'));
+            if (strpos($smtpHostLower, 'zoho') !== false) {
+                echo '<div class="alert alert-warning mtop10">' . _l('smtp_zoho_setup_hint') . '</div>';
+            }
+            ?>
         </div>
         <?= render_input('settings[smtp_email_charset]', 'settings_email_charset', get_option('smtp_email_charset')); ?>
         <?= render_input('settings[bcc_emails]', 'bcc_all_emails', get_option('bcc_emails')); ?>
