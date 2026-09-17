@@ -170,7 +170,6 @@
                     To authenticate, first add Client Id and Client Secret and save settings.
                 </div>
                 <?php } ?>
-                </form>
             </div>
 
             <div
@@ -205,7 +204,6 @@
                     To authenticate, first add Client Id and Client Secret and save settings.
                 </div>
                 <?php } ?>
-                </form>
             </div>
 
             <div class="form-group mtop15">
