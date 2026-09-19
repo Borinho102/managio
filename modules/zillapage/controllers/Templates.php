@@ -8,6 +8,9 @@ class Templates extends AdminController
     {
         parent::__construct();
         $this->load->model('landingpage_model');
+        if (function_exists('zillapage_ensure_schema')) {
+            zillapage_ensure_schema();
+        }
     }
 
      /* List all templates */
@@ -30,6 +33,9 @@ class Templates extends AdminController
             access_denied('landingpages-templates');
         }
         $item = $this->landingpage_model->get_template($id);
+        if (!$item) {
+            show_404();
+        }
         $item = zillapageReplaceVarContentStyle($item);
 
         $data['title']                 = _l('admin_landing_pages');
@@ -60,9 +66,14 @@ class Templates extends AdminController
     public function gettemplatejson($id)
     {
         $template = $this->landingpage_model->get_template($id);
+        if (!$template) {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => _l('not_found_code')]);
+            die;
+        }
         $template = zillapageReplaceVarContentStyle($template);
         $blocks_css = $this->landingpage_model->get_landing_page_setting('blockscss');
-        $blockscss = zillapageReplaceVarContentStyle($blocks_css->value);
+        $blockscss = zillapageReplaceVarContentStyle(!empty($blocks_css) ? $blocks_css->value : '');
         header('Content-Type: application/json');
         echo json_encode([
             'blockscss'=>$blockscss, 

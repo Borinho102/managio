@@ -80,24 +80,32 @@ class Projects extends AdminController
         if ($this->input->post()) {
             $data                = $this->input->post();
             $data['description'] = html_purify($this->input->post('description', false));
-            if ($id == '') {
-                if (staff_cant('create', 'projects')) {
-                    access_denied('Projects');
-                }
-                $id = $this->projects_model->add($data);
-                if ($id) {
-                    set_alert('success', _l('added_successfully', _l('project')));
+            try {
+                if ($id == '') {
+                    if (staff_cant('create', 'projects')) {
+                        access_denied('Projects');
+                    }
+                    $id = $this->projects_model->add($data);
+                    if ($id) {
+                        set_alert('success', _l('added_successfully', _l('project')));
+                        redirect(admin_url('projects/view/' . $id));
+                    }
+                } else {
+                    if (staff_cant('edit', 'projects')) {
+                        access_denied('Projects');
+                    }
+                    $success = $this->projects_model->update($data, $id);
+                    if ($success) {
+                        set_alert('success', _l('updated_successfully', _l('project')));
+                    }
                     redirect(admin_url('projects/view/' . $id));
                 }
-            } else {
-                if (staff_cant('edit', 'projects')) {
-                    access_denied('Projects');
+            } catch (Throwable $e) {
+                log_message('error', 'Project save failed [' . $id . ']: ' . $e->getMessage());
+                set_alert('danger', _l('something_went_wrong'));
+                if ($id != '') {
+                    redirect(admin_url('projects/project/' . $id));
                 }
-                $success = $this->projects_model->update($data, $id);
-                if ($success) {
-                    set_alert('success', _l('updated_successfully', _l('project')));
-                }
-                redirect(admin_url('projects/view/' . $id));
             }
         }
         if ($id == '') {
@@ -109,8 +117,20 @@ class Projects extends AdminController
                 $data['estimate'] = $this->estimates_model->get($this->input->get('via_estimate_id'));
             }
         } else {
-            $data['project']                               = $this->projects_model->get($id);
-            $data['project']->settings->available_features = unserialize($data['project']->settings->available_features);
+            $data['project'] = $this->projects_model->get($id);
+            if (! $data['project']) {
+                blank_page(_l('project_not_found'));
+            }
+            if (! isset($data['project']->settings) || ! is_object($data['project']->settings)) {
+                $data['project']->settings = new stdClass();
+            }
+            $features = $data['project']->settings->available_features ?? '';
+            if (is_string($features) && $features !== '') {
+                $unserialized = @unserialize($features);
+                $data['project']->settings->available_features = is_array($unserialized) ? $unserialized : [];
+            } elseif (! is_array($features)) {
+                $data['project']->settings->available_features = [];
+            }
 
             $data['project_members'] = $this->projects_model->get_project_members($id);
             $title                   = _l('edit', _l('project'));
@@ -123,8 +143,12 @@ class Projects extends AdminController
         $data['last_project_settings'] = $this->projects_model->get_last_project_settings();
 
         if (count($data['last_project_settings'])) {
-            $key                                          = array_search('available_features', array_column($data['last_project_settings'], 'name'));
-            $data['last_project_settings'][$key]['value'] = unserialize($data['last_project_settings'][$key]['value']);
+            $key = array_search('available_features', array_column($data['last_project_settings'], 'name'), true);
+            if ($key !== false && isset($data['last_project_settings'][$key]['value'])) {
+                $raw = $data['last_project_settings'][$key]['value'];
+                $unserialized = is_string($raw) ? @unserialize($raw) : $raw;
+                $data['last_project_settings'][$key]['value'] = is_array($unserialized) ? $unserialized : [];
+            }
         }
 
         $data['settings'] = $this->projects_model->get_settings();
@@ -195,8 +219,14 @@ class Projects extends AdminController
                 blank_page(_l('project_not_found'));
             }
 
-            $project->settings->available_features = unserialize($project->settings->available_features);
-            $data['statuses']                      = $this->projects_model->get_project_statuses();
+            $features = $project->settings->available_features ?? '';
+            if (is_string($features) && $features !== '') {
+                $unserialized = @unserialize($features);
+                $project->settings->available_features = is_array($unserialized) ? $unserialized : [];
+            } elseif (! is_array($features)) {
+                $project->settings->available_features = [];
+            }
+            $data['statuses'] = $this->projects_model->get_project_statuses();
 
             $group = ! $this->input->get('group') ? 'project_overview' : $this->input->get('group');
 
@@ -924,16 +954,30 @@ class Projects extends AdminController
 
     public function copy($project_id)
     {
-        if (staff_can('create', 'projects')) {
-            $id = $this->projects_model->copy($project_id, $this->input->post());
-            if ($id) {
-                set_alert('success', _l('project_copied_successfully'));
-                redirect(admin_url('projects/view/' . $id));
-            } else {
-                set_alert('danger', _l('failed_to_copy_project'));
-                redirect(admin_url('projects/view/' . $project_id));
-            }
+        if (staff_cant('create', 'projects')) {
+            access_denied('Projects');
         }
+
+        $post = $this->input->post();
+        if ($post === false || ! is_array($post) || empty($post['clientid_copy_project']) || empty($post['start_date'])) {
+            set_alert('danger', _l('failed_to_copy_project'));
+            redirect(admin_url('projects/view/' . $project_id));
+        }
+
+        try {
+            $id = $this->projects_model->copy($project_id, $post);
+        } catch (Throwable $e) {
+            log_message('error', 'Project copy failed [' . $project_id . ']: ' . $e->getMessage());
+            $id = false;
+        }
+
+        if ($id) {
+            set_alert('success', _l('project_copied_successfully'));
+            redirect(admin_url('projects/view/' . $id));
+        }
+
+        set_alert('danger', _l('failed_to_copy_project'));
+        redirect(admin_url('projects/view/' . $project_id));
     }
 
     public function mass_stop_timers($project_id, $billable = 'false')

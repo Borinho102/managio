@@ -18,6 +18,8 @@ define('ZILLAPAGE_ASSETS_PATH', 'modules/zillapage/assets');
 hooks()->add_action('app_admin_head', 'zillapage_add_head_component');
 hooks()->add_action('admin_init', 'zillapage_module_init_menu_items');
 hooks()->add_action('admin_init', 'zillapage_permissions');
+hooks()->add_action('admin_init', 'zillapage_ensure_schema', 1);
+hooks()->add_action('app_init', 'zillapage_ensure_schema', 30);
 
 define('VERSION_ZILLAPAGE', 104);
 
@@ -85,7 +87,37 @@ register_activation_hook(ZILLAPAGE_MODULE_NAME, 'zillapage_module_activation_hoo
 function zillapage_module_activation_hook()
 {
     $CI = &get_instance();
-    require_once(__DIR__ . '/install.php');
+    require(__DIR__ . '/install.php');
+}
+
+/**
+ * Create Zillapage tables if they are missing (common on SaaS tenants
+ * when install.php was skipped via require_once during provisioning).
+ */
+function zillapage_ensure_schema()
+{
+    static $ensured = false;
+    if ($ensured) {
+        return;
+    }
+    $ensured = true;
+
+    $CI = &get_instance();
+    if (empty($CI->db)) {
+        $ensured = false;
+        return;
+    }
+
+    $installFile = __DIR__ . '/install.php';
+    if (!is_file($installFile)) {
+        return;
+    }
+
+    try {
+        require $installFile;
+    } catch (Throwable $e) {
+        log_message('error', 'zillapage_ensure_schema: ' . $e->getMessage());
+    }
 }
 
 /**
@@ -292,6 +324,10 @@ if (!function_exists('getAllImagesContentMedia')) {
         $url_content_media = base_url(ZILLAPAGE_IMAGE_PATH.'/content_media')."/";
 
         $accept = array('jpg', 'svg', 'jpeg', 'png','gif');
+
+        if (!is_dir($dir)) {
+            return false;
+        }
 
         $files = array();    
         foreach (scandir($dir) as $file) {

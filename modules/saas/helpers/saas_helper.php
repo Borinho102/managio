@@ -5358,7 +5358,7 @@ function saas_provision_module_database($module_name)
             $requireInstall = function () use ($installFile, $CI) {
                 // Legacy module install scripts still reference $CI directly;
                 // the closure must carry the active controller instance into scope.
-                require_once $installFile;
+                require $installFile;
             };
 
             try {
@@ -5379,7 +5379,9 @@ function saas_provision_module_database($module_name)
                 return false;
             }
         } else {
-            require_once $installFile;
+            // require (not require_once): master may have already included install.php
+            // in this request, which would skip tenant table creation.
+            require $installFile;
         }
         log_message('debug', '[saas_provision_module_database] install.php module=' . $module_name);
     }

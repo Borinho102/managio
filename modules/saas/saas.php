@@ -189,37 +189,53 @@ foreach (insert_hook_data as $event => $table) {
 function saas_insert_data($data)
 {
     $is_subdomain = subdomain();
-    $subscription = get_company_subscription(null);
-
-    if (!empty($is_subdomain)) {
-        if ($subscription->status == 'running') {
-            is_saas_expired($subscription);
-
-            $filter = hooks()->current_filter();
-            $slug = insert_hook_data[$filter];
-            $usages = get_usages($subscription, $slug);
-
-            if (!empty($usages)) {
-                foreach ($usages as $usage) {
-                    if (saas_is_unlimited_usage_limit($usage['limit'] ?? false)) {
-                        continue;
-                    }
-
-                    $limit = $usage['limit'];
-                    $count = $usage['total'];
-
-                    if (is_numeric($limit) && (int) $limit <= (int) $count) {
-                        set_alert('warning', _l('add_failed_you_have_reached_limit'));
-                        redirect('checkoutPayment');
-                    }
-                }
-            }
-        } else {
-            set_alert('warning', _l('add_failed_your_subscription_is_expired'));
-            redirect('checkoutPayment');
-        }
+    if (empty($is_subdomain)) {
+        return $data;
     }
 
+    try {
+        $subscription = get_company_subscription(null);
+    } catch (Throwable $e) {
+        log_message('error', 'saas_insert_data subscription: ' . $e->getMessage());
+
+        return $data;
+    }
+
+    if (empty($subscription) || !is_object($subscription)) {
+        log_message('error', 'saas_insert_data: missing subscription for ' . $is_subdomain);
+
+        return $data;
+    }
+
+    if ($subscription->status == 'running') {
+        is_saas_expired($subscription);
+
+        $filter = hooks()->current_filter();
+        $slug = insert_hook_data[$filter] ?? null;
+        if (empty($slug)) {
+            return $data;
+        }
+        $usages = get_usages($subscription, $slug);
+
+        if (!empty($usages)) {
+            foreach ($usages as $usage) {
+                if (saas_is_unlimited_usage_limit($usage['limit'] ?? false)) {
+                    continue;
+                }
+
+                $limit = $usage['limit'];
+                $count = $usage['total'];
+
+                if (is_numeric($limit) && (int) $limit <= (int) $count) {
+                    set_alert('warning', _l('add_failed_you_have_reached_limit'));
+                    redirect('checkoutPayment');
+                }
+            }
+        }
+    } else {
+        set_alert('warning', _l('add_failed_your_subscription_is_expired'));
+        redirect('checkoutPayment');
+    }
 
     return $data;
 }

@@ -494,13 +494,21 @@ function accounting_load_js() {
 
     echo '<script>';
     try {
-    echo 'var acc_decimal_separator = ' . json_encode($acc_decimal_separator) . ';';
-    echo 'var acc_thousand_separator = ' . json_encode($acc_thousand_separator) . ';';
-    echo 'var acc_enable_class_tracking = ' . json_encode($enable_class) . ';';
-    echo 'var acc_classes = ' . json_encode($classes) . ';';
-    echo 'var acc_class_lang = ' . json_encode(_l('acc_class')) . ';';
-    echo 'var acc_transaction_class = ' . json_encode($transaction_class) . ';';
-    echo 'var acc_symbol = ' . json_encode($acc_symbol) . ';';
+    $jsonFlags = JSON_UNESCAPED_UNICODE;
+    if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
+        $jsonFlags |= JSON_INVALID_UTF8_SUBSTITUTE;
+    }
+    $acc_json = static function ($value) use ($jsonFlags) {
+        $encoded = json_encode($value, $jsonFlags);
+        return ($encoded === false) ? 'null' : $encoded;
+    };
+    echo 'var acc_decimal_separator = ' . $acc_json($acc_decimal_separator) . ';';
+    echo 'var acc_thousand_separator = ' . $acc_json($acc_thousand_separator) . ';';
+    echo 'var acc_enable_class_tracking = ' . $acc_json($enable_class) . ';';
+    echo 'var acc_classes = ' . $acc_json($classes) . ';';
+    echo 'var acc_class_lang = ' . $acc_json(_l('acc_class')) . ';';
+    echo 'var acc_transaction_class = ' . $acc_json($transaction_class) . ';';
+    echo 'var acc_symbol = ' . $acc_json($acc_symbol) . ';';
     echo 'function acc_format_money(total, excludeSymbol) {';
     echo '  if (typeof(accounting) !== "undefined") {';
     echo '    var decimal_sep = (typeof(acc_decimal_separator) !== "undefined") ? acc_decimal_separator : ".";';

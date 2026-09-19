@@ -6,10 +6,13 @@ use hisorange\BrowserDetect\Parser as Browser;
 
 class Publishlandingpage extends ClientsController
 {
-	public function __construct()
+    public function __construct()
     {
         parent::__construct();
         $this->load->model('landingpage_model');
+        if (function_exists('zillapage_ensure_schema')) {
+            zillapage_ensure_schema();
+        }
     }
 
     public function index($code)
@@ -34,7 +37,7 @@ class Publishlandingpage extends ClientsController
 	    	if ($page && $page->is_publish) {
 	    		
 	    		$blocks_css = $this->landingpage_model->get_landing_page_setting('blockscss');
-        		$blockscss = zillapageReplaceVarContentStyle($blocks_css->value);
+        		$blockscss = zillapageReplaceVarContentStyle(!empty($blocks_css) ? $blocks_css->value : '');
 
         		header('Content-Type: application/json');
             	echo json_encode([

@@ -86,6 +86,14 @@ class Authentication_affiliate extends App_Controller
     }
 
     /**
+     * Public alias for /affiliate/become (FrontCMS marketing buttons).
+     */
+    public function become()
+    {
+        $this->register();
+    }
+
+    /**
      * { register }
      */
     public function register()

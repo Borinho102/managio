@@ -2,7 +2,13 @@
 
 defined('BASEPATH') or exit('No direct script access allowed');
 
-define('ZILLAPAGE_SQL_PATH', 'modules/zillapage/sql');
+if (!defined('ZILLAPAGE_SQL_PATH')) {
+    define('ZILLAPAGE_SQL_PATH', FCPATH . 'modules/zillapage/sql');
+}
+
+if (empty($CI) || empty($CI->db)) {
+    $CI = &get_instance();
+}
 
 // create form data table 
 if (!$CI->db->table_exists(db_prefix() . 'landing_page_form_data')) {
@@ -50,6 +56,11 @@ if (!$CI->db->table_exists(db_prefix() . 'landing_page_templates')) {
     // Default Data
     $CI->db->query('INSERT INTO `' . db_prefix() . 'landing_page_templates`'. file_get_contents(ZILLAPAGE_SQL_PATH.'/landing_page_templates.sql'));
     
+} elseif ((int) $CI->db->count_all(db_prefix() . 'landing_page_templates') === 0) {
+    $sql = ZILLAPAGE_SQL_PATH . '/landing_page_templates.sql';
+    if (is_file($sql)) {
+        $CI->db->query('INSERT INTO `' . db_prefix() . 'landing_page_templates`' . file_get_contents($sql));
+    }
 }
 // create landing_page_blocks table 
 if (!$CI->db->table_exists(db_prefix() . 'landing_page_blocks')) {
@@ -76,6 +87,11 @@ if (!$CI->db->table_exists(db_prefix() . 'landing_page_blocks')) {
     // Default Data
     $CI->db->query('INSERT INTO `' . db_prefix() . 'landing_page_blocks`'. file_get_contents(ZILLAPAGE_SQL_PATH.'/landing_page_blocks.sql'));
     
+} elseif ((int) $CI->db->count_all(db_prefix() . 'landing_page_blocks') === 0) {
+    $sql = ZILLAPAGE_SQL_PATH . '/landing_page_blocks.sql';
+    if (is_file($sql)) {
+        $CI->db->query('INSERT INTO `' . db_prefix() . 'landing_page_blocks`' . file_get_contents($sql));
+    }
 }
 // create landing_pages data table 
 if (!$CI->db->table_exists(db_prefix() . 'landing_pages')) {
@@ -145,5 +161,10 @@ if (!$CI->db->table_exists(db_prefix() . 'landing_page_settings')) {
 
     // Default Data
     $CI->db->query('INSERT INTO `' . db_prefix() . 'landing_page_settings`'. file_get_contents(ZILLAPAGE_SQL_PATH.'/landing_page_settings.sql'));
+} elseif ((int) $CI->db->count_all(db_prefix() . 'landing_page_settings') === 0) {
+    $sql = ZILLAPAGE_SQL_PATH . '/landing_page_settings.sql';
+    if (is_file($sql)) {
+        $CI->db->query('INSERT INTO `' . db_prefix() . 'landing_page_settings`' . file_get_contents($sql));
+    }
 }
 

@@ -96,9 +96,14 @@ if (!saas_affiliate_management_active()) {
     $route['affiliate/auth/(:any)'] = 'saas/affiliate/auth/$1';
 } else {
     // Keep old marketing URLs but send visitors to Affiliate Management portal.
+    // /affiliate/become is what the FrontCMS "Become an affiliate" buttons use.
     $route['affiliate-program'] = 'affiliate/authentication_affiliate/register';
     $route['become_affiliator'] = 'affiliate/authentication_affiliate/register';
     $route['affiliate'] = 'affiliate/authentication_affiliate/register';
+    $route['affiliate/become'] = 'affiliate/authentication_affiliate/register';
+    $route['affiliate/register'] = 'affiliate/authentication_affiliate/register';
+    $route['affiliate/login'] = 'affiliate/authentication_affiliate/login';
+    $route['affiliate/forgot_password'] = 'affiliate/authentication_affiliate/forgot_password';
 }
 
 $route['home'] = 'saas/frontcms/home/index';
@@ -223,6 +228,13 @@ $route['theme/(:any)'] = "saas/frontcms/home/theme/$1";
 $route['theme/(:any)/(:any)'] = "saas/frontcms/home/theme/$1/$2";
 $route['theme/(:any)/(:any)/(:any)'] = "saas/frontcms/home/theme/$1/$2/$3";
 $route['theme/(:any)/(:any)/(:any)/(:any)'] = "saas/frontcms/home/theme/$1/$2/$3/$4";
+// Zillapage public endpoints (tenant subdomains must not swallow these).
+$route['publish/(:any)'] = 'zillapage/publishlandingpage/index/$1';
+$route['publish/thankyou/(:any)'] = 'zillapage/publishlandingpage/thankyou/$1';
+$route['zillapage/formsubmission'] = 'zillapage/publishlandingpage/formsubmission';
+$route['zillapage/getpagejson'] = 'zillapage/publishlandingpage/getpagejson';
+$route['zillapage/getblockscss'] = 'zillapage/publishlandingpage/getblockscss';
+
 $route['preview'] = "saas/frontcms/home/preview";
 $route['preview/(:any)'] = "saas/frontcms/home/preview/$1";
 $route['preview/(:any)/(:any)'] = "saas/frontcms/home/preview/$1/$2";
@@ -267,6 +279,7 @@ if (!function_exists('saas_is_reserved_first_segment')) {
             'proposal', 'contract', 'subscription', 'knowledge-base', 'knowledge_base',
             'forms', 'download', 'consent', 'cron', 'contacts', 'privacy-policy',
             'terms-and-conditions', 'check_emails', 'migration', 'gateways',
+            'affiliate', 'publish', 'zillapage',
         ];
         if (in_array($segment, $reserved, true)) {
             return true;

@@ -34,6 +34,11 @@ $app_csrf_exclude_uris = [
     'saas/gb/payin_payment_cancel.*',
     'index.php/saas/gb/payin_payment_callback.*',
     'index.php/saas/gb/payin_payment_cancel.*',
+    'zillapage/formsubmission',
+    'zillapage/getpagejson',
+    'zillapage/getblockscss',
+    'publish/.+',
+    'publish/thankyou/.+',
 ];
 
 $config['config_db'] = array(

@@ -10,6 +10,9 @@ class Landingpages extends AdminController
         $this->load->model('landingpage_model');
         $this->load->model('roles_model');
         $this->load->model('staff_model');
+        if (function_exists('zillapage_ensure_schema')) {
+            zillapage_ensure_schema();
+        }
     }
 
     /* List all Landingpages */
@@ -113,7 +116,14 @@ class Landingpages extends AdminController
             access_denied('landingpages');
         }
 
-        $templates = $this->landingpage_model->get_all_templates();
+        if (function_exists('zillapage_ensure_schema')) {
+            zillapage_ensure_schema();
+        }
+
+        $templates = [];
+        if ($this->db->table_exists(db_prefix() . 'landing_page_templates')) {
+            $templates = $this->landingpage_model->get_all_templates();
+        }
 
         $data['title']                 = _l('templates');
         $data['templates']                 = $templates;
@@ -145,11 +155,14 @@ class Landingpages extends AdminController
 
                 $code = guidV4();
 
-                $user = get_staff($this->session->userdata('tfa_staffid'));
+                $user = get_staff(get_staff_user_id());
+                if (empty($user)) {
+                    $user = get_staff($this->session->userdata('tfa_staffid'));
+                }
 
                 $data = [
                     'code' => $code,
-                    'responsible' => $user->staffid,
+                    'responsible' => !empty($user) ? $user->staffid : get_staff_user_id(),
                     'name' => $name,
                     'slug' => slug_it($name),
                     'html' => $template->content,
@@ -214,8 +227,16 @@ class Landingpages extends AdminController
 
                 $app_icons = $this->landingpage_model->get_landing_page_setting('app-icons');
                 
-                $all_icons = json_decode($app_icons->value);
+                $all_icons = (!empty($app_icons) && !empty($app_icons->value))
+                    ? json_decode($app_icons->value)
+                    : [];
+                if (!is_array($all_icons)) {
+                    $all_icons = [];
+                }
                 $images_url = getAllImagesContentMedia();
+                if (empty($images_url)) {
+                    $images_url = [];
+                }
                 $data['title']                 = _l('builder'). " ".$page->name;
                 $data['page']                 = $page;
                 $data['blocks']                 = json_encode($arr_blocks, JSON_HEX_QUOT | JSON_HEX_TAG);

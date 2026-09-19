@@ -229,7 +229,7 @@ class Projects_model extends App_Model
                 foreach ($settings as $key => $setting) {
                     if ($setting['name'] == 'available_features') {
                         $available_features_index = $key;
-                        $available_features       = unserialize($setting['value']);
+                        $available_features       = is_string($setting['value']) ? @unserialize($setting['value']) : [];
                         if (is_array($available_features)) {
                             foreach ($available_features as $name => $avf) {
                                 $settings_available_features[] = $name;
@@ -250,9 +250,14 @@ class Projects_model extends App_Model
                 if (count($settings_available_features) != $tabs_flatten) {
                     foreach ($tabs_flatten as $tab) {
                         if (! in_array($tab, $settings_available_features)) {
-                            if ($available_features_index) {
+                            if ($available_features_index !== false) {
                                 $current_available_features_settings = $settings[$available_features_index];
-                                $tmp                                 = unserialize($current_available_features_settings['value']);
+                                $tmp                                 = is_string($current_available_features_settings['value'])
+                                    ? @unserialize($current_available_features_settings['value'])
+                                    : [];
+                                if (! is_array($tmp)) {
+                                    $tmp = [];
+                                }
                                 $tmp[$tab]                           = 1;
                                 $this->db->where('id', $current_available_features_settings['id']);
                                 $this->db->update(db_prefix() . 'project_settings', ['value' => serialize($tmp)]);
@@ -712,7 +717,7 @@ class Projects_model extends App_Model
 
         if (isset($data['contact_notification'])) {
             if ($data['contact_notification'] == 2) {
-                $data['notify_contacts'] = serialize($data['notify_contacts']);
+                $data['notify_contacts'] = serialize($data['notify_contacts'] ?? []);
             } else {
                 $data['notify_contacts'] = serialize([]);
             }
@@ -864,7 +869,11 @@ class Projects_model extends App_Model
     {
         $this->db->select('status');
         $this->db->where('id', $id);
-        $old_status = $this->db->get(db_prefix() . 'projects')->row()->status;
+        $old_status_row = $this->db->get(db_prefix() . 'projects')->row();
+        if (! $old_status_row) {
+            return false;
+        }
+        $old_status = $old_status_row->status;
 
         $send_created_email = false;
         if (isset($data['send_created_email'])) {
@@ -977,10 +986,10 @@ class Projects_model extends App_Model
             $data['deadline'] = null;
         }
 
-        $data['start_date'] = to_sql_date($data['start_date']);
-        if ($data['billing_type'] == 1) {
+        $data['start_date'] = to_sql_date($data['start_date'] ?? '');
+        if (($data['billing_type'] ?? '') == 1) {
             $data['project_rate_per_hour'] = 0;
-        } elseif ($data['billing_type'] == 2) {
+        } elseif (($data['billing_type'] ?? '') == 2) {
             $data['project_cost'] = 0;
         } else {
             $data['project_rate_per_hour'] = 0;
@@ -1016,7 +1025,7 @@ class Projects_model extends App_Model
 
         if (isset($data['contact_notification'])) {
             if ($data['contact_notification'] == 2) {
-                $data['notify_contacts'] = serialize($data['notify_contacts']);
+                $data['notify_contacts'] = serialize($data['notify_contacts'] ?? []);
             } else {
                 $data['notify_contacts'] = serialize([]);
             }
@@ -1875,8 +1884,51 @@ class Projects_model extends App_Model
 
     public function copy($project_id, $data)
     {
+        try {
+            return $this->copy_project($project_id, is_array($data) ? $data : []);
+        } catch (Throwable $e) {
+            log_message('error', 'Projects_model::copy failed [' . $project_id . ']: ' . $e->getMessage());
+
+            return false;
+        }
+    }
+
+    /**
+     * Shift a date by the same day gap used between the old and new project start dates.
+     */
+    private function copy_shifted_date($oldProjectStart, $newProjectStart, $oldDate)
+    {
+        if ($oldDate === null || $oldDate === '' || $oldDate === '0000-00-00') {
+            return null;
+        }
+        if ($oldProjectStart === null || $oldProjectStart === '' || $oldProjectStart === '0000-00-00'
+            || $newProjectStart === null || $newProjectStart === '' || $newProjectStart === '0000-00-00') {
+            return $oldDate;
+        }
+
+        try {
+            $dStart    = new DateTime((string) $oldProjectStart);
+            $dEnd      = new DateTime((string) $oldDate);
+            $dDiff     = $dStart->diff($dEnd);
+            $startDate = new DateTime((string) $newProjectStart);
+            $modifier  = ($dDiff->invert ? '-' : '+') . $dDiff->days . ' DAY';
+            $startDate->modify($modifier);
+
+            return $startDate->format('Y-m-d');
+        } catch (Throwable $e) {
+            log_message('error', 'copy_shifted_date failed: ' . $e->getMessage());
+
+            return $oldDate;
+        }
+    }
+
+    private function copy_project($project_id, $data)
+    {
         $_new_data = [];
         $project   = $this->get($project_id);
+        if (! $project) {
+            return false;
+        }
         $settings  = $this->get_project_settings($project_id);
         $fields    = $this->db->list_fields(db_prefix() . 'projects');
 
@@ -1887,23 +1939,26 @@ class Projects_model extends App_Model
         }
 
         unset($_new_data['id']);
-        $_new_data['clientid'] = $data['clientid_copy_project'];
+        $_new_data['clientid'] = $data['clientid_copy_project'] ?? ($project->clientid ?? null);
         unset($_new_data['clientid_copy_project']);
 
-        $_new_data['start_date'] = to_sql_date($data['start_date']);
+        $_new_data['start_date'] = to_sql_date($data['start_date'] ?? '');
+        if (empty($_new_data['start_date'])) {
+            $_new_data['start_date'] = date('Y-m-d');
+        }
 
         if ($_new_data['start_date'] > date('Y-m-d')) {
             $_new_data['status'] = 1;
         } else {
             $_new_data['status'] = 2;
         }
-        if ($data['deadline']) {
+        if (! empty($data['deadline'])) {
             $_new_data['deadline'] = to_sql_date($data['deadline']);
         } else {
             $_new_data['deadline'] = null;
         }
 
-        if ($data['name']) {
+        if (! empty($data['name'])) {
             $_new_data['name'] = $data['name'];
         }
 
@@ -1912,9 +1967,9 @@ class Projects_model extends App_Model
 
         $_new_data['date_finished'] = null;
 
-        if ($project->contact_notification == 2) {
+        if (isset($project->contact_notification) && $project->contact_notification == 2) {
             $contacts                     = $this->clients_model->get_contacts($_new_data['clientid'], ['active' => 1, 'project_emails' => 1]);
-            $_new_data['notify_contacts'] = serialize(array_column($contacts, 'id'));
+            $_new_data['notify_contacts'] = serialize(array_column($contacts ?: [], 'id'));
         }
 
         $this->db->insert(db_prefix() . 'projects', $_new_data);
@@ -1936,6 +1991,7 @@ class Projects_model extends App_Model
 
             if (isset($data['tasks'])) {
                 foreach ($tasks as $task) {
+                    $copy_task_data = [];
                     if (isset($data['task_include_followers'])) {
                         $copy_task_data['copy_task_followers'] = 'true';
                     }
@@ -1957,30 +2013,31 @@ class Projects_model extends App_Model
                     // e.q. old project start date 2020-04-01, old task start date 2020-04-15 and due date 2020-04-30
                     // copy project and set start date 2020-06-01
                     // new task start date will be 2020-06-15 and below due date 2020-06-30
-                    $dStart    = new DateTime($project->start_date);
-                    $dEnd      = new DateTime($task['startdate']);
-                    $dDiff     = $dStart->diff($dEnd);
-                    $startDate = new DateTime($_new_data['start_date']);
-                    $startDate->modify('+' . $dDiff->days . ' DAY');
-                    $newTaskStartDate = $startDate->format('Y-m-d');
+                    $newTaskStartDate = $this->copy_shifted_date(
+                        $project->start_date,
+                        $_new_data['start_date'],
+                        $task['startdate'] ?? null
+                    );
+                    if (empty($newTaskStartDate)) {
+                        $newTaskStartDate = $_new_data['start_date'];
+                    }
 
                     $merge = [
                         'rel_id'              => $id,
                         'rel_type'            => 'project',
                         'last_recurring_date' => null,
                         'startdate'           => $newTaskStartDate,
-                        'status'              => $data['copy_project_task_status'],
+                        'status'              => $data['copy_project_task_status'] ?? 1,
                     ];
 
                     // Calculate the diff in days between the task start and due date
                     // then add these days to the new task start date to be used as this task due date
-                    if ($task['duedate']) {
-                        $dStart  = new DateTime($task['startdate']);
-                        $dEnd    = new DateTime($task['duedate']);
-                        $dDiff   = $dStart->diff($dEnd);
-                        $dueDate = new DateTime($newTaskStartDate);
-                        $dueDate->modify('+' . $dDiff->days . ' DAY');
-                        $merge['duedate'] = $dueDate->format('Y-m-d');
+                    if (! empty($task['duedate'])) {
+                        $merge['duedate'] = $this->copy_shifted_date(
+                            $task['startdate'] ?? null,
+                            $newTaskStartDate,
+                            $task['duedate']
+                        );
                     }
 
                     $task_id = $this->tasks_model->copy($copy_task_data, $merge);
@@ -1996,15 +2053,22 @@ class Projects_model extends App_Model
                 $_added_milestones = [];
 
                 foreach ($milestones as $milestone) {
-                    $newProjectStartDate                                   = new DateTimeImmutable($_new_data['start_date']);
-                    $oldProjectStartDate                                   = new DateTime($project->start_date);
-                    $oldMilestoneStartDate                                 = new DateTime($milestone['start_date']); // assuming that the MySQL column added is start_date
-                    $diffBetweenOldProjectStartDateAndOldMilesoneStartDate = $oldProjectStartDate->diff($oldMilestoneStartDate);
-                    $newMilestoneStartDate                                 = $newProjectStartDate->modify('+' . $diffBetweenOldProjectStartDateAndOldMilesoneStartDate->days . ' DAY');
-
-                    $oldMilestoneDueDate                                   = new DateTime($milestone['due_date']);
-                    $diffBetweenOldMilestoneDueDateAndOldMilesoneStartDate = $oldMilestoneStartDate->diff($oldMilestoneDueDate);
-                    $newMilestoneDueDate                                   = $newMilestoneStartDate->modify('+' . $diffBetweenOldMilestoneDueDateAndOldMilesoneStartDate->days . ' DAY');
+                    $newMilestoneStartDate = $this->copy_shifted_date(
+                        $project->start_date,
+                        $_new_data['start_date'],
+                        $milestone['start_date'] ?? null
+                    );
+                    if (empty($newMilestoneStartDate)) {
+                        $newMilestoneStartDate = $_new_data['start_date'];
+                    }
+                    $newMilestoneDueDate = $this->copy_shifted_date(
+                        $milestone['start_date'] ?? null,
+                        $newMilestoneStartDate,
+                        $milestone['due_date'] ?? null
+                    );
+                    if (empty($newMilestoneDueDate)) {
+                        $newMilestoneDueDate = $newMilestoneStartDate;
+                    }
 
                     $this->db->insert(db_prefix() . 'milestones', [
                         'name'                            => $milestone['name'],
@@ -2012,8 +2076,8 @@ class Projects_model extends App_Model
                         'milestone_order'                 => $milestone['milestone_order'],
                         'description_visible_to_customer' => $milestone['description_visible_to_customer'],
                         'description'                     => $milestone['description'],
-                        'start_date'                      => $newMilestoneStartDate->format('Y-m-d'),
-                        'due_date'                        => $newMilestoneDueDate->format('Y-m-d'),
+                        'start_date'                      => $newMilestoneStartDate,
+                        'due_date'                        => $newMilestoneDueDate,
                         'datecreated'                     => date('Y-m-d'),
                         'color'                           => $milestone['color'],
                         'hide_from_customer'              => $milestone['hide_from_customer'],
@@ -2055,8 +2119,8 @@ class Projects_model extends App_Model
             } else {
                 // milestones not set
                 if (count($added_tasks)) {
-                    foreach ($added_tasks as $task) {
-                        $this->db->where('id', $task['id']);
+                    foreach ($added_tasks as $copied_task_id) {
+                        $this->db->where('id', $copied_task_id);
                         $this->db->update(db_prefix() . 'tasks', [
                             'milestone' => 0,
                         ]);

@@ -161,6 +161,9 @@ class Tasks_model extends App_Model
     public function copy($data, $overwrites = [])
     {
         $task           = $this->get($data['copy_from']);
+        if (! $task) {
+            return false;
+        }
         $fields_tasks   = $this->db->list_fields(db_prefix() . 'tasks');
         $_new_task_data = [];
 
@@ -191,11 +194,15 @@ class Tasks_model extends App_Model
             $_new_task_data['addedfrom'] = get_staff_user_id();
         }
 
-        if (!empty($task->duedate)) {
-            $dStart                    = new DateTime($task->startdate);
-            $dEnd                      = new DateTime($task->duedate);
-            $dDiff                     = $dStart->diff($dEnd);
-            $_new_task_data['duedate'] = date('Y-m-d', strtotime(date('Y-m-d', strtotime('+' . $dDiff->days . 'DAY'))));
+        if (!empty($task->duedate) && !empty($task->startdate) && $task->startdate !== '0000-00-00') {
+            try {
+                $dStart                    = new DateTime($task->startdate);
+                $dEnd                      = new DateTime($task->duedate);
+                $dDiff                     = $dStart->diff($dEnd);
+                $_new_task_data['duedate'] = date('Y-m-d', strtotime(date('Y-m-d', strtotime('+' . $dDiff->days . 'DAY'))));
+            } catch (Throwable $e) {
+                log_message('error', 'Task copy due date failed: ' . $e->getMessage());
+            }
         }
 
         // Overwrite data options
