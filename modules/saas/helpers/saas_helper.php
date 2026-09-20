@@ -1517,6 +1517,314 @@ function affiliate_access()
     }
 }
 
+if (!function_exists('saas_capture_affiliate_referral')) {
+    /**
+     * Persist website referral codes (Affiliate Management + native SaaS).
+     */
+    function saas_capture_affiliate_referral()
+    {
+        if (!function_exists('get_instance')) {
+            return;
+        }
+        $CI = get_instance();
+        if (!$CI || empty($CI->input) || empty($CI->session)) {
+            return;
+        }
+
+        $code = $CI->input->get('affiliate_code')
+            ?: $CI->input->get('referral_code')
+            ?: $CI->input->get('via')
+            ?: $CI->input->get('ref')
+            ?: $CI->input->post('affiliate_code')
+            ?: $CI->input->post('referral_code')
+            ?: $CI->input->post('via')
+            ?: $CI->input->post('ref');
+        if ((!is_string($code) || trim($code) === '') && !empty($_POST['affiliate_code'])) {
+            $code = $_POST['affiliate_code'];
+        }
+        $code = is_string($code) ? trim($code) : '';
+        if ($code === '') {
+            return;
+        }
+
+        $CI->session->set_userdata('affiliate_code', $code);
+        $CI->session->set_userdata('referer', $code);
+    }
+}
+
+if (!function_exists('saas_resolve_referring_affiliate')) {
+    /**
+     * @return array{type: string, code: string, member?: object, user?: object}|null
+     */
+    function saas_resolve_referring_affiliate($code = null)
+    {
+        $CI = get_instance();
+        if ($code === null && isset($CI->session)) {
+            $code = $CI->session->userdata('affiliate_code') ?: $CI->session->userdata('referer');
+        }
+        $code = is_string($code) ? trim($code) : '';
+        if ($code === '') {
+            return null;
+        }
+
+        if (function_exists('saas_affiliate_management_active') && saas_affiliate_management_active()) {
+            try {
+                if (!isset($CI->affiliate_model)) {
+                    $CI->load->model('affiliate/affiliate_model');
+                }
+                if (isset($CI->affiliate_model) && method_exists($CI->affiliate_model, 'get_member_by_code')) {
+                    $member = $CI->affiliate_model->get_member_by_code($code);
+                    if (!empty($member)) {
+                        return ['type' => 'module', 'member' => $member, 'code' => $code];
+                    }
+                }
+            } catch (Throwable $e) {
+                log_message('error', 'saas_resolve_referring_affiliate: ' . $e->getMessage());
+            }
+        }
+
+        $user_info = get_row('tbl_saas_affiliate_users', array('referral_link' => $code));
+        if (!empty($user_info)) {
+            return ['type' => 'native', 'user' => $user_info, 'code' => $code];
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('saas_affiliate_register_url')) {
+    function saas_affiliate_register_url()
+    {
+        if (function_exists('saas_affiliate_management_active') && saas_affiliate_management_active()) {
+            return site_url('affiliate/authentication_affiliate/register');
+        }
+
+        return site_url('affiliate/become');
+    }
+}
+
+if (!function_exists('saas_affiliate_login_url')) {
+    function saas_affiliate_login_url()
+    {
+        if (function_exists('saas_affiliate_management_active') && saas_affiliate_management_active()) {
+            return site_url('affiliate/authentication_affiliate/login');
+        }
+
+        return site_url('affiliate');
+    }
+}
+
+if (!function_exists('saas_affiliate_website_referral_url')) {
+    function saas_affiliate_website_referral_url($code)
+    {
+        return site_url('register?affiliate_code=' . rawurlencode((string) $code));
+    }
+}
+
+if (!function_exists('saas_frontcms_menu_has_affiliate')) {
+    function saas_frontcms_menu_has_affiliate($menus)
+    {
+        if (empty($menus) || !is_array($menus)) {
+            return false;
+        }
+        foreach ($menus as $item) {
+            $hay = strtolower(
+                ($item['slug'] ?? '') . ' ' .
+                ($item['page_url'] ?? '') . ' ' .
+                ($item['ext_url_link'] ?? '') . ' ' .
+                ($item['menu'] ?? '')
+            );
+            if (strpos($hay, 'affiliate') !== false) {
+                return true;
+            }
+            if (!empty($item['submenus']) && saas_frontcms_menu_has_affiliate($item['submenus'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+if (!function_exists('saas_ensure_affiliate_website_menu')) {
+    /**
+     * Insert an Affiliate item into the FrontCMS main menu when missing.
+     */
+    function saas_ensure_affiliate_website_menu()
+    {
+        if (!function_exists('saas_affiliate_management_active') || !saas_affiliate_management_active()) {
+            return;
+        }
+        if (!function_exists('get_instance')) {
+            return;
+        }
+        $CI = get_instance();
+        if (!$CI || empty($CI->db)) {
+            return;
+        }
+
+        try {
+            if (!$CI->db->table_exists('tbl_saas_front_menu_items') || !$CI->db->table_exists('tbl_saas_front_menus')) {
+                return;
+            }
+
+            $CI->db->group_start();
+            $CI->db->like('slug', 'affiliate');
+            $CI->db->or_like('ext_url_link', 'affiliate');
+            $CI->db->or_like('menu', 'Affiliate');
+            $CI->db->group_end();
+            if ($CI->db->count_all_results('tbl_saas_front_menu_items') > 0) {
+                return;
+            }
+
+            $menu = $CI->db->where('slug', 'main-menu')->get('tbl_saas_front_menus')->row();
+            if (empty($menu)) {
+                $menu = $CI->db->order_by('id', 'asc')->limit(1)->get('tbl_saas_front_menus')->row();
+            }
+            if (empty($menu)) {
+                return;
+            }
+
+            $row = [
+                'menu_id' => $menu->id,
+                'parent_id' => 0,
+                'page_id' => 0,
+                'ext_url' => 1,
+                'ext_url_link' => function_exists('site_url') ? site_url('affiliate-program') : 'affiliate-program',
+                'open_new_tab' => 0,
+                'publish' => 1,
+                'menu' => function_exists('_l') ? _l('affiliate') : 'Affiliate',
+                'slug' => 'affiliate-program',
+            ];
+            if ($CI->db->field_exists('weight', 'tbl_saas_front_menu_items')) {
+                $max = $CI->db->select_max('weight')->where('menu_id', $menu->id)->get('tbl_saas_front_menu_items')->row();
+                $row['weight'] = (int) ($max->weight ?? 0) + 1;
+            }
+
+            $CI->db->insert('tbl_saas_front_menu_items', $row);
+        } catch (Throwable $e) {
+            log_message('error', 'saas_ensure_affiliate_website_menu: ' . $e->getMessage());
+        }
+    }
+}
+
+if (!function_exists('saas_inject_affiliate_into_theme_html')) {
+    /**
+     * Point custom HTML theme signup/signin links at the live SaaS pages
+     * and add an Affiliate nav item when the module is active.
+     */
+    function saas_inject_affiliate_into_theme_html($html)
+    {
+        if (!is_string($html) || $html === '') {
+            return $html;
+        }
+
+        $registerUrl = function_exists('site_url') ? site_url('register') : 'register';
+        $loginUrl = function_exists('site_url') ? site_url('login') : 'login';
+        if (function_exists('get_instance')) {
+            $CI = get_instance();
+            $code = ($CI && !empty($CI->session)) ? $CI->session->userdata('affiliate_code') : '';
+            if (!empty($code)) {
+                $registerUrl .= (strpos($registerUrl, '?') === false ? '?' : '&') . 'affiliate_code=' . rawurlencode($code);
+            }
+        }
+
+        $html = str_ireplace(
+            ['href="signup.html"', "href='signup.html'"],
+            'href="' . $registerUrl . '"',
+            $html
+        );
+        $html = str_ireplace(
+            ['href="signin.html"', "href='signin.html'"],
+            'href="' . $loginUrl . '"',
+            $html
+        );
+
+        if (!function_exists('saas_affiliate_management_active') || !saas_affiliate_management_active()) {
+            return $html;
+        }
+        if (stripos($html, 'affiliate-program') !== false) {
+            return $html;
+        }
+
+        $affiliateUrl = function_exists('site_url') ? site_url('affiliate-program') : 'affiliate-program';
+        $label = function_exists('_l') ? _l('affiliate') : 'Affiliate';
+        $item = '<li class="relative group"><a href="' . htmlspecialchars($affiliateUrl, ENT_QUOTES, 'UTF-8') . '" class="menu-scroll text-base text-black group-hover:text-primary py-2 lg:py-6 lg:inline-flex lg:px-0 flex mx-8 lg:mr-0 lg:ml-8 xl:ml-12">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</a></li>';
+
+        $replaced = 0;
+        $next = preg_replace('/(<li class="relative group submenu-item">)/i', $item . '$1', $html, 1, $replaced);
+        if (is_string($next)) {
+            $html = $next;
+        }
+        if ($replaced === 0) {
+            $next = preg_replace('/(<\/ul>\s*<\/nav>)/i', $item . '$1', $html, 1, $replaced);
+            if (is_string($next)) {
+                $html = $next;
+            }
+        }
+
+        return $html;
+    }
+}
+
+if (!function_exists('saas_stamp_invoice_affiliate_member')) {
+    /**
+     * Copy a website referral onto new invoices so Affiliate Management can pay commission.
+     */
+    function saas_stamp_invoice_affiliate_member($invoice_id)
+    {
+        if (!function_exists('saas_affiliate_management_active') || !saas_affiliate_management_active()) {
+            return;
+        }
+        $invoice_id = (int) $invoice_id;
+        if ($invoice_id < 1 || !function_exists('get_instance')) {
+            return;
+        }
+        $CI = get_instance();
+        if (!$CI || empty($CI->db)) {
+            return;
+        }
+
+        try {
+            $invoices = db_prefix() . 'invoices';
+            $clients = db_prefix() . 'clients';
+            $users = db_prefix() . 'affiliate_users';
+            if (!$CI->db->table_exists($invoices)
+                || !$CI->db->field_exists('affiliate_member_id', $invoices)
+                || !$CI->db->field_exists('affiliate_code', $clients)
+                || !$CI->db->table_exists($users)) {
+                return;
+            }
+
+            $invoice = $CI->db->select('id, clientid, affiliate_member_id')
+                ->where('id', $invoice_id)
+                ->get($invoices)
+                ->row();
+            if (empty($invoice) || !empty($invoice->affiliate_member_id) || empty($invoice->clientid)) {
+                return;
+            }
+
+            $client = $CI->db->select('affiliate_code')
+                ->where('userid', $invoice->clientid)
+                ->get($clients)
+                ->row();
+            $code = is_string($client->affiliate_code ?? null) ? trim($client->affiliate_code) : '';
+            if ($code === '') {
+                return;
+            }
+
+            $member = $CI->db->select('id')->where('affiliate_code', $code)->get($users)->row();
+            if (empty($member->id)) {
+                return;
+            }
+
+            $CI->db->where('id', $invoice_id)->update($invoices, ['affiliate_member_id' => $member->id]);
+        } catch (Throwable $e) {
+            log_message('error', 'saas_stamp_invoice_affiliate_member: ' . $e->getMessage());
+        }
+    }
+}
+
 if (!function_exists('get_affiliate_user_id')) {
     function get_affiliate_user_id()
     {

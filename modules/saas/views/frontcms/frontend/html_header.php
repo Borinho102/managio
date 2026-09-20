@@ -107,6 +107,29 @@ if (!$useNativeSaasAffiliatePortal) {
         $this->load->model('cms_menuitems_model');
         $main_menus = $this->cms_menuitems_model->getMenus($menu_list->id);
     }
+    if (empty($main_menus) || !is_array($main_menus)) {
+        $main_menus = [];
+    }
+    if (function_exists('saas_affiliate_management_active')
+        && saas_affiliate_management_active()
+        && function_exists('saas_frontcms_menu_has_affiliate')
+        && !saas_frontcms_menu_has_affiliate($main_menus)) {
+        $main_menus[] = [
+            'id' => 'affiliate-program',
+            'slug' => 'affiliate-program',
+            'menu' => function_exists('_l') ? _l('affiliate') : 'Affiliate',
+            'page_id' => '0',
+            'parent_id' => '0',
+            'is_homepage' => 0,
+            'ext_url' => 1,
+            'ext_url_link' => site_url('affiliate-program'),
+            'open_new_tab' => '',
+            'publish' => '1',
+            'page_slug' => 'affiliate-program',
+            'page_url' => 'affiliate-program',
+            'submenus' => [],
+        ];
+    }
 } else {
     $main_menus = [
         [

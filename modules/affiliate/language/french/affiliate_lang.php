@@ -224,3 +224,5 @@ $lang['affiliate_store_url'] = 'URL de la boutique d\'affiliation';
 $lang['commodity_code'] = 'Code produit';
 $lang['add'] = 'Ajouter';
 $lang['dashboard'] = 'Tableau de bord';
+$lang['website_referral_link'] = 'Lien de parrainage du site web';
+$lang['website_referral_link_help'] = 'Partagez ce lien. Les visiteurs qui créent une entreprise sur le site seront rattachés à votre compte affilié.';

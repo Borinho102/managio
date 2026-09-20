@@ -8,7 +8,9 @@ class Gb extends App_Controller
     {
         parent::__construct();
         $this->load->model('saas_model');
-
+        if (function_exists('saas_capture_affiliate_referral')) {
+            saas_capture_affiliate_referral();
+        }
     }
 
     public function signup_company()
@@ -1112,6 +1114,9 @@ class Gb extends App_Controller
     public
     function signed_up()
     {
+        if (function_exists('saas_capture_affiliate_referral')) {
+            saas_capture_affiliate_referral();
+        }
         $data = $this->saas_model->array_from_post(array('name', 'email', 'package_id', 'domain', 'mobile', 'address', 'country', 'password'));
         $domain = $this->input->post('domain', true);
         $data['domain'] = domainUrl($domain);
@@ -1193,15 +1198,11 @@ class Gb extends App_Controller
                     $data['amount'] = $package_info->monthly_price ?? 0;
                 }
 
-                // enable_affiliate and get referral code from session
-                $is_enabled = ConfigItems('enable_affiliate');
-                $referer = $this->session->userdata('referer');
-                if ($is_enabled && !empty($referer)) {
-                    // get user id from referral
-                    $user_info = get_row('tbl_saas_affiliate_users', array('referral_link' => $referer));
-                    if (!empty($user_info)) {
-                        $data['referral_by'] = $user_info->user_id;
-                    }
+                $referral = function_exists('saas_resolve_referring_affiliate')
+                    ? saas_resolve_referring_affiliate()
+                    : null;
+                if (!empty($referral) && ($referral['type'] ?? '') === 'native') {
+                    $data['referral_by'] = $referral['user']->user_id;
                 }
 
                 $this->saas_model->_table_name = 'tbl_saas_companies';
@@ -1221,7 +1222,10 @@ class Gb extends App_Controller
 
                 if (!empty($data['referral_by'])) {
                     $this->saas_model->add_affiliate($id, $data, true);
-                    // remove referral from session
+                    $this->session->unset_userdata('referer');
+                }
+                if (!empty($referral) && ($referral['type'] ?? '') === 'module') {
+                    $this->session->unset_userdata('affiliate_code');
                     $this->session->unset_userdata('referer');
                 }
 

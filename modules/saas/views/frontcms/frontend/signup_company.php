@@ -1,5 +1,9 @@
 <?php
 echo form_open(base_url('signed_up'), array('id' => 'contact-form', 'autocomplete' => "off", 'enctype' => 'multipart/form-data', 'data-parsley-validate' => '', 'role' => 'form', 'method' => 'post', 'accept-charset' => 'utf-8'));
+$signup_affiliate_code = $this->session->userdata('affiliate_code') ?: $this->session->userdata('referer');
+if (!empty($signup_affiliate_code)) {
+    echo form_hidden('affiliate_code', $signup_affiliate_code);
+}
 ?>
 <div class="card panel-custom">
     <div class="card-header">

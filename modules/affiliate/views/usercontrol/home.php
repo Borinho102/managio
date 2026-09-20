@@ -7,6 +7,18 @@
       		<div class="col-md-12">
 				<h3 class="text-success projects-summary-heading no-mtop mbot15"><?php echo _l('transactions'); ?></h3>
          <hr>
+         <?php if (function_exists('get_affiliate_user_code') && function_exists('saas_affiliate_website_referral_url')) { ?>
+         <div class="alert alert-info">
+            <p class="bold"><?php echo _l('website_referral_link'); ?></p>
+            <p class="text-muted"><?php echo _l('website_referral_link_help'); ?></p>
+            <div class="input-group">
+               <input type="text" class="form-control" id="website_referral_link" readonly value="<?php echo saas_affiliate_website_referral_url(get_affiliate_user_code()); ?>">
+               <span class="input-group-btn">
+                  <a href="javascript:void(0)" onclick="var el=document.getElementById('website_referral_link'); el.select(); document.execCommand('copy'); return false;" class="btn btn-warning"><?php echo _l('copy'); ?></a>
+               </span>
+            </div>
+         </div>
+         <?php } ?>
       </div>
       <div class="col-lg-6 col-xs-12 col-md-12 total-column">
       <div class="panel_s">

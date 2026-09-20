@@ -227,3 +227,5 @@ $lang['add'] = 'Add';
 $lang['dashboard'] = 'Dashboard';
 
 $lang['please_enter_complete_address_information_before_proceeding_with_your_order'] = 'Please enter complete address information(street, city, and state) before proceeding with your order';
+$lang['website_referral_link'] = 'Website referral link';
+$lang['website_referral_link_help'] = 'Share this link. Visitors who register a company on the website will be attached to your affiliate account.';

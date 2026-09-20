@@ -2943,6 +2943,15 @@ class Saas_model extends App_Model
         $c_data['registration_confirmed'] = 1;
         $c_data['saas_company_id'] = $company_id;
 
+        if ($this->db->field_exists('affiliate_code', db_prefix() . 'clients')) {
+            $referral = function_exists('saas_resolve_referring_affiliate')
+                ? saas_resolve_referring_affiliate()
+                : null;
+            if (!empty($referral) && ($referral['type'] ?? '') === 'module' && !empty($referral['code'])) {
+                $c_data['affiliate_code'] = $referral['code'];
+            }
+        }
+
         $c_data['datecreated'] = date('Y-m-d H:i:s');
         $c_data['addedfrom'] = is_staff_logged_in() ? get_staff_user_id() : 0;
 

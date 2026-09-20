@@ -2,12 +2,12 @@
 /*
 Module Name: Perfect SaaS - Powerful Multi-Tenancy Module for Perfex CRM
 Description: this is a module for Perfex CRM that allows you to create a SaaS or multi-company enabled setup.
-Version: 1.3.6
+Version: 1.3.7
 Requires at least: 2.3.*
 */
 
 define('SaaS_MODULE', 'saas');
-define('SAAS_VERSION', '1.3.6');
+define('SAAS_VERSION', '1.3.7');
 
 
 $CI = &get_instance();
@@ -107,6 +107,9 @@ hooks()->add_action('app_init', 'saas_init');
 hooks()->add_action('app_init', 'saas_ensure_credentials_email_template', 20);
 hooks()->add_action('app_init', 'saas_ensure_tenant_email_settings', 25);
 hooks()->add_action('app_init', 'saas_prefer_affiliate_management_over_native', 26);
+hooks()->add_action('app_init', 'saas_capture_affiliate_referral', 27);
+hooks()->add_action('app_init', 'saas_ensure_affiliate_website_menu', 28);
+hooks()->add_action('after_invoice_added', 'saas_stamp_invoice_affiliate_member');
 hooks()->add_action('after_settings_updated', 'saas_after_settings_updated_sync_tenant_email', 20);
 hooks()->add_action('after_staff_login', 'check_login');
 register_merge_fields('saas/merge_fields/saas_company_merge_fields');
@@ -633,6 +636,7 @@ function saas_after_company_database_created_email($companyInfo)
 /**
  * When Affiliate Management is installed/active, keep native SaaS affiliate off
  * so landing menus and /affiliate URLs point to the module portal.
+ * The public FrontCMS page /affiliate-program stays available.
  */
 function saas_prefer_affiliate_management_over_native()
 {
@@ -1036,7 +1040,7 @@ function saas_init_client_items()
                 if (function_exists('saas_affiliate_management_active') && saas_affiliate_management_active()) {
                     add_theme_menu_item('affiliate', [
                         'name' => _l('affiliate'),
-                        'href' => site_url('affiliate/authentication_affiliate/register'),
+                        'href' => site_url('affiliate-program'),
                         'position' => 3,
                     ]);
                 } elseif (get_option('enable_affiliate') == 'TRUE') {

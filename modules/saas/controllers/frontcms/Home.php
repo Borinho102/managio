@@ -28,7 +28,9 @@ class Home extends App_Controller
         $this->load->model('saas_model');
         $this->load->model('cms_menuitems_model');
         $this->baseDir = module_dir_path(SaaS_MODULE, 'views/themebuilder/');
-//        setBaseURL();
+        if (function_exists('saas_capture_affiliate_referral')) {
+            saas_capture_affiliate_referral();
+        }
     }
 
 
@@ -98,6 +100,9 @@ class Home extends App_Controller
         );
 
         $html = str_ireplace(['[csrf_token_name]', '[csrf_token_hash]'], [$this->security->get_csrf_token_name(), $this->security->get_csrf_hash()], $html);
+        if (function_exists('saas_inject_affiliate_into_theme_html')) {
+            $html = saas_inject_affiliate_into_theme_html($html);
+        }
         $data['landing_page_content'] = $html;
 
         $this->load->view("themebuilder/index", $data);
@@ -251,10 +256,9 @@ class Home extends App_Controller
     public
     function login($id = null)
     {
-        // get referer from url and set in session
-        $referer = $this->input->get('via');
-        if (!empty($referer)) {
-            $this->session->set_userdata('referer', $referer);
+        // Capture native (?via=) and Affiliate Management (?affiliate_code=) referrals.
+        if (function_exists('saas_capture_affiliate_referral')) {
+            saas_capture_affiliate_referral();
         }
         $data['title'] = get_option('saas_companyname') ? get_option('saas_companyname') : 'Login';
         $data['affiliate'] = true;
@@ -274,10 +278,8 @@ class Home extends App_Controller
     public
     function register($id = null)
     {
-        // get referer from url and set in session
-        $referer = $this->input->get('via');
-        if (!empty($referer)) {
-            $this->session->set_userdata('referer', $referer);
+        if (function_exists('saas_capture_affiliate_referral')) {
+            saas_capture_affiliate_referral();
         }
         $data['title'] = get_option('saas_companyname') ? get_option('saas_companyname') : 'Register';
         $data['active_menu'] = "pricing";
@@ -311,10 +313,10 @@ class Home extends App_Controller
     public
     function affiliate_program($slug = null)
     {
-        if (function_exists('saas_affiliate_management_active') && saas_affiliate_management_active()) {
-            redirect(site_url('affiliate/authentication_affiliate/register'));
+        if (function_exists('saas_capture_affiliate_referral')) {
+            saas_capture_affiliate_referral();
         }
-        $data['active_menu'] = 'affiliate';
+        $data['active_menu'] = 'affiliate-program';
         $data['title'] = _l('affiliate_program');
         $data['subview'] = $this->load->view('frontcms/frontend/affiliate', $data, true);
         $this->load->view('frontcms/_layout_front', $data);
@@ -481,6 +483,9 @@ class Home extends App_Controller
     function company_singup()
     {
         $_POST = $this->handlePost();
+        if (function_exists('saas_capture_affiliate_referral')) {
+            saas_capture_affiliate_referral();
+        }
         $domain = $_POST['domain'];
         $data['name'] = $_POST['name'];
         $data['email'] = $_POST['email'];
@@ -548,16 +553,11 @@ class Home extends App_Controller
                     $data['amount'] = $package_info->$billing_cycle;
                 }
 
-                // enable_affiliate and get referral code from session
-                $is_enabled = ConfigItems('enable_affiliate');
-                $referer = $this->session->userdata('referer');
-                if ($is_enabled && !empty($referer)) {
-                    // get user id from referral
-                    $user_info = get_row('tbl_saas_affiliate_users', array('referral_link' => $referer));
-                    if (!empty($user_info)) {
-                        $data['referral_by'] = $user_info->user_id;
-                    }
-
+                $referral = function_exists('saas_resolve_referring_affiliate')
+                    ? saas_resolve_referring_affiliate()
+                    : null;
+                if (!empty($referral) && ($referral['type'] ?? '') === 'native') {
+                    $data['referral_by'] = $referral['user']->user_id;
                 }
 
                 $this->saas_model->_table_name = 'tbl_saas_companies';
@@ -572,7 +572,10 @@ class Home extends App_Controller
 
                 if (!empty($data['referral_by'])) {
                     $this->saas_model->add_affiliate($id, $data, true);
-                    // remove referral from session
+                    $this->session->unset_userdata('referer');
+                }
+                if (!empty($referral) && ($referral['type'] ?? '') === 'module') {
+                    $this->session->unset_userdata('affiliate_code');
                     $this->session->unset_userdata('referer');
                 }
 

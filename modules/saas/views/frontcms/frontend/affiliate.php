@@ -4,6 +4,8 @@ $affiliate_commission_amount = get_option('affiliate_commission_amount') ? get_o
 $affiliate_commission_type = get_option('affiliate_commission_type') == 'percentage' ? '%' : 'credits';
 $affiliate_rule = get_option('affiliate_rule') == 'only_first_subscription' ? 'first subscription' : 'each subscriptions';
 $min_amount = get_option('minimum_payout_amount') ? get_option('minimum_payout_amount') : 0;
+$affiliate_register_url = function_exists('saas_affiliate_register_url') ? saas_affiliate_register_url() : base_url('affiliate/become');
+$affiliate_login_url = function_exists('saas_affiliate_login_url') ? saas_affiliate_login_url() : base_url('affiliate');
 ?>
 <section class="bg-invoice d-table w-100 bg-primary">
     <div class="container">
@@ -32,8 +34,11 @@ $min_amount = get_option('minimum_payout_amount') ? get_option('minimum_payout_a
                 <p class="text-muted para-desc mx-auto">
                     <?= _l('affiliate_program_front_description') ?>
                 </p>
-                <a href="<?= base_url('affiliate/become') ?>" class="btn btn-primary mt-4">
+                <a href="<?= $affiliate_register_url ?>" class="btn btn-primary mt-4">
                     <?= _l('become_an_affiliate') ?>
+                </a>
+                <a href="<?= $affiliate_login_url ?>" class="btn btn-outline-primary mt-4 ms-2">
+                    <?= _l('login') ?>
                 </a>
             </div>
         </div>
@@ -53,8 +58,11 @@ $min_amount = get_option('minimum_payout_amount') ? get_option('minimum_payout_a
                     </span>
                     <?= _l('affiliate_program_description_2', $affiliate_rule) ?>
                 </p>
-                <a href="<?= base_url('affiliate/become') ?>" class="btn btn-primary mt-4">
+                <a href="<?= $affiliate_register_url ?>" class="btn btn-primary mt-4">
                     <?= _l('become_an_affiliate') ?>
+                </a>
+                <a href="<?= $affiliate_login_url ?>" class="btn btn-outline-primary mt-4 ms-2">
+                    <?= _l('login') ?>
                 </a>
             </div>
         </div><!--end col-->
@@ -119,8 +127,11 @@ $min_amount = get_option('minimum_payout_amount') ? get_option('minimum_payout_a
                     </ul>
                 </div>
             </div>
-            <a href="<?= base_url('affiliate/become') ?>" class="btn btn-primary mb-4 align-items-center">
+            <a href="<?= $affiliate_register_url ?>" class="btn btn-primary mb-4 align-items-center">
                 <?= _l('become_an_affiliate') ?>
+            </a>
+            <a href="<?= $affiliate_login_url ?>" class="btn btn-default mb-4 align-items-center">
+                <?= _l('login') ?>
             </a>
         </div>
     </div>

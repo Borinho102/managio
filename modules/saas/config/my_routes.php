@@ -95,11 +95,11 @@ if (!saas_affiliate_management_active()) {
     $route['affiliate/(:any)'] = 'saas/affiliate/auth/$1';
     $route['affiliate/auth/(:any)'] = 'saas/affiliate/auth/$1';
 } else {
-    // Keep old marketing URLs but send visitors to Affiliate Management portal.
-    // /affiliate/become is what the FrontCMS "Become an affiliate" buttons use.
-    $route['affiliate-program'] = 'affiliate/authentication_affiliate/register';
+    // Keep the FrontCMS marketing page on /affiliate-program.
+    // Registration/login go to the Affiliate Management portal.
+    $route['affiliate-program'] = 'saas/frontcms/home/affiliate_program';
+    $route['affiliate'] = 'saas/frontcms/home/affiliate_program';
     $route['become_affiliator'] = 'affiliate/authentication_affiliate/register';
-    $route['affiliate'] = 'affiliate/authentication_affiliate/register';
     $route['affiliate/become'] = 'affiliate/authentication_affiliate/register';
     $route['affiliate/register'] = 'affiliate/authentication_affiliate/register';
     $route['affiliate/login'] = 'affiliate/authentication_affiliate/login';
