@@ -744,6 +744,23 @@ function init_affiliate_area_assets()
 }
 
 /**
+ * Always register portal CSS/JS, even if other bootstrap steps fail.
+ */
+function affiliate_enqueue_portal_assets()
+{
+    $file = module_dir_path('affiliate', 'views/usercontrol/functions.php');
+    if (is_file($file)) {
+        include_once $file;
+    }
+
+    if (function_exists('theme_affiliate')) {
+        theme_affiliate();
+    } else {
+        init_affiliate_area_assets();
+    }
+}
+
+/**
  * get color type
  * @param  integer $id, string $index_name
  * @return array, object

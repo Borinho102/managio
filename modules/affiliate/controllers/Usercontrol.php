@@ -28,7 +28,7 @@ class Usercontrol extends App_Controller
 
         parent::__construct();
 
-        if (!function_exists('is_affiliate_logged_in')) {
+        if (!function_exists('affiliate_enqueue_portal_assets')) {
             $this->load->helper('affiliate/affiliate');
         }
 

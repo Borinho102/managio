@@ -17,7 +17,7 @@ class App_usercontrol_area_constructor
 
         $this->ci = &get_instance();
 
-        if (!function_exists('is_affiliate_logged_in')) {
+        if (!function_exists('affiliate_enqueue_portal_assets')) {
             $this->ci->load->helper('affiliate/affiliate');
         }
 
@@ -37,6 +37,22 @@ class App_usercontrol_area_constructor
             'ticket_statuses' => [],
             'currencies' => [],
         ];
+
+        if (function_exists('affiliate_enqueue_portal_assets')) {
+            try {
+                affiliate_enqueue_portal_assets();
+            } catch (Throwable $e) {
+                log_message('error', 'affiliate portal assets: ' . $e->getMessage());
+            }
+        } else {
+            $functions = module_dir_path(AFFILIATE_MODULE_NAME, 'views/usercontrol/functions.php');
+            if (is_file($functions)) {
+                include_once $functions;
+            }
+            if (function_exists('theme_affiliate')) {
+                theme_affiliate();
+            }
+        }
 
         try {
             $this->ci->load->model('tickets_model');
@@ -76,14 +92,6 @@ class App_usercontrol_area_constructor
                 $vars['total_undismissed_announcements'] = $this->ci->announcements_model->get_total_undismissed_announcements();
                 $vars['client']                          = $this->ci->clients_model->get($contact->userid);
                 $vars['contact']                         = $contact;
-            }
-
-            $functions = module_dir_path(AFFILIATE_MODULE_NAME, 'views/usercontrol/functions.php');
-            if (is_file($functions)) {
-                include_once $functions;
-            }
-            if (function_exists('init_affiliate_area_assets')) {
-                init_affiliate_area_assets();
             }
 
             hooks()->do_action('affiliate_init');
