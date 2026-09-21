@@ -55,6 +55,18 @@ $route['default_controller']   = 'clients';
 $route['404_override']         = '';
 $route['translate_uri_dashes'] = false;
 
+$route['manifest.webmanifest'] = 'pwa/manifest';
+$route['sw.js']                = 'pwa/sw';
+$route['browserconfig.xml']    = 'pwa/browserconfig';
+$route['pwa/offline']          = 'pwa/offline';
+$route['pwa/offline.html']     = 'pwa/offline';
+$route['pwa/share']            = 'pwa/share';
+$route['pwa/files']            = 'pwa/files';
+$route['pwa/protocol']         = 'pwa/protocol';
+$route['pwa/notes/new']        = 'pwa/notes';
+$route['pwa/widget.json']      = 'pwa/widget';
+$route['pwa/widget-data.json'] = 'pwa/widget_data';
+
 /**
  * Dashboard clean route
  */

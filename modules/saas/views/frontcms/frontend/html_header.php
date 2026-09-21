@@ -62,6 +62,7 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="<?php echo base_url() . get_option('saas_front_favicon'); ?>">
+    <?php if (function_exists('pwa_head')) { pwa_head(); } ?>
     <!-- CSS here -->
     <link rel="stylesheet" type="text/css" href="<?= module_dir_url(SaaS_MODULE) ?>assets/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css"

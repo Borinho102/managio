@@ -35,6 +35,7 @@ if (!is_string($themeCss) || trim($themeCss) === '') {
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
 	<title><?php if (isset($title)){ echo function_exists('new_html_entity_decode') ? new_html_entity_decode($title) : htmlspecialchars((string) $title); } ?></title>
+	<?php if (function_exists('pwa_head')) { pwa_head(); } ?>
 	<?php echo $themeCss; ?>
 	<script src="<?php echo base_url('assets/plugins/jquery/jquery.min.js'); ?>"></script>
 		<?php if (function_exists('app_affiliates_head')) { app_affiliates_head(); } ?>
