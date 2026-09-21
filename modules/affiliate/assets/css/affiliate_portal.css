@@ -2,6 +2,28 @@
 	background-color: #f1f5f9;
 }
 
+body.register #content {
+	display: flex;
+	justify-content: center;
+	align-items: flex-start;
+}
+
+body.register .affiliate-register-wrap {
+	width: 50%;
+	max-width: 720px;
+	min-width: 320px;
+	margin: 40px auto 60px;
+	float: none;
+}
+
+@media screen and (max-width: 991px) {
+	body.register .affiliate-register-wrap {
+		width: 92%;
+		max-width: none;
+		margin: 24px auto 40px;
+	}
+}
+
 #report{
 	overflow: auto;
 }

@@ -1,8 +1,9 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed'); ?>
-<div class="col-md-4 col-md-offset-4 text-center mbot15">
+<div class="affiliate-register-wrap">
+<div class="text-center mbot15">
     <h1 class="text-uppercase register-heading"><?php echo _l('clients_register_heading'); ?></h1>
 </div>
-<div class="col-md-10 col-md-offset-1 mbot40">
+<div class="mbot40">
     <?php echo form_open('affiliate/authentication_affiliate/register', ['id'=>'register-form']); ?>
     <div class="panel_s">
         <div class="panel-body">
@@ -76,4 +77,5 @@
     </div>
 </div>
 <?php echo form_close(); ?>
+</div>
 </div>
