@@ -1617,7 +1617,12 @@ if (!function_exists('saas_affiliate_login_url')) {
 if (!function_exists('saas_affiliate_website_referral_url')) {
     function saas_affiliate_website_referral_url($code)
     {
-        return site_url('register?affiliate_code=' . rawurlencode((string) $code));
+        $base = rtrim((string) config_item('main_url'), '/');
+        if ($base === '') {
+            $base = rtrim(site_url(), '/');
+        }
+
+        return $base . '/register?affiliate_code=' . rawurlencode((string) $code);
     }
 }
 
