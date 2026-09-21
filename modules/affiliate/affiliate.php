@@ -11,8 +11,12 @@ Author: GreenTech Solutions
 Author URI: https://codecanyon.net/user/greentech_solutions
 */
 
-define('AFFILIATE_MODULE_NAME', 'affiliate');
-define('AFFILIATE_MODULE_UPLOAD_FOLDER', module_dir_path(AFFILIATE_MODULE_NAME, 'uploads'));
+if (!defined('AFFILIATE_MODULE_NAME')) {
+    define('AFFILIATE_MODULE_NAME', 'affiliate');
+}
+if (!defined('AFFILIATE_MODULE_UPLOAD_FOLDER')) {
+    define('AFFILIATE_MODULE_UPLOAD_FOLDER', module_dir_path(AFFILIATE_MODULE_NAME, 'uploads'));
+}
 
 /**
 * Register activation module hook
@@ -31,7 +35,9 @@ hooks()->add_filter('credits_applied', 'credit_apply_affiliate_programs');
 hooks()->add_action('before_cron_run', 'affiliate_scan_server_woo');
 hooks()->add_action('after_custom_fields_select_options','init_affiliate_member_customfield');
 
-define('VERSION_AFF', 105);
+if (!defined('VERSION_AFF')) {
+    define('VERSION_AFF', 105);
+}
 
 function affiliate_module_activation_hook()
 {

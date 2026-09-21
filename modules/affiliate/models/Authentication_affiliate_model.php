@@ -8,7 +8,11 @@ class Authentication_affiliate_model extends App_Model
     {
         parent::__construct();
         $this->load->model('user_autologin');
-        $this->autologin();
+        try {
+            $this->autologin();
+        } catch (Throwable $e) {
+            log_message('error', 'affiliate autologin: ' . $e->getMessage());
+        }
     }
 
     /**

@@ -38,6 +38,15 @@ class Authentication_affiliate extends App_Controller
         $this->load->library('app_usercontrol_area_constructor');
     }
 
+    protected function auth_model()
+    {
+        if (!isset($this->authentication_affiliate_model)) {
+            $this->load->model('affiliate/authentication_affiliate_model');
+        }
+
+        return $this->authentication_affiliate_model;
+    }
+
     /**
      * { index }
      */
@@ -71,9 +80,7 @@ class Authentication_affiliate extends App_Controller
         }
 
         if ($this->form_validation->run() !== false) {
-            $this->load->model('Authentication_affiliate_model');
-
-            $success = $this->Authentication_affiliate_model->login(
+            $success = $this->auth_model()->login(
                 $this->input->post('email'),
                 $this->input->post('password', false),
                 $this->input->post('remember'),
@@ -184,8 +191,7 @@ class Authentication_affiliate extends App_Controller
 
         if ($this->input->post()) {
             if ($this->form_validation->run() !== false) {
-                $this->load->model('Authentication_affiliate_model');
-                $success = $this->Authentication_affiliate_model->forgot_password($this->input->post('email'));
+                $success = $this->auth_model()->forgot_password($this->input->post('email'));
                 if (is_array($success) && isset($success['memberinactive'])) {
                     set_alert('danger', _l('inactive_account'));
                 } elseif ($success == true) {
@@ -212,8 +218,7 @@ class Authentication_affiliate extends App_Controller
      */
     public function reset_password($staff, $userid, $new_pass_key)
     {
-        $this->load->model('Authentication_affiliate_model');
-        if (!$this->Authentication_affiliate_model->can_reset_password($staff, $userid, $new_pass_key)) {
+        if (!$this->auth_model()->can_reset_password($staff, $userid, $new_pass_key)) {
             set_alert('danger', _l('password_reset_key_expired'));
             redirect(site_url('authentication/login'));
         }
@@ -226,7 +231,7 @@ class Authentication_affiliate extends App_Controller
                     'staff'  => $staff,
                     'userid' => $userid,
                 ]);
-                $success = $this->Authentication_affiliate_model->reset_password(
+                $success = $this->auth_model()->reset_password(
                         0,
                         $userid,
                         $new_pass_key,
@@ -257,8 +262,7 @@ class Authentication_affiliate extends App_Controller
      */
     public function logout()
     {
-        $this->load->model('Authentication_affiliate_model');
-        $this->Authentication_affiliate_model->logout(false);
+        $this->auth_model()->logout(false);
         hooks()->do_action('after_client_logout');
         redirect(site_url('affiliate/authentication_affiliate/login'));
     }
