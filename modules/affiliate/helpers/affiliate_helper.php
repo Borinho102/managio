@@ -191,7 +191,7 @@ function app_affiliates_head($language = null)
 {
     // $language param is deprecated
     if (is_null($language)) {
-        $language = $GLOBALS['language'];
+        $language = $GLOBALS['language'] ?? 'english';
     }
 
     if (file_exists(FCPATH . 'assets/css/custom.css')) {
@@ -218,7 +218,7 @@ function app_theme_affiliate_head_hook()
 
     $isRTL = 'false';
 
-    $locale = get_locale_key($GLOBALS['language']);
+    $locale = get_locale_key($GLOBALS['language'] ?? 'english');
 
     $maxUploadSize = file_upload_max_size();
 

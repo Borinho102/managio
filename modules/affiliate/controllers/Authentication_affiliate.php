@@ -8,6 +8,8 @@ class Authentication_affiliate extends App_Controller
 
     public $data = [];
 
+    public $view = '';
+
     public $use_footer = true;
 
     public $use_submenu = true;
@@ -16,8 +18,23 @@ class Authentication_affiliate extends App_Controller
 
     public function __construct()
     {
+        if (!defined('AFFILIATE_MODULE_NAME')) {
+            define('AFFILIATE_MODULE_NAME', 'affiliate');
+        }
+        if (!defined('VERSION_AFF')) {
+            define('VERSION_AFF', 105);
+        }
+
         parent::__construct();
 
+        if (!function_exists('is_affiliate_logged_in')) {
+            $this->load->helper('affiliate/affiliate');
+        }
+
+        $library = module_dir_path(AFFILIATE_MODULE_NAME, 'libraries/App_usercontrol_area_constructor.php');
+        if (is_file($library) && !class_exists('App_usercontrol_area_constructor', false)) {
+            require_once $library;
+        }
         $this->load->library('app_usercontrol_area_constructor');
     }
 
@@ -125,12 +142,12 @@ class Authentication_affiliate extends App_Controller
                 $affiliate_id = $this->affiliate_model->add_member([
                       'firstname'           => $data['firstname'],
                       'lastname'            => $data['lastname'],
-                      'username'            => $data['username'],
+                      'username'            => $data['username'] ?? '',
                       'email'               => $data['email'],
                       'phone'               => $data['phonenumber'],
                       'password'            => $data['password'],
-                      'country'             => $data['country'],
-                      'referral_code'       => $data['referral_code'],
+                      'country'             => $data['country'] ?? '',
+                      'referral_code'       => $data['referral_code'] ?? '',
                       'approval'            => 0,
                 ]);
 

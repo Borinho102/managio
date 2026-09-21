@@ -9,6 +9,8 @@ class Usercontrol extends App_Controller
 
     public $data = [];
 
+    public $view = '';
+
     public $use_footer = true;
 
     public $use_submenu = true;
@@ -17,10 +19,25 @@ class Usercontrol extends App_Controller
 
     public function __construct()
     {
+        if (!defined('AFFILIATE_MODULE_NAME')) {
+            define('AFFILIATE_MODULE_NAME', 'affiliate');
+        }
+        if (!defined('VERSION_AFF')) {
+            define('VERSION_AFF', 105);
+        }
+
         parent::__construct();
+
+        if (!function_exists('is_affiliate_logged_in')) {
+            $this->load->helper('affiliate/affiliate');
+        }
 
         hooks()->do_action('after_clients_area_init', $this);
 
+        $library = module_dir_path(AFFILIATE_MODULE_NAME, 'libraries/App_usercontrol_area_constructor.php');
+        if (is_file($library) && !class_exists('App_usercontrol_area_constructor', false)) {
+            require_once $library;
+        }
         $this->load->library('app_usercontrol_area_constructor');
 
         $this->load->model('affiliate_model');

@@ -38,7 +38,7 @@
                         <label class="control-label" for="lastname"><?php echo _l('clients_country'); ?></label>
                         <select data-none-selected-text="<?php echo _l('dropdown_non_selected_tex'); ?>" data-live-search="true" name="country" class="form-control" id="country">
                             <option value=""></option>
-                            <?php foreach(get_all_countries() as $country){ ?>
+            <?php foreach ((function_exists('get_all_countries') ? get_all_countries() : []) as $country){ ?>
                             <option value="<?php echo new_html_entity_decode($country['country_id']); ?>"<?php if(get_option('customer_default_country') == $country['country_id']){echo ' selected';} ?> <?php echo set_select('country', $country['country_id']); ?>><?php echo new_html_entity_decode($country['short_name']); ?></option>
                             <?php } ?>
                         </select>

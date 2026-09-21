@@ -5,16 +5,23 @@ defined('BASEPATH') or exit('No direct script access allowed');
 /**
  * Required app theme head hook
  */
-hooks()->add_action('app_affiliates_head', 'app_theme_affiliate_head_hook');
+if (function_exists('app_theme_affiliate_head_hook')) {
+    hooks()->add_action('app_affiliates_head', 'app_theme_affiliate_head_hook');
+}
 
 /**
  * Default theme menu items
  * In most cases you will want to add this hook because of all the features
  */
-hooks()->add_action('clients_init', 'add_default_theme_menu_items');
+if (function_exists('add_default_theme_menu_items')) {
+    hooks()->add_action('clients_init', 'add_default_theme_menu_items');
+}
 
-register_theme_affiliate_assets_hook('theme_affiliate');
+if (function_exists('register_theme_affiliate_assets_hook')) {
+    register_theme_affiliate_assets_hook('theme_affiliate');
+}
 
+if (!function_exists('theme_affiliate')) {
 function theme_affiliate()
 {
     $CI = &get_instance();
@@ -106,5 +113,6 @@ function theme_affiliate()
         base_url($CI->app_scripts->core_file(theme_assets_path() . '/css', 'style.css')) . '?v=' . $CI->app_css->core_version()
     );
 
-    $CI->app_css->theme('affiliate-custom-css', 'modules/affiliate/assets/css/affiliate_portal.css?v='.VERSION_AFF);
+    $CI->app_css->theme('affiliate-custom-css', 'modules/affiliate/assets/css/affiliate_portal.css?v=' . (defined('VERSION_AFF') ? VERSION_AFF : '105'));
+}
 }
