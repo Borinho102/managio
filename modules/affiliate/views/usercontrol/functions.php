@@ -58,7 +58,7 @@ function theme_affiliate()
     $CI->app_css->theme('colorpicker-css', 'assets/plugins/bootstrap-colorpicker/css/bootstrap-colorpicker.min.css');
     $CI->app_css->theme('tailwind-css', 'assets/builds/tailwind.css', ['bootstrap-css']);
     $CI->app_css->theme('theme-css', rtrim($themePath, '/') . '/css/style.css');
-    $CI->app_css->theme('affiliate-custom-css', 'modules/affiliate/assets/css/affiliate_portal.css');
+    $CI->app_css->theme('affiliate-custom-css', 'modules/affiliate/assets/css/affiliate_portal.css?aff=20260921c');
 
     try {
         $CI->app_scripts->theme('bootstrap-js', 'assets/plugins/bootstrap/js/bootstrap.min.js');

@@ -1,9 +1,20 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed'); ?>
-<div class="affiliate-register-wrap">
-<div class="text-center mbot15">
-    <h1 class="text-uppercase register-heading"><?php echo _l('clients_register_heading'); ?></h1>
-</div>
-<div class="mbot40">
+<style>
+body.customers.register #wrapper,
+body.customers.register #content {
+	display: block !important;
+}
+body.customers.register .bootstrap-select,
+body.customers.register .bootstrap-select > .dropdown-toggle {
+	width: 100% !important;
+	max-width: 100%;
+}
+</style>
+<div class="mtop40">
+   <div class="col-md-6 col-md-offset-3 col-sm-10 col-sm-offset-1 text-center">
+      <h1 class="text-uppercase mbot20 register-heading"><?php echo _l('clients_register_heading'); ?></h1>
+   </div>
+   <div class="col-md-6 col-md-offset-3 col-sm-10 col-sm-offset-1">
     <?php echo form_open('affiliate/authentication_affiliate/register', ['id'=>'register-form']); ?>
     <div class="panel_s">
         <div class="panel-body">
@@ -77,5 +88,5 @@
     </div>
 </div>
 <?php echo form_close(); ?>
-</div>
+   </div>
 </div>

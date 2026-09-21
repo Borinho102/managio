@@ -9,7 +9,7 @@ try {
 } catch (Throwable $e) {
     $themeCss = '';
 }
-if (!is_string($themeCss) || trim(strip_tags($themeCss)) === '') {
+if (!is_string($themeCss) || trim($themeCss) === '') {
     $themePath = function_exists('theme_assets_path') ? theme_assets_path() : 'assets/themes/perfex';
     $fallback = [
         'assets/css/reset.css',
