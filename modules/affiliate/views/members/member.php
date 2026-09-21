@@ -27,6 +27,19 @@
               <?php $value = (isset($member) ? $member->email : ''); ?>
               <?php echo render_input('email','staff_add_edit_email',$value,'email',array('autocomplete'=>'off')); ?>
             </div>
+            <?php if (isset($member) && !empty($member->affiliate_code)) { ?>
+            <div class="col-md-6">
+              <?php echo render_input('affiliate_code_display','referral_code',$member->affiliate_code,'text',array('disabled'=>true)); ?>
+            </div>
+            <div class="col-md-6">
+              <?php
+                $refUrl = function_exists('saas_affiliate_website_referral_url')
+                    ? saas_affiliate_website_referral_url($member->affiliate_code)
+                    : site_url('register?affiliate_code=' . rawurlencode($member->affiliate_code));
+                echo render_input('website_referral_link_display','website_referral_link',$refUrl,'text',array('disabled'=>true));
+              ?>
+            </div>
+            <?php } ?>
             <div class="col-md-6">
               <?php $value = (isset($member) ? $member->phone : ''); ?>
               <?php echo render_input('phone','staff_add_edit_phonenumber',$value); ?>

@@ -25,6 +25,10 @@
          'name'=>_l('username'),
          'th_attrs'=>array('class'=>'toggleable', 'id'=>'th-username')
         ),
+         array(
+         'name'=>_l('referral_code'),
+         'th_attrs'=>array('class'=>'toggleable', 'id'=>'th-referral-code')
+        ),
         array(
          'name'=>_l('sponser'),
          'th_attrs'=>array('class'=>'toggleable', 'id'=>'th-sponser')

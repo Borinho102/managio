@@ -95,6 +95,7 @@ class affiliate extends AdminController
 
         if ($this->input->post()) {
             $data = $this->input->post();
+            unset($data['affiliate_code_display'], $data['website_referral_link_display']);
 
             if(isset($data['password'])){
                 $data['password'] = trim($this->input->post('password', false));
@@ -217,7 +218,10 @@ class affiliate extends AdminController
                 @$this->ci->db->query('SET SQL_BIG_SELECTS=1');
             }
 
-            $result = data_tables_init($aColumns, $sIndexColumn, $sTable, $join, $where, []);
+            $result = data_tables_init($aColumns, $sIndexColumn, $sTable, $join, $where, [
+                db_prefix() . 'affiliate_users.affiliate_code as affiliate_code',
+                db_prefix() . 'affiliate_users.under_affiliate as under_affiliate',
+            ]);
 
             $output  = $result['output'];
             $rResult = $result['rResult'];
@@ -237,7 +241,25 @@ class affiliate extends AdminController
                 $row[] = $country_name;
                 $row[] = $aRow['email'];
                 $row[] = $aRow['username'];
-                $row[] = '';
+
+                $code = isset($aRow['affiliate_code']) ? trim((string) $aRow['affiliate_code']) : '';
+                if ($code !== '') {
+                    $refUrl = function_exists('saas_affiliate_website_referral_url')
+                        ? saas_affiliate_website_referral_url($code)
+                        : site_url('register?affiliate_code=' . rawurlencode($code));
+                    $row[] = '<code>' . htmlspecialchars($code) . '</code><div class="text-muted tw-text-xs"><a href="' . htmlspecialchars($refUrl) . '" target="_blank">' . htmlspecialchars($refUrl) . '</a></div>';
+                } else {
+                    $row[] = '';
+                }
+
+                $sponsor = '';
+                if (!empty($aRow['under_affiliate'])) {
+                    $sponsorMember = $this->affiliate_model->get_member($aRow['under_affiliate']);
+                    if (!empty($sponsorMember)) {
+                        $sponsor = trim(($sponsorMember->firstname ?? '') . ' ' . ($sponsorMember->lastname ?? ''));
+                    }
+                }
+                $row[] = $sponsor;
                 $row[] = $aRow['phone'];
                 $row[] = $aRow['vendor_status'];
 
