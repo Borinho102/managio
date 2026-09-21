@@ -39,7 +39,13 @@ class Affiliate_model extends App_Model
         $data['datecreated'] = date('Y-m-d H:i:s');
         if (!isset($data['approval'])) {
             $data['addedfrom']   = get_staff_user_id();
-            $data['approval']    = 1;
+        }
+        $data['approval'] = 1;
+        if (!isset($data['status']) || $data['status'] === '') {
+            $data['status'] = 1;
+        }
+        if (!isset($data['vendor_status']) || $data['vendor_status'] === '') {
+            $data['vendor_status'] = 'disable';
         }
 
         if (isset($data['referral_code'])) {
@@ -48,6 +54,7 @@ class Affiliate_model extends App_Model
             if ($affiliate) {
                 $data['under_affiliate'] = $affiliate->id;
             }
+            unset($data['referral_code']);
         }
 
         if (isset($data['custom_fields'])) {

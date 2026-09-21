@@ -23,7 +23,7 @@ class Usercontrol extends App_Controller
             define('AFFILIATE_MODULE_NAME', 'affiliate');
         }
         if (!defined('VERSION_AFF')) {
-            define('VERSION_AFF', 105);
+            define('VERSION_AFF', 106);
         }
 
         parent::__construct();

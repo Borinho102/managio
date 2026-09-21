@@ -22,7 +22,7 @@ class Authentication_affiliate extends App_Controller
             define('AFFILIATE_MODULE_NAME', 'affiliate');
         }
         if (!defined('VERSION_AFF')) {
-            define('VERSION_AFF', 105);
+            define('VERSION_AFF', 106);
         }
 
         parent::__construct();
@@ -155,12 +155,19 @@ class Authentication_affiliate extends App_Controller
                       'password'            => $data['password'],
                       'country'             => $data['country'] ?? '',
                       'referral_code'       => $data['referral_code'] ?? '',
-                      'approval'            => 0,
+                      'vendor_status'       => 'disable',
+                      'status'              => 1,
+                      'approval'            => 1,
                 ]);
 
                 if ($affiliate_id) {
+                    try {
+                        $this->affiliate_model->commission_new_registrantion($affiliate_id);
+                    } catch (Throwable $e) {
+                        log_message('error', 'affiliate new registration commission: ' . $e->getMessage());
+                    }
                     $redUrl = site_url('affiliate/authentication_affiliate/login');
-                    set_alert('success', _l('affiliate_successfully_registered'));
+                    set_alert('success', _l('clients_successfully_registered_logged_in'));
 
                     redirect($redUrl);
                 }

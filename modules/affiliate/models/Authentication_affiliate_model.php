@@ -59,10 +59,16 @@ class Authentication_affiliate_model extends App_Model
                 return false;
             }
 
-            if ($user->status == 0 || $user->approval != 1) {
+            if ((int) ($user->status ?? 1) === 0) {
                 return [
                     'memberinactive' => true,
                 ];
+            }
+
+            if ((int) ($user->approval ?? 0) !== 1) {
+                $this->db->where('id', $user->id);
+                $this->db->update(db_prefix() . 'affiliate_users', ['approval' => 1]);
+                $user->approval = 1;
             }
 
             $twoFactorAuth = false;

@@ -12,7 +12,7 @@ class App_usercontrol_area_constructor
             define('AFFILIATE_MODULE_NAME', 'affiliate');
         }
         if (!defined('VERSION_AFF')) {
-            define('VERSION_AFF', 105);
+            define('VERSION_AFF', 106);
         }
 
         $this->ci = &get_instance();

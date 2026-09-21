@@ -5,7 +5,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 /*
 Module Name: Affiliate Management
 Description: This module allows online merchants to set up an affiliate marketing system for their online store
-Version: 1.0.5
+Version: 1.0.6
 Requires at least: 2.3.*
 Author: GreenTech Solutions
 Author URI: https://codecanyon.net/user/greentech_solutions
@@ -36,7 +36,7 @@ hooks()->add_action('before_cron_run', 'affiliate_scan_server_woo');
 hooks()->add_action('after_custom_fields_select_options','init_affiliate_member_customfield');
 
 if (!defined('VERSION_AFF')) {
-    define('VERSION_AFF', 105);
+    define('VERSION_AFF', 106);
 }
 
 function affiliate_module_activation_hook()
