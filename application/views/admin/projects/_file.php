@@ -41,8 +41,15 @@
                   </a>
                   <br />
                   <?php } ?>
-                  <?php $path    = PROJECT_ATTACHMENTS_FOLDER . $file->project_id . '/' . $file->file_name; ?>
-                  <?php $fileUrl = base_url('uploads/projects/' . $file->project_id . '/' . $file->file_name); ?>
+                  <?php
+                  $wasabiProjectUrl = null;
+                  if (! empty($file->external) && $file->external == 'wasabi' && function_exists('wasabi_storage_url_for_project_file')) {
+                      $wasabiProjectUrl = wasabi_storage_url_for_project_file($file);
+                  }
+                  $path    = PROJECT_ATTACHMENTS_FOLDER . $file->project_id . '/' . $file->file_name;
+                  $fileUrl = $wasabiProjectUrl ?: base_url('uploads/projects/' . $file->project_id . '/' . $file->file_name);
+                  $isWasabiImage = $wasabiProjectUrl && ! empty($file->filetype) && strpos($file->filetype, 'image/') === 0;
+                  ?>
                   <a href="<?= e($fileUrl); ?>" target="_blank"
                      class="btn btn-primary mbot20"
                      download="<?= e($file->original_file_name); ?>">
@@ -50,7 +57,7 @@
                      <?= _l('download'); ?>
                   </a>
                   <br />
-                  <?php if (is_image($path)) { ?>
+                  <?php if (is_image($path) || $isWasabiImage) { ?>
                   <img src="<?= e($fileUrl); ?>"
                      class="img img-responsive">
                   <?php } elseif (! empty($file->external) && ! empty($file->thumbnail_link) && $file->external == 'dropbox') { ?>
@@ -58,24 +65,24 @@
                      src="<?= optimize_dropbox_thumbnail($file->thumbnail_link); ?>"
                      class="img img-responsive">
                   <?php
-                  } elseif (strpos($file->filetype, 'pdf') !== false && empty($file->external)) { ?>
+                  } elseif (strpos($file->filetype, 'pdf') !== false && (empty($file->external) || $file->external == 'wasabi')) { ?>
                   <iframe src="<?= e($fileUrl); ?>" height="100%"
                      width="100%" frameborder="0"></iframe>
                   <?php
-                  } elseif (is_html5_video($path)) { ?>
+                  } elseif (empty($file->external) && is_html5_video($path)) { ?>
                   <video width="100%" height="100%"
                      src="<?= site_url('download/preview_video?path=' . protected_file_url_by_path($path) . '&type=' . $file->filetype); ?>"
                      controls>
                      Your browser does not support the video tag.
                   </video>
                   <?php
-                  } elseif (is_markdown_file($path) && $previewMarkdown = markdown_parse_preview($path)) {
+                  } elseif (empty($file->external) && is_markdown_file($path) && $previewMarkdown = markdown_parse_preview($path)) {
                       echo $previewMarkdown;
                   } else {
-                      if (empty($file->external)) {
-                          echo '<a href="' . site_url('uploads/projects/' . $file->project_id . '/' . $file->file_name) . '" download="' . e($file->original_file_name) . '">' . e($file->original_file_name) . '</a>';
+                      if (empty($file->external) || $file->external == 'wasabi') {
+                          echo '<a href="' . e($fileUrl) . '" download="' . e($file->original_file_name) . '">' . e($file->original_file_name) . '</a>';
                       } else {
-                          echo '<a href="' . $file->external_link . '" target="_blank">' . e($file->original_file_name) . '</a>';
+                          echo '<a href="' . e($file->external_link) . '" target="_blank">' . e($file->original_file_name) . '</a>';
                       }
                       echo '<p class="text-muted">' . _l('no_preview_available_for_file') . '</p>';
                   } ?>

@@ -1,11 +1,31 @@
 /* Managio PWA service worker — cache, offline, sync, periodic sync, push */
-const CACHE = 'managio-pwa-v1';
+const CACHE = 'managio-pwa-v2';
 const OFFLINE = '/pwa/offline.html';
 const PRECACHE = [
   OFFLINE,
   '/assets/pwa/icons/icon-192.png',
   '/assets/pwa/icons/icon-512.png',
 ];
+const SKIP_CACHE = ['/sw.js', '/manifest.webmanifest', '/browserconfig.xml'];
+
+function shouldSkip(url) {
+  if (url.protocol === 'chrome-extension:') {
+    return true;
+  }
+  return SKIP_CACHE.some((path) => url.pathname === path || url.pathname.endsWith(path));
+}
+
+function isHtmlRequest(req) {
+  if (req.mode === 'navigate') {
+    return true;
+  }
+  const accept = req.headers.get('accept') || '';
+  return accept.includes('text/html');
+}
+
+function isPwaAsset(url) {
+  return url.pathname.includes('/assets/pwa/') || url.pathname.includes('/pwa/');
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -27,11 +47,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) {
+  if (url.origin !== self.location.origin || shouldSkip(url)) {
     return;
   }
 
-  if (req.mode === 'navigate') {
+  if (isHtmlRequest(req)) {
     event.respondWith(
       fetch(req)
         .then((res) => {
@@ -40,6 +60,24 @@ self.addEventListener('fetch', (event) => {
           return res;
         })
         .catch(() => caches.match(req).then((cached) => cached || caches.match(OFFLINE)))
+    );
+    return;
+  }
+
+  if (isPwaAsset(url)) {
+    event.respondWith(
+      caches.match(req).then((cached) => {
+        if (cached) {
+          return cached;
+        }
+        return fetch(req).then((res) => {
+          if (res && res.status === 200 && res.type === 'basic') {
+            const copy = res.clone();
+            caches.open(CACHE).then((cache) => cache.put(req, copy));
+          }
+          return res;
+        });
+      })
     );
     return;
   }
@@ -112,6 +150,8 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+
+self.addEventListener('notificationclose', () => {});
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {

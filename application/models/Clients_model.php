@@ -1292,6 +1292,8 @@ class Clients_model extends App_Model
                 if (file_exists($thumbPath)) {
                     unlink($thumbPath);
                 }
+            } elseif ($attachment->external === 'wasabi' && function_exists('wasabi_storage_delete_mapping_and_object')) {
+                wasabi_storage_delete_mapping_and_object('customer', $attachment->rel_id, $attachment->file_name);
             }
 
             $this->db->where('id', $id);

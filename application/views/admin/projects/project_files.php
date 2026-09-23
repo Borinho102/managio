@@ -107,7 +107,7 @@
                         data-order="<?= e($file['file_name']); ?>">
                         <a href="#"
                             onclick="view_project_file(<?= e($file['id']); ?>,<?= e($file['project_id']); ?>); return false;">
-                            <?php if (is_image(PROJECT_ATTACHMENTS_FOLDER . $project->id . '/' . $file['file_name']) || (! empty($file['external']) && ! empty($file['thumbnail_link']))) {
+                            <?php if (is_image(PROJECT_ATTACHMENTS_FOLDER . $project->id . '/' . $file['file_name']) || (! empty($file['external']) && ! empty($file['thumbnail_link'])) || (! empty($file['external']) && $file['external'] === 'wasabi' && ! empty($file['filetype']) && strpos($file['filetype'], 'image/') === 0)) {
                                 echo '<div class="text-left"><i class="fa fa-spinner fa-spin mtop30"></i></div>';
                                 echo '<img class="project-file-image img-table-loading" src="#" data-orig="' . e(project_file_url($file, true)) . '" width="100">';
                                 echo '</div>';

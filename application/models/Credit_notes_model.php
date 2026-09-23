@@ -373,6 +373,8 @@ class Credit_notes_model extends App_Model
         if ($attachment) {
             if (empty($attachment->external)) {
                 unlink(get_upload_path_by_type('credit_note') . $attachment->rel_id . '/' . $attachment->file_name);
+            } elseif ($attachment->external === 'wasabi' && function_exists('wasabi_storage_delete_mapping_and_object')) {
+                wasabi_storage_delete_mapping_and_object('credit_note', $attachment->rel_id, $attachment->file_name);
             }
             $this->db->where('id', $attachment->id);
             $this->db->delete(db_prefix() . 'files');

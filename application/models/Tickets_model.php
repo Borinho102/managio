@@ -657,7 +657,16 @@ class Tickets_model extends App_Model
         $this->db->where('id', $id);
         $attachment = $this->db->get(db_prefix() . 'ticket_attachments')->row();
         if ($attachment) {
-            if (unlink(get_upload_path_by_type('ticket') . $attachment->ticketid . '/' . $attachment->file_name)) {
+            $localPath = get_upload_path_by_type('ticket') . $attachment->ticketid . '/' . $attachment->file_name;
+            $removed = false;
+            if (file_exists($localPath)) {
+                $removed = @unlink($localPath);
+            }
+            if (function_exists('wasabi_storage_delete_mapping_and_object')) {
+                wasabi_storage_delete_mapping_and_object('ticket', $attachment->ticketid, $attachment->file_name);
+                $removed = true;
+            }
+            if ($removed || !file_exists($localPath)) {
                 $this->db->where('id', $attachment->id);
                 $this->db->delete(db_prefix() . 'ticket_attachments');
                 $deleted = true;

@@ -65,6 +65,12 @@ function products_get_product_image_url($product_image)
     if (empty($product_image)) {
         return '';
     }
+    if (function_exists('wasabi_storage_product_image_url')) {
+        $wasabi = wasabi_storage_product_image_url($product_image);
+        if ($wasabi !== '') {
+            return $wasabi;
+        }
+    }
     $newPath  = products_get_product_image_path() . $product_image;
     $modulePath = defined('PRODUCT_MODULE_UPLOAD_FOLDER') ? PRODUCT_MODULE_UPLOAD_FOLDER . $product_image : '';
     if (file_exists($newPath) && is_file($newPath)) {
@@ -86,6 +92,12 @@ function products_get_no_image_url()
 
 function handle_product_upload($product_id)
 {
+    if (function_exists('wasabi_storage_enabled') && wasabi_storage_enabled() && function_exists('wasabi_storage_handle_product_image')) {
+        if (wasabi_storage_handle_product_image($product_id)) {
+            return true;
+        }
+    }
+
     $CI = &get_instance();
     if (isset($_FILES['product']['name']) && '' != $_FILES['product']['name']) {
         $path        = products_get_product_image_path();

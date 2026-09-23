@@ -1138,7 +1138,7 @@ function handle_project_discussion_comment_attachments($discussion_id, $post_dat
     ]);
 
     if ($hookData['handled_externally']) {
-        return $insert_data;
+        return isset($hookData['insert_data']) ? $hookData['insert_data'] : $insert_data;
     }
 
     if (isset($_FILES['file']['name'])) {

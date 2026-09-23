@@ -1496,6 +1496,15 @@ class Projects_model extends App_Model
         }
         if (! is_null($comment->file_name)) {
             $comment->file_url = site_url('uploads/discussions/' . $comment->discussion_id . '/' . $comment->file_name);
+            if (function_exists('wasabi_storage_find_key_by_filename') && function_exists('wasabi_storage_signed_url')) {
+                $wasabiKey = wasabi_storage_find_key_by_filename($comment->file_name, 'discussion', $comment->discussion_id);
+                if ($wasabiKey) {
+                    $signed = wasabi_storage_signed_url($wasabiKey);
+                    if ($signed) {
+                        $comment->file_url = $signed;
+                    }
+                }
+            }
         }
 
         return $comment;
@@ -1550,6 +1559,15 @@ class Projects_model extends App_Model
             }
             if (! is_null($comment['file_name'])) {
                 $comments[$i]['file_url'] = site_url('uploads/discussions/' . $id . '/' . $comment['file_name']);
+                if (function_exists('wasabi_storage_find_key_by_filename') && function_exists('wasabi_storage_signed_url')) {
+                    $wasabiKey = wasabi_storage_find_key_by_filename($comment['file_name'], 'discussion', $id);
+                    if ($wasabiKey) {
+                        $signed = wasabi_storage_signed_url($wasabiKey);
+                        if ($signed) {
+                            $comments[$i]['file_url'] = $signed;
+                        }
+                    }
+                }
             }
             $comments[$i]['created'] = (strtotime($comment['created']) * 1000);
             if (! empty($comment['modified'])) {
@@ -1772,6 +1790,9 @@ class Projects_model extends App_Model
         if (! is_null($file_name)) {
             if (file_exists($path . '/' . $file_name)) {
                 unlink($path . '/' . $file_name);
+            }
+            if (function_exists('wasabi_storage_delete_mapping_and_object')) {
+                wasabi_storage_delete_mapping_and_object('discussion', $discussion_id, $file_name);
             }
         }
         if (is_dir($path)) {

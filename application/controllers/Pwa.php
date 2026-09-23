@@ -13,8 +13,12 @@ class Pwa extends App_Controller
     {
         $name  = get_option('companyname') ?: 'Managio';
         $start = site_url('/');
+        $startUrl = $start . (strpos($start, '?') !== false ? '&' : '?') . 'utm_source=pwa';
         $icon  = function ($file) {
             return site_url('assets/pwa/icons/' . $file);
+        };
+        $shot = function ($file) {
+            return site_url('assets/pwa/screenshots/' . $file);
         };
 
         $icons = [];
@@ -40,17 +44,18 @@ class Pwa extends App_Controller
             'description'     => 'CRM, invoices, clients and operations',
             'lang'            => 'en',
             'dir'             => 'ltr',
-            'start_url'       => $start,
+            'start_url'       => $startUrl,
             'scope'           => site_url('/'),
             'display'         => 'standalone',
-            'display_override'=> ['window-controls-overlay', 'tabbed', 'standalone', 'minimal-ui'],
+            'display_override'=> ['window-controls-overlay', 'tabbed', 'standalone', 'minimal-ui', 'browser'],
             'orientation'     => 'portrait-primary',
             'background_color'=> '#2563eb',
             'theme_color'     => '#2563eb',
             'categories'      => ['business', 'productivity'],
             'prefer_related_applications' => false,
+            'related_applications' => [],
             'handle_links'    => 'preferred',
-            'launch_handler'  => ['client_mode' => 'navigate-existing'],
+            'launch_handler'  => ['client_mode' => ['navigate-existing', 'auto']],
             'edge_side_panel' => ['preferred_width' => 420],
             'note_taking'     => ['new_note_url' => site_url('pwa/notes/new')],
             'tab_strip'       => [
@@ -61,6 +66,22 @@ class Pwa extends App_Controller
                 'new_tab_button' => ['url' => site_url('admin')],
             ],
             'icons'           => $icons,
+            'screenshots'     => [
+                [
+                    'src'         => $shot('narrow.png'),
+                    'sizes'       => '720x1280',
+                    'type'        => 'image/png',
+                    'form_factor' => 'narrow',
+                    'label'       => $name,
+                ],
+                [
+                    'src'         => $shot('wide.png'),
+                    'sizes'       => '1280x720',
+                    'type'        => 'image/png',
+                    'form_factor' => 'wide',
+                    'label'       => $name,
+                ],
+            ],
             'shortcuts'       => [
                 ['name' => 'Dashboard', 'short_name' => 'Home', 'url' => site_url('admin'), 'icons' => [['src' => $icon('icon-192.png'), 'sizes' => '192x192']]],
                 ['name' => 'Clients', 'short_name' => 'Clients', 'url' => site_url('admin/clients'), 'icons' => [['src' => $icon('icon-192.png'), 'sizes' => '192x192']]],

@@ -434,6 +434,9 @@ class Products_model extends App_Model
         if (!empty($product->product_image) && file_exists($fullPath)) {
             @unlink($fullPath);
         }
+        if (!empty($product->product_image) && function_exists('wasabi_storage_delete_mapping_and_object')) {
+            wasabi_storage_delete_mapping_and_object('products', $id, $product->product_image);
+        }
         // Read the variation ids before deleting the product: product_variations
         // has ON DELETE CASCADE, so they are gone by the time we clean up prices.
         $this->db->where('product_id', $id);

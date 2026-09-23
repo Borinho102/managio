@@ -688,6 +688,15 @@ class Expenses_model extends App_Model
      */
     public function delete_expense_attachment($id)
     {
+        $this->db->where('rel_id', $id);
+        $this->db->where('rel_type', 'expense');
+        $files = $this->db->get(db_prefix() . 'files')->result();
+        foreach ($files as $file) {
+            if (!empty($file->external) && $file->external === 'wasabi' && function_exists('wasabi_storage_delete_mapping_and_object')) {
+                wasabi_storage_delete_mapping_and_object('expense', $file->rel_id, $file->file_name);
+            }
+        }
+
         if (is_dir(get_upload_path_by_type('expense') . $id)) {
             if (delete_dir(get_upload_path_by_type('expense') . $id)) {
                 $this->db->where('rel_id', $id);
@@ -697,6 +706,13 @@ class Expenses_model extends App_Model
 
                 return true;
             }
+        } elseif (!empty($files)) {
+            $this->db->where('rel_id', $id);
+            $this->db->where('rel_type', 'expense');
+            $this->db->delete(db_prefix() . 'files');
+            log_activity('Expense Receipt Deleted [ExpenseID: ' . $id . ']');
+
+            return true;
         }
 
         return false;

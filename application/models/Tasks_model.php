@@ -1221,6 +1221,8 @@ class Tasks_model extends App_Model
                         unlink($thumbPath);
                     }
                 }
+            } elseif ($attachment->external === 'wasabi' && function_exists('wasabi_storage_delete_mapping_and_object')) {
+                wasabi_storage_delete_mapping_and_object('task', $attachment->rel_id, $attachment->file_name);
             }
 
             $this->db->where('id', $attachment->id);
@@ -1282,6 +1284,21 @@ class Tasks_model extends App_Model
      */
     public function add_attachment_to_database($rel_id, $attachment, $external = false, $notification = true)
     {
+        if ($external == false && is_array($attachment) && !empty($attachment[0]['external'])) {
+            $external   = $attachment[0]['external'];
+            $converted  = [
+                'name' => $attachment[0]['file_name'] ?? ($attachment[0]['name'] ?? ''),
+                'link' => $attachment[0]['external_link'] ?? ($attachment[0]['link'] ?? ''),
+                'mime' => $attachment[0]['filetype'] ?? ($attachment[0]['mime'] ?? null),
+            ];
+            foreach (['task_comment_id', 'contact_id', 'staffid'] as $extra) {
+                if (isset($attachment[0][$extra])) {
+                    $converted[$extra] = $attachment[0][$extra];
+                }
+            }
+            $attachment = [$converted];
+        }
+
         $file_id = $this->misc_model->add_attachment_to_database($rel_id, 'task', $attachment, $external);
         if ($file_id) {
             $this->db->select('rel_type,rel_id,name,visible_to_client');

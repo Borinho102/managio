@@ -134,6 +134,21 @@ class Misc_model extends App_Model
 
     public function add_attachment_to_database($rel_id, $rel_type, $attachment, $external = false)
     {
+        if ($external == false && is_array($attachment) && !empty($attachment[0]['external'])) {
+            $external  = $attachment[0]['external'];
+            $converted = [
+                'name' => $attachment[0]['file_name'] ?? ($attachment[0]['name'] ?? ''),
+                'link' => $attachment[0]['external_link'] ?? ($attachment[0]['link'] ?? ''),
+                'mime' => $attachment[0]['filetype'] ?? ($attachment[0]['mime'] ?? null),
+            ];
+            foreach (['task_comment_id', 'contact_id', 'staffid', 'thumbnailLink'] as $extra) {
+                if (isset($attachment[0][$extra])) {
+                    $converted[$extra] = $attachment[0][$extra];
+                }
+            }
+            $attachment = [$converted];
+        }
+
         $data['dateadded'] = date('Y-m-d H:i:s');
         $data['rel_id']    = $rel_id;
         if (!isset($attachment[0]['staffid'])) {
@@ -174,6 +189,21 @@ class Misc_model extends App_Model
 
         $this->db->insert(db_prefix() . 'files', $data);
         $insert_id = $this->db->insert_id();
+
+        // Wasabi: keep object key in wasabi_files mapping; expose a stable download URL in external_link
+        // so existing views that use external_link as an href keep working.
+        if ($insert_id && $external === 'wasabi' && function_exists('wasabi_storage_files_table_download_url')) {
+            $downloadUrl = wasabi_storage_files_table_download_url(
+                $data['rel_type'],
+                $data['attachment_key'],
+                $insert_id,
+                $data['rel_id']
+            );
+            if ($downloadUrl !== '') {
+                $this->db->where('id', $insert_id);
+                $this->db->update(db_prefix() . 'files', ['external_link' => $downloadUrl]);
+            }
+        }
 
         if ($data['rel_type'] == 'customer' && isset($data['contact_id'])) {
             if (get_option('only_own_files_contacts') == 1) {

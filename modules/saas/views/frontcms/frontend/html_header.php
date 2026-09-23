@@ -60,7 +60,7 @@
     ?>
     <title><?php echo $title; ?></title>
 
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <link rel="icon" href="<?php echo base_url() . get_option('saas_front_favicon'); ?>">
     <?php if (function_exists('pwa_head')) { pwa_head(); } ?>
     <!-- CSS here -->

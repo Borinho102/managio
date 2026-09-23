@@ -457,6 +457,13 @@ function protected_file_url_by_path($path, $preview = false)
  */
 function project_file_url($file, $preview = false)
 {
+    if (function_exists('wasabi_storage_url_for_project_file')) {
+        $wasabiUrl = wasabi_storage_url_for_project_file($file);
+        if (!empty($wasabiUrl)) {
+            return $wasabiUrl;
+        }
+    }
+
     $path     = 'uploads/projects/' . $file['project_id'] . '/';
     $fullPath = FCPATH . $path . $file['file_name'];
     $url      = base_url($path . $file['file_name']);

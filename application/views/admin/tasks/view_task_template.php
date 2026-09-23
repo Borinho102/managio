@@ -551,6 +551,19 @@ foreach ($task->timesheets as $timesheet) { ?>
                 if (empty($attachment['external'])) {
                     $is_image = is_image($path);
                     $img_url  = site_url('download/preview_image?path=' . protected_file_url_by_path($path, true) . '&type=' . $attachment['filetype']);
+                } elseif ($attachment['external'] === 'wasabi') {
+                    // Keep download controller URL (external_link may already be that URL after insert)
+                    $href_url = !empty($attachment['external_link']) ? $attachment['external_link'] : $href_url;
+                    if (!empty($attachment['filetype']) && strpos($attachment['filetype'], 'image/') === 0 && function_exists('wasabi_storage_find_key_by_filename')) {
+                        $wKey = wasabi_storage_find_key_by_filename($attachment['file_name'], 'task', $task->id);
+                        if ($wKey) {
+                            $signed = wasabi_storage_signed_url($wKey);
+                            if ($signed) {
+                                $is_image = true;
+                                $img_url  = $signed;
+                            }
+                        }
+                    }
                 } elseif ((! empty($attachment['thumbnail_link']) || ! empty($attachment['external']))
                 && ! empty($attachment['thumbnail_link'])) {
                     $is_image        = true;

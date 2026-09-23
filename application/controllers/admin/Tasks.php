@@ -992,7 +992,23 @@ class Tasks extends AdminController
                 $i   = 0;
                 $len = count($files);
                 foreach ($files as $file) {
-                    $success = $this->tasks_model->add_attachment_to_database($taskid, [$file], false, ($i == $len - 1 ? true : false));
+                    $external = false;
+                    $attachment = [$file];
+                    if (!empty($file['external'])) {
+                        $external = $file['external'];
+                        $attachment = [[
+                            'name' => $file['file_name'] ?? $file['name'],
+                            'link' => $file['external_link'] ?? $file['link'],
+                            'mime' => $file['filetype'] ?? $file['mime'] ?? null,
+                        ]];
+                        if (!empty($file['task_comment_id'])) {
+                            $attachment[0]['task_comment_id'] = $file['task_comment_id'];
+                        }
+                        if (!empty($file['contact_id'])) {
+                            $attachment[0]['contact_id'] = $file['contact_id'];
+                        }
+                    }
+                    $success = $this->tasks_model->add_attachment_to_database($taskid, $attachment, $external, ($i == $len - 1 ? true : false));
                     $i++;
                 }
             }

@@ -46,6 +46,7 @@ class Backup extends AdminController
         $success = $this->backup_module->make_backup_db(true);
 
         if ($success) {
+            hooks()->do_action('after_make_backup');
             set_alert('success', _l('backup_success'));
         }
 
