@@ -18,8 +18,9 @@ function wasabi_storage_credentials_ready()
 function wasabi_storage_client()
 {
     $CI = &get_instance();
-    if (!isset($CI->wasabi_client) || !($CI->wasabi_client instanceof Wasabi_client)) {
-        $CI->load->library(WASABI_STORAGE_MODULE_NAME . '/wasabi_client');
+    // Pass [] so MX Loader does not construct the library with null (PHP 8 array-offset fatal).
+    if (!isset($CI->wasabi_client) || !(is_object($CI->wasabi_client) && get_class($CI->wasabi_client) === 'Wasabi_client')) {
+        $CI->load->library(WASABI_STORAGE_MODULE_NAME . '/wasabi_client', []);
     }
 
     return $CI->wasabi_client;
@@ -190,13 +191,19 @@ function wasabi_storage_upload_tmp($tmpPath, $objectKey, $mime = 'application/oc
     if (!is_uploaded_file($tmpPath) && !is_file($tmpPath)) {
         return false;
     }
-    $client = wasabi_storage_client();
-    $ok = $client->put_object($objectKey, $tmpPath, $mime ?: 'application/octet-stream');
-    if (!$ok) {
-        update_option('wasabi_last_error', $client->get_last_error());
-    }
+    try {
+        $client = wasabi_storage_client();
+        $ok = $client->put_object($objectKey, $tmpPath, $mime ?: 'application/octet-stream');
+        if (!$ok) {
+            update_option('wasabi_last_error', $client->get_last_error());
+        }
 
-    return $ok;
+        return $ok;
+    } catch (Throwable $e) {
+        update_option('wasabi_last_error', $e->getMessage());
+
+        return false;
+    }
 }
 
 function wasabi_storage_unique_name($original)
@@ -215,17 +222,17 @@ function wasabi_storage_unique_name($original)
  */
 function wasabi_storage_normalize_files_index($files, $index)
 {
-    if (!isset($files[$index])) {
+    if (!isset($files[$index]) || !is_array($files[$index]) || !isset($files[$index]['name'])) {
         return null;
     }
     $f = $files[$index];
     if (!is_array($f['name'])) {
         return [
-            'name'     => [$f['name']],
-            'type'     => [$f['type']],
-            'tmp_name' => [$f['tmp_name']],
-            'error'    => [$f['error']],
-            'size'     => [$f['size']],
+            'name'     => [$f['name'] ?? ''],
+            'type'     => [$f['type'] ?? ''],
+            'tmp_name' => [$f['tmp_name'] ?? ''],
+            'error'    => [$f['error'] ?? UPLOAD_ERR_NO_FILE],
+            'size'     => [$f['size'] ?? 0],
         ];
     }
 
@@ -276,12 +283,20 @@ function wasabi_storage_filter_task_attachments($hookData)
     if (!wasabi_storage_enabled()) {
         return $hookData;
     }
-    $taskId = (int) ($hookData['task_id'] ?? 0);
-    $index = $hookData['index_name'] ?? 'attachments';
-    $files = $hookData['files'] ?? $_FILES;
-    $uploaded = wasabi_storage_collect_uploads($files, $index, 'task', $taskId);
-    $hookData['handled_externally'] = true;
-    $hookData['uploaded_files'] = $uploaded;
+    try {
+        $taskId = (int) ($hookData['task_id'] ?? 0);
+        $index = $hookData['index_name'] ?? 'attachments';
+        $files = $hookData['files'] ?? $_FILES;
+        $uploaded = wasabi_storage_collect_uploads($files, $index, 'task', $taskId);
+        // Only claim external handling when at least one file reached Wasabi; otherwise fall back to local disk.
+        if (count($uploaded) === 0) {
+            return $hookData;
+        }
+        $hookData['handled_externally'] = true;
+        $hookData['uploaded_files'] = $uploaded;
+    } catch (Throwable $e) {
+        update_option('wasabi_last_error', $e->getMessage());
+    }
 
     return $hookData;
 }
@@ -291,20 +306,27 @@ function wasabi_storage_filter_ticket_attachments($hookData)
     if (!wasabi_storage_enabled()) {
         return $hookData;
     }
-    $ticketId = (int) ($hookData['ticket_id'] ?? 0);
-    $index = $hookData['index_name'] ?? 'attachments';
-    $files = $hookData['files'] ?? $_FILES;
-    $uploaded = wasabi_storage_collect_uploads($files, $index, 'ticket', $ticketId);
-    // tickets table has no external column — keep local-style array, mapping table used on download
-    $localStyle = [];
-    foreach ($uploaded as $u) {
-        $localStyle[] = [
-            'file_name' => $u['file_name'],
-            'filetype'  => $u['filetype'],
-        ];
+    try {
+        $ticketId = (int) ($hookData['ticket_id'] ?? 0);
+        $index = $hookData['index_name'] ?? 'attachments';
+        $files = $hookData['files'] ?? $_FILES;
+        $uploaded = wasabi_storage_collect_uploads($files, $index, 'ticket', $ticketId);
+        if (count($uploaded) === 0) {
+            return $hookData;
+        }
+        // tickets table has no external column — keep local-style array, mapping table used on download
+        $localStyle = [];
+        foreach ($uploaded as $u) {
+            $localStyle[] = [
+                'file_name' => $u['file_name'],
+                'filetype'  => $u['filetype'],
+            ];
+        }
+        $hookData['handled_externally'] = true;
+        $hookData['uploaded_files'] = $localStyle;
+    } catch (Throwable $e) {
+        update_option('wasabi_last_error', $e->getMessage());
     }
-    $hookData['handled_externally'] = true;
-    $hookData['uploaded_files'] = $localStyle;
 
     return $hookData;
 }
@@ -314,41 +336,49 @@ function wasabi_storage_filter_project_files($hookData)
     if (!wasabi_storage_enabled()) {
         return $hookData;
     }
-    $projectId = (int) ($hookData['project_id'] ?? 0);
-    $files = $hookData['files'] ?? $_FILES;
-    $uploaded = wasabi_storage_collect_uploads($files, 'file', 'project', $projectId);
-    $CI = &get_instance();
-    $ok = false;
-    foreach ($uploaded as $u) {
-        if (is_client_logged_in()) {
-            $contact_id = get_contact_user_id();
-            $staffid = 0;
-        } else {
-            $staffid = get_staff_user_id();
-            $contact_id = 0;
+    try {
+        $projectId = (int) ($hookData['project_id'] ?? 0);
+        $files = $hookData['files'] ?? $_FILES;
+        $uploaded = wasabi_storage_collect_uploads($files, 'file', 'project', $projectId);
+        if (count($uploaded) === 0) {
+            return $hookData;
         }
-        $data = [
-            'project_id'         => $projectId,
-            'file_name'          => $u['file_name'],
-            'original_file_name' => $u['file_name'],
-            'filetype'           => $u['filetype'],
-            'dateadded'          => date('Y-m-d H:i:s'),
-            'staffid'            => $staffid,
-            'contact_id'         => $contact_id,
-            'subject'            => $u['file_name'],
-            'external'           => WASABI_STORAGE_EXTERNAL,
-            'external_link'      => $u['link'],
-            'visible_to_customer'=> is_client_logged_in() ? 1 : ($CI->input->post('visible_to_customer') == 'true' ? 1 : 0),
-        ];
-        $CI->db->insert(db_prefix() . 'project_files', $data);
-        if ($CI->db->insert_id()) {
-            $ok = true;
-            $CI->load->model('projects_model');
-            $CI->projects_model->new_project_file_notification($CI->db->insert_id(), $projectId);
+        $CI = &get_instance();
+        $ok = false;
+        foreach ($uploaded as $u) {
+            if (is_client_logged_in()) {
+                $contact_id = get_contact_user_id();
+                $staffid = 0;
+            } else {
+                $staffid = get_staff_user_id();
+                $contact_id = 0;
+            }
+            $data = [
+                'project_id'         => $projectId,
+                'file_name'          => $u['file_name'],
+                'original_file_name' => $u['file_name'],
+                'filetype'           => $u['filetype'],
+                'dateadded'          => date('Y-m-d H:i:s'),
+                'staffid'            => $staffid,
+                'contact_id'         => $contact_id,
+                'subject'            => $u['file_name'],
+                'external'           => WASABI_STORAGE_EXTERNAL,
+                'external_link'      => $u['link'],
+                'visible_to_customer'=> is_client_logged_in() ? 1 : ($CI->input->post('visible_to_customer') == 'true' ? 1 : 0),
+            ];
+            $CI->db->insert(db_prefix() . 'project_files', $data);
+            $insertId = $CI->db->insert_id();
+            if ($insertId) {
+                $ok = true;
+                $CI->load->model('projects_model');
+                $CI->projects_model->new_project_file_notification($insertId, $projectId);
+            }
         }
+        $hookData['handled_externally'] = true;
+        $hookData['handled_externally_successfully'] = $ok;
+    } catch (Throwable $e) {
+        update_option('wasabi_last_error', $e->getMessage());
     }
-    $hookData['handled_externally'] = true;
-    $hookData['handled_externally_successfully'] = $ok;
 
     return $hookData;
 }
@@ -358,40 +388,47 @@ function wasabi_storage_filter_sales_attachments($hookData)
     if (!wasabi_storage_enabled()) {
         return $hookData;
     }
-    $relId = (int) ($hookData['rel_id'] ?? 0);
-    $relType = $hookData['rel_type'] ?? 'invoice';
-    $files = $hookData['files'] ?? $_FILES;
-    $uploaded = wasabi_storage_collect_uploads($files, 'file', $relType, $relId);
-    $CI = &get_instance();
-    $payload = ['success' => false, 'rel_id' => $relId];
-    if (!empty($uploaded[0])) {
-        $u = $uploaded[0];
-        $attachment = [[
-            'name' => $u['name'],
-            'link' => $u['link'],
-            'mime' => $u['mime'],
-        ]];
-        $insert_id = $CI->misc_model->add_attachment_to_database($relId, $relType, $attachment, WASABI_STORAGE_EXTERNAL);
-        $CI->db->where('id', $insert_id);
-        $_attachment = $CI->db->get(db_prefix() . 'files')->row();
-        $payload = [
-            'success'       => true,
-            'attachment_id' => $insert_id,
-            'filetype'      => $u['mime'],
-            'rel_id'        => $relId,
-            'file_name'     => $u['name'],
-            'key'           => $_attachment ? $_attachment->attachment_key : '',
-        ];
-        if ($relType == 'invoice') {
-            $CI->load->model('invoices_model');
-            $CI->invoices_model->log_invoice_activity($relId, 'invoice_activity_added_attachment');
-        } elseif ($relType == 'estimate') {
-            $CI->load->model('estimates_model');
-            $CI->estimates_model->log_estimate_activity($relId, 'estimate_activity_added_attachment');
+    try {
+        $relId = (int) ($hookData['rel_id'] ?? 0);
+        $relType = $hookData['rel_type'] ?? 'invoice';
+        $files = $hookData['files'] ?? $_FILES;
+        $uploaded = wasabi_storage_collect_uploads($files, 'file', $relType, $relId);
+        if (count($uploaded) === 0) {
+            return $hookData;
         }
+        $CI = &get_instance();
+        $payload = ['success' => false, 'rel_id' => $relId];
+        if (!empty($uploaded[0])) {
+            $u = $uploaded[0];
+            $attachment = [[
+                'name' => $u['name'],
+                'link' => $u['link'],
+                'mime' => $u['mime'],
+            ]];
+            $insert_id = $CI->misc_model->add_attachment_to_database($relId, $relType, $attachment, WASABI_STORAGE_EXTERNAL);
+            $CI->db->where('id', $insert_id);
+            $_attachment = $CI->db->get(db_prefix() . 'files')->row();
+            $payload = [
+                'success'       => true,
+                'attachment_id' => $insert_id,
+                'filetype'      => $u['mime'],
+                'rel_id'        => $relId,
+                'file_name'     => $u['name'],
+                'key'           => $_attachment ? $_attachment->attachment_key : '',
+            ];
+            if ($relType == 'invoice') {
+                $CI->load->model('invoices_model');
+                $CI->invoices_model->log_invoice_activity($relId, 'invoice_activity_added_attachment');
+            } elseif ($relType == 'estimate') {
+                $CI->load->model('estimates_model');
+                $CI->estimates_model->log_estimate_activity($relId, 'estimate_activity_added_attachment');
+            }
+        }
+        $hookData['handled_externally'] = true;
+        $hookData['handled_externally_successfully'] = json_encode($payload);
+    } catch (Throwable $e) {
+        update_option('wasabi_last_error', $e->getMessage());
     }
-    $hookData['handled_externally'] = true;
-    $hookData['handled_externally_successfully'] = json_encode($payload);
 
     return $hookData;
 }
@@ -401,25 +438,32 @@ function wasabi_storage_filter_client_attachments($hookData)
     if (!wasabi_storage_enabled()) {
         return $hookData;
     }
-    $customerId = (int) ($hookData['customer_id'] ?? 0);
-    $files = $hookData['files'] ?? $_FILES;
-    $uploaded = wasabi_storage_collect_uploads($files, 'file', 'customer', $customerId);
-    $CI = &get_instance();
-    $total = 0;
-    foreach ($uploaded as $u) {
-        $attachment = [[
-            'name'       => $u['name'],
-            'link'       => $u['link'],
-            'mime'       => $u['mime'],
-            'contact_id' => !empty($hookData['customer_upload']) ? get_contact_user_id() : null,
-        ]];
-        if ($CI->misc_model->add_attachment_to_database($customerId, 'customer', $attachment, WASABI_STORAGE_EXTERNAL)) {
-            $total++;
+    try {
+        $customerId = (int) ($hookData['customer_id'] ?? 0);
+        $files = $hookData['files'] ?? $_FILES;
+        $uploaded = wasabi_storage_collect_uploads($files, 'file', 'customer', $customerId);
+        if (count($uploaded) === 0) {
+            return $hookData;
         }
+        $CI = &get_instance();
+        $total = 0;
+        foreach ($uploaded as $u) {
+            $attachment = [[
+                'name'       => $u['name'],
+                'link'       => $u['link'],
+                'mime'       => $u['mime'],
+                'contact_id' => !empty($hookData['customer_upload']) ? get_contact_user_id() : null,
+            ]];
+            if ($CI->misc_model->add_attachment_to_database($customerId, 'customer', $attachment, WASABI_STORAGE_EXTERNAL)) {
+                $total++;
+            }
+        }
+        $hookData['handled_externally'] = true;
+        $hookData['handled_externally_successfully'] = $total > 0;
+        $hookData['total_uploaded'] = $total;
+    } catch (Throwable $e) {
+        update_option('wasabi_last_error', $e->getMessage());
     }
-    $hookData['handled_externally'] = true;
-    $hookData['handled_externally_successfully'] = $total > 0;
-    $hookData['total_uploaded'] = $total;
 
     return $hookData;
 }
@@ -429,24 +473,31 @@ function wasabi_storage_filter_simple_rel($hookData, $idKey, $type, $index = nul
     if (!wasabi_storage_enabled()) {
         return $hookData;
     }
-    $relId = (int) ($hookData[$idKey] ?? 0);
-    $files = $hookData['files'] ?? $_FILES;
-    $index = $index ?: ($hookData['index_name'] ?? 'file');
-    $uploaded = wasabi_storage_collect_uploads($files, $index, $type, $relId);
-    $CI = &get_instance();
-    $ok = false;
-    foreach ($uploaded as $u) {
-        $attachment = [[
-            'name' => $u['name'],
-            'link' => $u['link'],
-            'mime' => $u['mime'],
-        ]];
-        if ($CI->misc_model->add_attachment_to_database($relId, $type, $attachment, WASABI_STORAGE_EXTERNAL)) {
-            $ok = true;
+    try {
+        $relId = (int) ($hookData[$idKey] ?? 0);
+        $files = $hookData['files'] ?? $_FILES;
+        $index = $index ?: ($hookData['index_name'] ?? 'file');
+        $uploaded = wasabi_storage_collect_uploads($files, $index, $type, $relId);
+        if (count($uploaded) === 0) {
+            return $hookData;
         }
+        $CI = &get_instance();
+        $ok = false;
+        foreach ($uploaded as $u) {
+            $attachment = [[
+                'name' => $u['name'],
+                'link' => $u['link'],
+                'mime' => $u['mime'],
+            ]];
+            if ($CI->misc_model->add_attachment_to_database($relId, $type, $attachment, WASABI_STORAGE_EXTERNAL)) {
+                $ok = true;
+            }
+        }
+        $hookData['handled_externally'] = true;
+        $hookData['handled_externally_successfully'] = $ok;
+    } catch (Throwable $e) {
+        update_option('wasabi_last_error', $e->getMessage());
     }
-    $hookData['handled_externally'] = true;
-    $hookData['handled_externally_successfully'] = $ok;
 
     return $hookData;
 }
@@ -471,23 +522,30 @@ function wasabi_storage_filter_newsfeed_attachments($hookData)
     if (!wasabi_storage_enabled()) {
         return $hookData;
     }
-    $postId = (int) ($hookData['newsfeed_post_id'] ?? 0);
-    $files = $hookData['files'] ?? $_FILES;
-    $uploaded = wasabi_storage_collect_uploads($files, 'file', 'newsfeed', $postId);
-    $CI = &get_instance();
-    $ok = false;
-    foreach ($uploaded as $u) {
-        $attachment = [[
-            'name' => $u['name'],
-            'link' => $u['link'],
-            'mime' => $u['mime'],
-        ]];
-        if ($CI->misc_model->add_attachment_to_database($postId, 'newsfeed', $attachment, WASABI_STORAGE_EXTERNAL)) {
-            $ok = true;
+    try {
+        $postId = (int) ($hookData['newsfeed_post_id'] ?? 0);
+        $files = $hookData['files'] ?? $_FILES;
+        $uploaded = wasabi_storage_collect_uploads($files, 'file', 'newsfeed', $postId);
+        if (count($uploaded) === 0) {
+            return $hookData;
         }
+        $CI = &get_instance();
+        $ok = false;
+        foreach ($uploaded as $u) {
+            $attachment = [[
+                'name' => $u['name'],
+                'link' => $u['link'],
+                'mime' => $u['mime'],
+            ]];
+            if ($CI->misc_model->add_attachment_to_database($postId, 'newsfeed', $attachment, WASABI_STORAGE_EXTERNAL)) {
+                $ok = true;
+            }
+        }
+        $hookData['handled_externally'] = true;
+        $hookData['handled_externally_successfully'] = $ok;
+    } catch (Throwable $e) {
+        update_option('wasabi_last_error', $e->getMessage());
     }
-    $hookData['handled_externally'] = true;
-    $hookData['handled_externally_successfully'] = $ok;
 
     return $hookData;
 }
@@ -502,14 +560,21 @@ function wasabi_storage_filter_discussion_attachment($hookData)
     if (!wasabi_storage_enabled()) {
         return $hookData;
     }
-    $discussionId = (int) ($hookData['discussion_id'] ?? 0);
-    $files = $hookData['files'] ?? $_FILES;
-    $uploaded = wasabi_storage_collect_uploads($files, 'file', 'discussion', $discussionId);
-    $hookData['handled_externally'] = count($uploaded) > 0;
-    $hookData['handled_externally_successfully'] = count($uploaded) > 0;
-    if (!empty($uploaded[0]) && isset($hookData['insert_data']) && is_array($hookData['insert_data'])) {
-        $hookData['insert_data']['file_name'] = $uploaded[0]['file_name'];
-        $hookData['insert_data']['file_mime_type'] = $uploaded[0]['filetype'];
+    try {
+        $discussionId = (int) ($hookData['discussion_id'] ?? 0);
+        $files = $hookData['files'] ?? $_FILES;
+        $uploaded = wasabi_storage_collect_uploads($files, 'file', 'discussion', $discussionId);
+        if (count($uploaded) === 0) {
+            return $hookData;
+        }
+        $hookData['handled_externally'] = true;
+        $hookData['handled_externally_successfully'] = true;
+        if (!empty($uploaded[0]) && isset($hookData['insert_data']) && is_array($hookData['insert_data'])) {
+            $hookData['insert_data']['file_name'] = $uploaded[0]['file_name'];
+            $hookData['insert_data']['file_mime_type'] = $uploaded[0]['filetype'];
+        }
+    } catch (Throwable $e) {
+        update_option('wasabi_last_error', $e->getMessage());
     }
 
     return $hookData;

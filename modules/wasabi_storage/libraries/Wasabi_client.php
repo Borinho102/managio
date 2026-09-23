@@ -23,6 +23,10 @@ class Wasabi_client
 
     public function __construct($config = [])
     {
+        // MX Loader passes null when no config is given; array access on null is a PHP 8+ TypeError/warning → HTTP 500.
+        if (!is_array($config)) {
+            $config = [];
+        }
         $this->accessKey = (string) ($config['access_key'] ?? get_option('wasabi_access_key'));
         $this->secretKey = (string) ($config['secret_key'] ?? get_option('wasabi_secret_key'));
         $this->bucket    = (string) ($config['bucket'] ?? get_option('wasabi_bucket'));
@@ -65,9 +69,9 @@ class Wasabi_client
             $body = (string) $bodyOrPath;
         }
 
+        // Do not send x-amz-acl: many Wasabi buckets enforce "Bucket owner enforced" and reject ACL headers.
         $headers = [
             'Content-Type' => $contentType ?: 'application/octet-stream',
-            'x-amz-acl'    => 'private',
         ];
 
         return $this->request('PUT', '/' . rawurlencode($this->bucket) . '/' . $this->encode_key($key), $body, $headers);
@@ -176,7 +180,6 @@ class Wasabi_client
                     'Key'         => $key,
                     'Body'        => $body,
                     'ContentType' => $headers['Content-Type'] ?? 'application/octet-stream',
-                    'ACL'         => 'private',
                 ]);
 
                 return true;
