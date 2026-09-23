@@ -43,6 +43,12 @@
                                 <?php echo get_option('wasabi_backup_enabled') == '1' ? 'checked' : ''; ?>>
                             <label for="wasabi_backup_enabled"><?php echo _l('wasabi_backup_enabled'); ?></label>
                         </div>
+                        <p class="text-muted tw-mb-0"><?php echo _l('wasabi_backup_enabled_help'); ?></p>
+                        <?php if (!wasabi_storage_backups_folder_ready()) { ?>
+                            <div class="alert alert-warning mtop15 tw-mb-0">
+                                <?php echo _l('wasabi_storage_backups_folder_missing'); ?>
+                            </div>
+                        <?php } ?>
                     </div>
                     <div class="panel-footer text-right">
                         <button type="submit" class="btn btn-primary"><?php echo _l('submit'); ?></button>

@@ -92,20 +92,39 @@ class Wasabi_storage extends AdminController
 
     public function push_backups()
     {
-        if (!wasabi_storage_credentials_ready() || !defined('BACKUPS_FOLDER')) {
+        if (!wasabi_storage_credentials_ready()) {
             set_alert('warning', _l('wasabi_storage_configure_first'));
             redirect(admin_url('wasabi_storage'));
         }
+        if (!wasabi_storage_backups_folder_ready()) {
+            set_alert('warning', _l('wasabi_storage_backups_folder_missing'));
+            redirect(admin_url('wasabi_storage'));
+        }
+
+        $files = wasabi_storage_list_backup_files();
+        if (count($files) === 0) {
+            set_alert('warning', _l('wasabi_storage_backups_none'));
+            redirect(admin_url('wasabi_storage'));
+        }
+
         $count = 0;
-        foreach (list_files(BACKUPS_FOLDER) as $file) {
-            if ($file === 'index.html' || $file === '.htaccess') {
-                continue;
-            }
+        $failed = 0;
+        foreach ($files as $file) {
             if (wasabi_storage_push_backup_file($file)) {
                 $count++;
+            } else {
+                $failed++;
             }
         }
-        set_alert('success', _l('wasabi_storage_backups_pushed', $count));
+
+        if ($count > 0 && $failed === 0) {
+            set_alert('success', _l('wasabi_storage_backups_pushed', $count));
+        } elseif ($count > 0) {
+            set_alert('warning', _l('wasabi_storage_backups_pushed_partial', [$count, $failed]));
+        } else {
+            $err = get_option('wasabi_last_error');
+            set_alert('danger', _l('wasabi_storage_backups_push_failed') . ($err ? ': ' . $err : ''));
+        }
         redirect(admin_url('wasabi_storage'));
     }
 

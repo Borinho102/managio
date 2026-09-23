@@ -9,10 +9,10 @@ function wasabi_storage_enabled()
 
 function wasabi_storage_credentials_ready()
 {
-    return get_option('wasabi_access_key') !== ''
-        && get_option('wasabi_secret_key') !== ''
-        && get_option('wasabi_bucket') !== ''
-        && get_option('wasabi_endpoint') !== '';
+    return trim((string) get_option('wasabi_access_key')) !== ''
+        && trim((string) get_option('wasabi_secret_key')) !== ''
+        && trim((string) get_option('wasabi_bucket')) !== ''
+        && trim((string) get_option('wasabi_endpoint')) !== '';
 }
 
 function wasabi_storage_client()
@@ -697,13 +697,49 @@ function wasabi_storage_product_image_url($productImage)
 
 /* -------------------- Backup -------------------- */
 
+/**
+ * Resolve the local DB backups directory.
+ * Does not depend on the backup module being loaded (BACKUPS_FOLDER may be undefined).
+ */
+function wasabi_storage_backups_folder()
+{
+    if (defined('BACKUPS_FOLDER') && BACKUPS_FOLDER !== '') {
+        return rtrim(BACKUPS_FOLDER, '/\\') . DIRECTORY_SEPARATOR;
+    }
+
+    return rtrim(FCPATH, '/\\') . DIRECTORY_SEPARATOR . 'backups' . DIRECTORY_SEPARATOR;
+}
+
+function wasabi_storage_backups_folder_ready()
+{
+    $folder = wasabi_storage_backups_folder();
+
+    return is_dir($folder) && is_readable($folder);
+}
+
+function wasabi_storage_list_backup_files()
+{
+    if (!wasabi_storage_backups_folder_ready()) {
+        return [];
+    }
+
+    $files = list_files(wasabi_storage_backups_folder());
+    if (!is_array($files)) {
+        return [];
+    }
+
+    return array_values(array_filter($files, static function ($file) {
+        return $file !== 'index.html' && $file !== '.htaccess';
+    }));
+}
+
 function wasabi_storage_remember_backup_snapshot()
 {
-    if (!defined('BACKUPS_FOLDER') || !is_dir(BACKUPS_FOLDER)) {
+    if (!wasabi_storage_backups_folder_ready()) {
         return;
     }
-    $list = list_files(BACKUPS_FOLDER);
-    update_option('wasabi_known_backups', json_encode(array_values($list)));
+    $list = wasabi_storage_list_backup_files();
+    update_option('wasabi_known_backups', json_encode($list));
 }
 
 function wasabi_storage_maybe_push_new_backups()
@@ -711,36 +747,35 @@ function wasabi_storage_maybe_push_new_backups()
     if (get_option('wasabi_backup_enabled') != '1' || !wasabi_storage_credentials_ready()) {
         return;
     }
-    if (!defined('BACKUPS_FOLDER') || !is_dir(BACKUPS_FOLDER)) {
+    if (!wasabi_storage_backups_folder_ready()) {
         return;
     }
     $known = json_decode(get_option('wasabi_known_backups') ?: '[]', true);
     if (!is_array($known)) {
         $known = [];
     }
-    $current = list_files(BACKUPS_FOLDER);
+    $folder = wasabi_storage_backups_folder();
+    $current = wasabi_storage_list_backup_files();
     $newFiles = array_diff($current, $known);
     foreach ($newFiles as $file) {
-        if ($file === 'index.html' || $file === '.htaccess') {
-            continue;
-        }
-        $path = BACKUPS_FOLDER . $file;
+        $path = $folder . $file;
         if (!is_file($path)) {
             continue;
         }
         $key = wasabi_storage_prefix() . 'backups/' . $file;
-        wasabi_storage_client()->put_object($key, $path, 'application/zip');
-        wasabi_storage_remember_mapping('backup', 0, $file, $key, 'application/zip');
+        if (wasabi_storage_client()->put_object($key, $path, 'application/zip')) {
+            wasabi_storage_remember_mapping('backup', 0, $file, $key, 'application/zip');
+        }
     }
-    update_option('wasabi_known_backups', json_encode(array_values($current)));
+    update_option('wasabi_known_backups', json_encode($current));
 }
 
 function wasabi_storage_push_backup_file($filename)
 {
-    if (!wasabi_storage_credentials_ready() || !defined('BACKUPS_FOLDER')) {
+    if (!wasabi_storage_credentials_ready() || !wasabi_storage_backups_folder_ready()) {
         return false;
     }
-    $path = BACKUPS_FOLDER . $filename;
+    $path = wasabi_storage_backups_folder() . $filename;
     if (!is_file($path)) {
         return false;
     }
@@ -748,6 +783,8 @@ function wasabi_storage_push_backup_file($filename)
     $ok = wasabi_storage_client()->put_object($key, $path, 'application/zip');
     if ($ok) {
         wasabi_storage_remember_mapping('backup', 0, $filename, $key, 'application/zip');
+    } else {
+        update_option('wasabi_last_error', wasabi_storage_client()->get_last_error());
     }
 
     return $ok;
