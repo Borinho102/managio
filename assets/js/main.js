@@ -6048,13 +6048,31 @@ function add_task_comment(task_id) {
     data.no_editor = true;
   }
   data.taskid = task_id;
-  $.post(admin_url + "tasks/add_task_comment", data).done(function (response) {
-    response = JSON.parse(response);
-    _task_append_html(response.taskHtml);
-    // Remove task comment editor instance
-    // Causing error because of are you sure you want to leave this page, the plugin still sees as active and dirty.
-    tinymce.remove("#task_comment");
-  });
+  $.post(admin_url + "tasks/add_task_comment", data)
+    .done(function (response) {
+      try {
+        if (typeof response === "string") {
+          response = JSON.parse(response);
+        }
+      } catch (e) {
+        alert_float("danger", "Comment failed");
+        $("#addTaskCommentBtn").button("reset");
+        return;
+      }
+      if (!response.success) {
+        alert_float("danger", response.message || "Comment failed");
+        $("#addTaskCommentBtn").button("reset");
+        return;
+      }
+      _task_append_html(response.taskHtml);
+      // Remove task comment editor instance
+      // Causing error because of are you sure you want to leave this page, the plugin still sees as active and dirty.
+      tinymce.remove("#task_comment");
+    })
+    .fail(function () {
+      alert_float("danger", "Comment failed");
+      $("#addTaskCommentBtn").button("reset");
+    });
 }
 
 // Deletes task comment from database
@@ -8670,13 +8688,49 @@ function init_new_task_comment(manual) {
         }
       },
       success: function (files, response) {
-        response = JSON.parse(response);
+        try {
+          if (typeof response === "string") {
+            response = JSON.parse(response);
+          }
+        } catch (e) {
+          alert_float("danger", "Upload failed");
+          $("#addTaskCommentBtn").button("reset");
+          return;
+        }
         if (
           this.getUploadingFiles().length === 0 &&
           this.getQueuedFiles().length === 0
         ) {
+          if (!response || !response.success) {
+            alert_float(
+              "danger",
+              (response && response.message) || "Upload failed"
+            );
+            $("#addTaskCommentBtn").button("reset");
+            return;
+          }
           _task_append_html(response.taskHtml);
           tinymce.remove("#task_comment");
+        }
+      },
+      error: function (file, response) {
+        var msg =
+          typeof response === "string"
+            ? response
+            : (response && response.message) || "Upload failed";
+        // Strip HTML error pages into a short message
+        if (typeof msg === "string" && msg.indexOf("<") !== -1) {
+          msg = "Upload failed (server error)";
+        }
+        alert_float("danger", msg);
+        $("#addTaskCommentBtn").button("reset");
+      },
+      complete: function () {
+        if (
+          this.getUploadingFiles().length === 0 &&
+          this.getQueuedFiles().length === 0
+        ) {
+          $("#addTaskCommentBtn").button("reset");
         }
       },
     })

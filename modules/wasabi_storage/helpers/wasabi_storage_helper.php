@@ -422,7 +422,14 @@ function wasabi_storage_normalize_files_index($files, $index)
         ];
     }
 
-    return $f;
+    // Re-index like Perfex _file_attachments_index_fix (Dropzone gaps after remove).
+    return [
+        'name'     => array_values($f['name']),
+        'type'     => array_values($f['type'] ?? []),
+        'tmp_name' => array_values($f['tmp_name'] ?? []),
+        'error'    => array_values($f['error'] ?? []),
+        'size'     => array_values($f['size'] ?? []),
+    ];
 }
 
 function wasabi_storage_has_incoming_files($files, $index)

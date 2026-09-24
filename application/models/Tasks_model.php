@@ -978,49 +978,57 @@ class Tasks_model extends App_Model
         $insert_id = $this->db->insert_id();
 
         if ($insert_id) {
-            $this->db->select('rel_type,rel_id,name,visible_to_client');
-            $this->db->where('id', $data['taskid']);
-            $task = $this->db->get(db_prefix() . 'tasks')->row();
+            try {
+                $this->db->select('rel_type,rel_id,name,visible_to_client');
+                $this->db->where('id', $data['taskid']);
+                $task = $this->db->get(db_prefix() . 'tasks')->row();
 
-            $description     = 'not_task_new_comment';
-            $additional_data = serialize([
-                $task->name,
-            ]);
+                $description     = 'not_task_new_comment';
+                $additional_data = serialize([
+                    $task->name,
+                ]);
 
-            if ($task->rel_type == 'project') {
-                $this->projects_model->log_activity($task->rel_id, 'project_activity_new_task_comment', $task->name, $task->visible_to_client);
-            }
+                if ($task->rel_type == 'project') {
+                    $this->projects_model->log_activity($task->rel_id, 'project_activity_new_task_comment', $task->name, $task->visible_to_client);
+                }
 
-            $regex = "/data\-mention\-id\=\"(\d+)\"/";
-            if (preg_match_all($regex, $data['content'], $mentionedStaff, PREG_PATTERN_ORDER)) {
-                $this->_send_task_mentioned_users_notification(
-                    $description,
-                    $data['taskid'],
-                    $mentionedStaff[1],
-                    'task_new_comment_to_staff',
-                    $additional_data,
-                    $insert_id
-                );
-            } else {
-                $this->_send_task_responsible_users_notification(
-                    $description,
-                    $data['taskid'],
-                    false,
-                    'task_new_comment_to_staff',
-                    $additional_data,
-                    $insert_id
-                );
+                $regex = "/data\-mention\-id\=\"(\d+)\"/";
+                if (preg_match_all($regex, $data['content'], $mentionedStaff, PREG_PATTERN_ORDER)) {
+                    $this->_send_task_mentioned_users_notification(
+                        $description,
+                        $data['taskid'],
+                        $mentionedStaff[1],
+                        'task_new_comment_to_staff',
+                        $additional_data,
+                        $insert_id
+                    );
+                } else {
+                    $this->_send_task_responsible_users_notification(
+                        $description,
+                        $data['taskid'],
+                        false,
+                        'task_new_comment_to_staff',
+                        $additional_data,
+                        $insert_id
+                    );
 
-                $this->db->where('project_id', $task->rel_id);
-                $this->db->where('name', 'view_task_comments');
-                $project_settings = $this->db->get(db_prefix() . 'project_settings')->row();
+                    $this->db->where('project_id', $task->rel_id);
+                    $this->db->where('name', 'view_task_comments');
+                    $project_settings = $this->db->get(db_prefix() . 'project_settings')->row();
 
-                if ($project_settings && $project_settings->value == 1) {
-                    $this->_send_customer_contacts_notification($data['taskid'], 'task_new_comment_to_customer');
+                    if ($project_settings && $project_settings->value == 1) {
+                        $this->_send_customer_contacts_notification($data['taskid'], 'task_new_comment_to_customer');
+                    }
+                }
+
+                hooks()->do_action('task_comment_added', ['task_id' => $data['taskid'], 'comment_id' => $insert_id]);
+            } catch (Throwable $e) {
+                // Comment is already saved; never fail the AJAX upload because of notifications/push.
+                log_message('error', 'Task comment post-process failed: ' . $e->getMessage());
+                if (function_exists('wasabi_storage_activity_log')) {
+                    wasabi_storage_activity_log('warning', 'Task comment post-process: ' . $e->getMessage());
                 }
             }
-
-            hooks()->do_action('task_comment_added', ['task_id' => $data['taskid'], 'comment_id' => $insert_id]);
 
             return $insert_id;
         }

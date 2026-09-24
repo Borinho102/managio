@@ -659,30 +659,73 @@ class Tasks extends AdminController
         if ($this->input->post('no_editor')) {
             $data['content'] = nl2br($this->input->post('content'));
         }
-        $comment_id = false;
-        if (
-            $data['content'] != ''
-            || (isset($_FILES['file']['name']) && is_array($_FILES['file']['name']) && count($_FILES['file']['name']) > 0)
-        ) {
-            $comment_id = $this->tasks_model->add_task_comment($data);
-            if ($comment_id) {
-                $commentAttachments = handle_task_attachments_array($data['taskid'], 'file');
-                if ($commentAttachments && is_array($commentAttachments)) {
-                    foreach ($commentAttachments as $file) {
-                        $file['task_comment_id'] = $comment_id;
-                        $this->misc_model->add_attachment_to_database($data['taskid'], 'task', [$file]);
-                    }
 
-                    if (count($commentAttachments) > 0) {
-                        $this->db->query('UPDATE ' . db_prefix() . "task_comments SET content = CONCAT(content, '[task_attachment]')
-                            WHERE id = " . $this->db->escape_str($comment_id));
+        $comment_id = false;
+        $message    = null;
+        $taskHtml   = '';
+        $hasFiles   = isset($_FILES['file']['name'])
+            && (
+                (is_array($_FILES['file']['name']) && count(array_filter($_FILES['file']['name'])) > 0)
+                || (!is_array($_FILES['file']['name']) && $_FILES['file']['name'] !== '')
+            );
+
+        try {
+            if ($data['content'] != '' || $hasFiles) {
+                $comment_id = $this->tasks_model->add_task_comment($data);
+                if ($comment_id) {
+                    $commentAttachments = handle_task_attachments_array($data['taskid'], 'file');
+                    if ($commentAttachments && is_array($commentAttachments)) {
+                        foreach ($commentAttachments as $file) {
+                            $file['task_comment_id'] = $comment_id;
+                            $this->misc_model->add_attachment_to_database($data['taskid'], 'task', [$file]);
+                        }
+
+                        if (count($commentAttachments) > 0) {
+                            $this->db->query('UPDATE ' . db_prefix() . "task_comments SET content = CONCAT(content, '[task_attachment]')
+                                WHERE id = " . $this->db->escape_str($comment_id));
+                        }
+                    } elseif ($hasFiles) {
+                        // Files were posted but none stored (Wasabi hard-fail or local upload failure).
+                        $message = function_exists('wasabi_storage_enabled') && wasabi_storage_enabled()
+                            ? (get_option('wasabi_last_error') ?: (function_exists('_l') ? _l('wasabi_storage_upload_failed') : 'Wasabi upload failed'))
+                            : 'File upload failed';
+                        // Drop empty orphan comment created only for the failed attachment upload.
+                        $content = trim(strip_tags((string) ($data['content'] ?? '')));
+                        if ($content === '' || $content === '[task_attachment]') {
+                            $this->tasks_model->remove_comment($comment_id, true);
+                        }
+                        $comment_id = false;
+                        if (function_exists('wasabi_storage_activity_log')) {
+                            wasabi_storage_activity_log('error', 'Task comment upload failed: ' . $message);
+                        }
                     }
                 }
             }
+
+            try {
+                if (!empty($data['taskid'])) {
+                    $taskHtml = $this->get_task_data($data['taskid'], true);
+                }
+            } catch (Throwable $e) {
+                $taskHtml = '';
+                log_message('error', 'add_task_comment get_task_data: ' . $e->getMessage());
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'add_task_comment failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            if (function_exists('update_option')) {
+                update_option('wasabi_last_error', $e->getMessage());
+            }
+            if (function_exists('wasabi_storage_activity_log')) {
+                wasabi_storage_activity_log('error', 'add_task_comment exception: ' . $e->getMessage());
+            }
+            $message    = $e->getMessage();
+            $comment_id = false;
         }
+
         echo json_encode([
             'success'  => $comment_id ? true : false,
-            'taskHtml' => $this->get_task_data($data['taskid'], true),
+            'taskHtml' => $taskHtml,
+            'message'  => $message,
         ]);
     }
 
