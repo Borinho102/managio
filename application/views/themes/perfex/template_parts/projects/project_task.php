@@ -170,9 +170,18 @@
                             $path                                                                                                                                                                          = get_upload_path_by_type('task') . $view_task->id . '/' . $attachment['file_name'];
                             $href_url                                                                                                                                                                      = site_url('download/file/taskattachment/' . $attachment['attachment_key']);
                             $isHtml5Video                                                                                                                                                                  = is_html5_video($path);
-                            if (empty($attachment['external'])) {
+                            $wasabiPreview = function_exists('wasabi_storage_attachment_preview_url')
+                                ? wasabi_storage_attachment_preview_url($attachment)
+                                : null;
+                            if ($wasabiPreview) {
+                                $is_image = true;
+                                $img_url  = $wasabiPreview;
+                            } elseif (empty($attachment['external'])) {
                                 $is_image = is_image($path);
                                 $img_url  = site_url('download/preview_image?path=' . protected_file_url_by_path($path, true) . '&type=' . $attachment['filetype']);
+                            } elseif ($attachment['external'] === 'wasabi' && function_exists('wasabi_storage_preview_url')) {
+                                $is_image = function_exists('wasabi_storage_is_image_attachment') && wasabi_storage_is_image_attachment($attachment);
+                                $img_url  = $is_image ? wasabi_storage_preview_url($attachment['id']) : $href_url;
                             } elseif ((! empty($attachment['thumbnail_link']) || ! empty($attachment['external']))
                                            && ! empty($attachment['thumbnail_link'])) {
                                 $is_image        = true;

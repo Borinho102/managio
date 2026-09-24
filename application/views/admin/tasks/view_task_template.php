@@ -548,7 +548,17 @@ foreach ($task->timesheets as $timesheet) { ?>
                 $path                                = get_upload_path_by_type('task') . $task->id . '/' . $attachment['file_name'];
                 $href_url                            = site_url('download/file/taskattachment/' . $attachment['attachment_key']);
                 $isHtml5Video                        = is_html5_video($path);
-                if (empty($attachment['external'])) {
+                $wasabiPreview                       = function_exists('wasabi_storage_attachment_preview_url')
+                    ? wasabi_storage_attachment_preview_url($attachment)
+                    : null;
+                if ($wasabiPreview) {
+                    $is_image = true;
+                    $img_url  = $wasabiPreview;
+                    $href_url = site_url('download/file/taskattachment/' . $attachment['attachment_key']);
+                    if (!empty($attachment['external_link']) && strpos($attachment['external_link'], 'download/file/') !== false) {
+                        $href_url = $attachment['external_link'];
+                    }
+                } elseif (empty($attachment['external'])) {
                     $is_image = is_image($path);
                     $img_url  = site_url('download/preview_image?path=' . protected_file_url_by_path($path, true) . '&type=' . $attachment['filetype']);
                 } elseif ($attachment['external'] === 'wasabi') {

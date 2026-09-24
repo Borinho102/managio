@@ -78,6 +78,7 @@ hooks()->add_filter('before_handle_contact_profile_image_upload', 'wasabi_storag
 
 hooks()->add_filter('download_file_path', 'wasabi_storage_download_file_path', 10, 2);
 hooks()->add_filter('project_file_url', 'wasabi_storage_project_file_url', 10, 2);
+hooks()->add_filter('preview_image_missing', 'wasabi_storage_filter_preview_image_missing', 10, 2);
 
 hooks()->add_action('before_remove_project_file', 'wasabi_storage_on_remove_project_file');
 hooks()->add_action('before_make_backup', 'wasabi_storage_remember_backup_snapshot');

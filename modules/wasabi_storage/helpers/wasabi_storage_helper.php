@@ -215,6 +215,141 @@ function wasabi_storage_resolve_object_key_for_file($file)
 }
 
 /**
+ * True when this files-table row is (or should be) served from Wasabi.
+ */
+function wasabi_storage_attachment_uses_wasabi($attachment)
+{
+    if (is_object($attachment)) {
+        $attachment = (array) $attachment;
+    }
+    if (!empty($attachment['external']) && $attachment['external'] === WASABI_STORAGE_EXTERNAL) {
+        return true;
+    }
+    if (!function_exists('wasabi_storage_credentials_ready') || !wasabi_storage_credentials_ready()) {
+        return false;
+    }
+    $name = (string) ($attachment['file_name'] ?? '');
+    if ($name === '') {
+        return false;
+    }
+    $relType = $attachment['rel_type'] ?? 'task';
+    $relId = isset($attachment['rel_id']) ? (int) $attachment['rel_id'] : null;
+
+    return (bool) wasabi_storage_find_key_by_filename($name, $relType, $relId);
+}
+
+/**
+ * Same-origin Wasabi preview URL for a task/files attachment, or null if not Wasabi/image.
+ */
+function wasabi_storage_attachment_preview_url($attachment)
+{
+    if (is_object($attachment)) {
+        $attachment = (array) $attachment;
+    }
+    if (!wasabi_storage_is_image_attachment($attachment) || !wasabi_storage_attachment_uses_wasabi($attachment)) {
+        return null;
+    }
+    if (empty($attachment['id'])) {
+        return null;
+    }
+
+    return wasabi_storage_preview_url($attachment['id']);
+}
+
+/**
+ * When /download/preview_image can't find a local file, try Wasabi (by uploads/{type}/{id}/{name}).
+ *
+ * @param mixed $fallback
+ * @param array $data
+ * @return mixed
+ */
+function wasabi_storage_filter_preview_image_missing($fallback, $data = [])
+{
+    if (!wasabi_storage_credentials_ready()) {
+        return $fallback;
+    }
+
+    $req = rawurldecode((string) ($data['request_path'] ?? ''));
+    $req = str_replace('\\', '/', $req);
+    $req = ltrim($req, '/');
+
+    if (!preg_match('#(?:^|/)uploads/([a-z0-9_]+)/(\d+)/(.+)$#i', $req, $m)) {
+        return $fallback;
+    }
+
+    $folder = strtolower($m[1]);
+    $relId = (int) $m[2];
+    $fileName = basename($m[3]);
+    // Perfex thumbs: name_thumb.ext → original name.ext
+    $fileName = preg_replace('/_thumb(\.[^.]+)$/i', '$1', $fileName);
+
+    $folderMap = [
+        'tasks'              => 'task',
+        'projects'           => 'project',
+        'newsfeed'           => 'newsfeed',
+        'expenses'           => 'expense',
+        'leads'              => 'lead',
+        'contracts'          => 'contract',
+        'clients'            => 'customer',
+        'invoices'           => 'invoice',
+        'estimates'          => 'estimate',
+        'proposals'          => 'proposal',
+        'credit_notes'       => 'credit_note',
+        'ticket_attachments' => 'ticket',
+        'estimate_request'   => 'estimate_request',
+    ];
+    $relType = $folderMap[$folder] ?? rtrim($folder, 's');
+
+    $CI = &get_instance();
+    $file = null;
+    if ($CI->db->table_exists(db_prefix() . 'files')) {
+        $CI->db->where('rel_type', $relType);
+        $CI->db->where('rel_id', $relId);
+        $CI->db->where('file_name', $fileName);
+        $file = $CI->db->get(db_prefix() . 'files')->row();
+        if (!$file) {
+            // Filename may have been unique_filename'd differently; try mapping table only.
+            $CI->db->where('rel_type', $relType);
+            $CI->db->where('rel_id', $relId);
+            $CI->db->like('file_name', pathinfo($fileName, PATHINFO_FILENAME), 'both');
+            $CI->db->where('external', WASABI_STORAGE_EXTERNAL);
+            $file = $CI->db->get(db_prefix() . 'files')->row();
+        }
+    }
+
+    if ($file && !empty($file->id)) {
+        $key = wasabi_storage_resolve_object_key_for_file($file);
+        if ($key) {
+            // Heal outdated rows that still look "local" in tblfiles.
+            if (empty($file->external) || $file->external !== WASABI_STORAGE_EXTERNAL) {
+                $CI->db->where('id', $file->id);
+                $CI->db->update(db_prefix() . 'files', [
+                    'external'      => WASABI_STORAGE_EXTERNAL,
+                    'external_link' => wasabi_storage_files_table_download_url(
+                        $file->rel_type,
+                        $file->attachment_key,
+                        $file->id,
+                        $file->rel_id
+                    ),
+                ]);
+            }
+
+            return ['redirect' => wasabi_storage_preview_url($file->id)];
+        }
+    }
+
+    $key = wasabi_storage_find_key_by_filename($fileName, $relType, $relId);
+    if ($key) {
+        $url = wasabi_storage_signed_url($key);
+        if ($url) {
+            return ['redirect' => $url];
+        }
+    }
+
+    return $fallback;
+}
+
+/**
  * Stable download URL for tblfiles rows stored on Wasabi (views use external_link as href).
  */
 function wasabi_storage_files_table_download_url($relType, $attachmentKey, $id, $relId)

@@ -49,8 +49,9 @@ class Download extends App_Controller
 
     public function preview_image()
     {
-        $path      = FCPATH . $this->input->get('path');
-        $file_type = $this->input->get('type');
+        $requestPath = (string) $this->input->get('path');
+        $path        = FCPATH . $requestPath;
+        $file_type   = $this->input->get('type');
 
         $allowed_extensions = [
             'jpg',
@@ -63,9 +64,26 @@ class Download extends App_Controller
 
         $pathinfo = pathinfo($path);
 
-        if (! file_exists($path) || ! isset($pathinfo['extension']) || ! in_array($pathinfo['extension'], $allowed_extensions)) {
-            $file_type = 'image/jpg';
-            $path      = FCPATH . 'assets/images/preview-not-available.jpg';
+        if (! file_exists($path) || ! isset($pathinfo['extension']) || ! in_array(strtolower((string) $pathinfo['extension']), $allowed_extensions)) {
+            // Allow modules (e.g. Wasabi) to resolve missing local previews from object storage.
+            $resolved = hooks()->apply_filters('preview_image_missing', null, [
+                'path'         => $path,
+                'request_path' => $requestPath,
+                'type'         => $file_type,
+            ]);
+            if (is_array($resolved) && ! empty($resolved['redirect'])) {
+                redirect($resolved['redirect']);
+
+                return;
+            }
+            if (is_string($resolved) && $resolved !== '' && file_exists($resolved)) {
+                $path      = $resolved;
+                $pathinfo  = pathinfo($path);
+                $file_type = $file_type ?: ('image/' . strtolower((string) ($pathinfo['extension'] ?? 'jpeg')));
+            } else {
+                $file_type = 'image/jpg';
+                $path      = FCPATH . 'assets/images/preview-not-available.jpg';
+            }
         }
 
         header('Content-Description: File Transfer');
