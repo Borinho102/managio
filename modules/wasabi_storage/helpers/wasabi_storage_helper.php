@@ -7,6 +7,24 @@ function wasabi_storage_enabled()
     return get_option('wasabi_storage_enabled') == '1' && wasabi_storage_credentials_ready();
 }
 
+/**
+ * When Wasabi is enabled, core handlers must not fall through to local disk.
+ * Returns true if the caller should abort the local save path.
+ */
+function wasabi_storage_block_local_fallback($context = '')
+{
+    if (!wasabi_storage_enabled()) {
+        return false;
+    }
+    $msg = 'Wasabi is enabled; refusing local disk save'
+        . ($context !== '' ? ' (' . $context . ')' : '');
+    update_option('wasabi_last_error', $msg);
+    wasabi_storage_activity_log('error', $msg);
+    log_message('error', $msg);
+
+    return true;
+}
+
 function wasabi_storage_credentials_ready()
 {
     return trim((string) get_option('wasabi_access_key')) !== ''
@@ -257,6 +275,45 @@ function wasabi_storage_attachment_preview_url($attachment)
 }
 
 /**
+ * Build a Wasabi preview URL from a local uploads/... path when the file is mapped on Wasabi.
+ */
+function wasabi_storage_preview_url_from_local_path($path)
+{
+    if (!wasabi_storage_credentials_ready()) {
+        return null;
+    }
+    $rel = str_replace('\\', '/', (string) $path);
+    $rel = str_replace(str_replace('\\', '/', FCPATH), '', $rel);
+    $rel = ltrim($rel, '/');
+    $resolved = wasabi_storage_filter_preview_image_missing(null, [
+        'path'         => FCPATH . $rel,
+        'request_path' => $rel,
+        'type'         => '',
+    ]);
+    if (is_array($resolved) && !empty($resolved['redirect'])) {
+        return $resolved['redirect'];
+    }
+
+    return null;
+}
+
+/**
+ * Preview URL for a ticket_attachments row stored on Wasabi (no tblfiles id).
+ */
+function wasabi_storage_ticket_attachment_preview_url($fileName, $ticketId)
+{
+    if (!wasabi_storage_credentials_ready()) {
+        return null;
+    }
+    $key = wasabi_storage_find_key_by_filename($fileName, 'ticket', (int) $ticketId);
+    if (!$key) {
+        return null;
+    }
+
+    return admin_url('wasabi_storage/file?key=' . rawurlencode($key));
+}
+
+/**
  * When /download/preview_image can't find a local file, try Wasabi (by uploads/{type}/{id}/{name}).
  *
  * @param mixed $fallback
@@ -297,6 +354,11 @@ function wasabi_storage_filter_preview_image_missing($fallback, $data = [])
         'credit_notes'       => 'credit_note',
         'ticket_attachments' => 'ticket',
         'estimate_request'   => 'estimate_request',
+        'discussions'        => 'discussion',
+        'company'            => 'company',
+        'staff_profile_images' => 'staff',
+        'client_profile_images' => 'contact',
+        'contact_profile_images' => 'contact',
     ];
     $relType = $folderMap[$folder] ?? rtrim($folder, 's');
 
@@ -1170,34 +1232,284 @@ function wasabi_storage_filter_discussion_attachment($hookData)
 
 function wasabi_storage_filter_passthrough_company($hookData)
 {
-    // Company logo/favicon/signature and profile images are often referenced by local path in settings.
-    // Keep local disk for these branding assets so theme/URL helpers keep working.
+    // Deprecated: branding now stored on Wasabi when enabled (with local dual-write for PDF/theme).
     return $hookData;
+}
+
+/**
+ * Upload branding/profile asset to Wasabi and keep a local copy for helpers that use file_exists().
+ */
+function wasabi_storage_store_branding_file($tmpPath, $relType, $relId, $fileName, $mime = 'application/octet-stream', $localFullPath = null)
+{
+    if (!wasabi_storage_enabled()) {
+        return false;
+    }
+    $key = wasabi_storage_object_key($relType, $relId, $fileName);
+    if (!wasabi_storage_upload_tmp($tmpPath, $key, $mime ?: 'application/octet-stream')) {
+        return false;
+    }
+    wasabi_storage_remember_mapping($relType, (int) $relId, $fileName, $key, $mime);
+    if ($localFullPath) {
+        $dir = dirname($localFullPath);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        if (!@copy($tmpPath, $localFullPath)) {
+            @move_uploaded_file($tmpPath, $localFullPath);
+        }
+    }
+
+    return $key;
 }
 
 function wasabi_storage_filter_company_logo($hookData)
 {
-    return wasabi_storage_filter_passthrough_company($hookData);
+    if (!wasabi_storage_enabled()) {
+        return $hookData;
+    }
+    $index = $hookData['index_name'] ?? '';
+    if ($index === '' || empty($_FILES[$index]['name']) || empty($_FILES[$index]['tmp_name'])) {
+        return $hookData;
+    }
+    if (_perfex_upload_error($_FILES[$index]['error'])) {
+        return wasabi_storage_fail_external_upload($hookData, _perfex_upload_error($_FILES[$index]['error']));
+    }
+
+    $extension = strtolower(pathinfo($_FILES[$index]['name'], PATHINFO_EXTENSION));
+    $allowed = ['jpg', 'jpeg', 'png', 'gif', 'svg'];
+    if (!in_array($extension, $allowed, true)) {
+        return wasabi_storage_fail_external_upload($hookData, 'Image extension not allowed.');
+    }
+
+    $logoKey = str_replace('company_', '', $index);
+    $filename = md5($logoKey . time()) . '.' . $extension;
+    $path = get_upload_path_by_type('company');
+    $mime = $_FILES[$index]['type'] ?: wasabi_storage_guess_mime_from_name($filename) ?: 'image/png';
+    $ok = wasabi_storage_store_branding_file(
+        $_FILES[$index]['tmp_name'],
+        'company',
+        0,
+        $filename,
+        $mime,
+        $path . $filename
+    );
+    if (!$ok) {
+        return wasabi_storage_fail_external_upload($hookData);
+    }
+    update_option($index, $filename);
+    $hookData['handled_externally'] = true;
+    $hookData['handled_externally_successfully'] = true;
+
+    return $hookData;
 }
 
 function wasabi_storage_filter_company_signature($hookData)
 {
-    return wasabi_storage_filter_passthrough_company($hookData);
+    if (!wasabi_storage_enabled()) {
+        return $hookData;
+    }
+    $index = $hookData['index_name'] ?? 'signature_image';
+    if (empty($_FILES[$index]['name']) || empty($_FILES[$index]['tmp_name'])) {
+        return $hookData;
+    }
+    if (_perfex_upload_error($_FILES[$index]['error'])) {
+        return wasabi_storage_fail_external_upload($hookData, _perfex_upload_error($_FILES[$index]['error']));
+    }
+    $extension = strtolower(pathinfo($_FILES[$index]['name'], PATHINFO_EXTENSION));
+    $filename = 'signature_' . md5(time()) . '.' . $extension;
+    $path = get_upload_path_by_type('company');
+    $mime = $_FILES[$index]['type'] ?: wasabi_storage_guess_mime_from_name($filename) ?: 'image/png';
+    $ok = wasabi_storage_store_branding_file(
+        $_FILES[$index]['tmp_name'],
+        'company',
+        0,
+        $filename,
+        $mime,
+        $path . $filename
+    );
+    if (!$ok) {
+        return wasabi_storage_fail_external_upload($hookData);
+    }
+    update_option('signature_image', $filename);
+    $hookData['handled_externally'] = true;
+    $hookData['handled_externally_successfully'] = true;
+
+    return $hookData;
 }
 
 function wasabi_storage_filter_favicon($hookData)
 {
-    return wasabi_storage_filter_passthrough_company($hookData);
+    if (!wasabi_storage_enabled()) {
+        return $hookData;
+    }
+    $index = $hookData['index_name'] ?? 'favicon';
+    if (empty($_FILES[$index]['name']) || empty($_FILES[$index]['tmp_name'])) {
+        return $hookData;
+    }
+    if (_perfex_upload_error($_FILES[$index]['error'])) {
+        return wasabi_storage_fail_external_upload($hookData, _perfex_upload_error($_FILES[$index]['error']));
+    }
+    $extension = strtolower(pathinfo($_FILES[$index]['name'], PATHINFO_EXTENSION));
+    $filename = 'favicon_' . md5(time()) . '.' . $extension;
+    $path = get_upload_path_by_type('company');
+    $mime = $_FILES[$index]['type'] ?: wasabi_storage_guess_mime_from_name($filename) ?: 'image/png';
+    $ok = wasabi_storage_store_branding_file(
+        $_FILES[$index]['tmp_name'],
+        'company',
+        0,
+        $filename,
+        $mime,
+        $path . $filename
+    );
+    if (!$ok) {
+        return wasabi_storage_fail_external_upload($hookData);
+    }
+    update_option('favicon', $filename);
+    $hookData['handled_externally'] = true;
+    $hookData['handled_externally_successfully'] = true;
+
+    return $hookData;
 }
 
 function wasabi_storage_filter_staff_profile($hookData)
 {
-    return wasabi_storage_filter_passthrough_company($hookData);
+    if (!wasabi_storage_enabled()) {
+        return $hookData;
+    }
+    $staffId = (int) ($hookData['staff_id'] ?? 0);
+    $index = $hookData['index_name'] ?? 'profile_image';
+    if ($staffId <= 0 || empty($_FILES[$index]['name']) || empty($_FILES[$index]['tmp_name'])) {
+        return $hookData;
+    }
+    if (_perfex_upload_error($_FILES[$index]['error'])) {
+        return wasabi_storage_fail_external_upload($hookData, _perfex_upload_error($_FILES[$index]['error']));
+    }
+
+    $extension = strtolower(pathinfo($_FILES[$index]['name'], PATHINFO_EXTENSION));
+    $allowed = ['jpg', 'jpeg', 'png'];
+    if (!in_array($extension, $allowed, true)) {
+        return wasabi_storage_fail_external_upload($hookData, _l('file_php_extension_blocked'));
+    }
+
+    $path = get_upload_path_by_type('staff') . $staffId . '/';
+    _maybe_create_upload_path($path);
+    $filename = unique_filename($path, $_FILES[$index]['name']);
+    $tmp = $_FILES[$index]['tmp_name'];
+    $mime = $_FILES[$index]['type'] ?: wasabi_storage_guess_mime_from_name($filename) ?: 'image/jpeg';
+
+    // Original on Wasabi
+    if (!wasabi_storage_store_branding_file($tmp, 'staff', $staffId, $filename, $mime, null)) {
+        return wasabi_storage_fail_external_upload($hookData);
+    }
+
+    // Local thumb/small copies for staff_profile_image() helper (Perfex expects these on disk)
+    $originalLocal = $path . $filename;
+    @copy($tmp, $originalLocal);
+    $CI = &get_instance();
+    $config = [
+        'image_library'  => 'gd2',
+        'source_image'   => $originalLocal,
+        'new_image'      => $path . 'thumb_' . $filename,
+        'maintain_ratio' => true,
+        'width'          => hooks()->apply_filters('staff_profile_image_thumb_width', 320),
+        'height'         => hooks()->apply_filters('staff_profile_image_thumb_height', 320),
+    ];
+    $CI->image_lib->initialize($config);
+    $CI->image_lib->resize();
+    $CI->image_lib->clear();
+    $config['new_image'] = $path . 'small_' . $filename;
+    $config['width'] = hooks()->apply_filters('staff_profile_image_small_width', 96);
+    $config['height'] = hooks()->apply_filters('staff_profile_image_small_height', 96);
+    $CI->image_lib->initialize($config);
+    $CI->image_lib->resize();
+    $CI->image_lib->clear();
+
+    // Also push thumbnails to Wasabi
+    if (is_file($path . 'thumb_' . $filename)) {
+        wasabi_storage_store_branding_file($path . 'thumb_' . $filename, 'staff', $staffId, 'thumb_' . $filename, $mime, null);
+    }
+    if (is_file($path . 'small_' . $filename)) {
+        wasabi_storage_store_branding_file($path . 'small_' . $filename, 'staff', $staffId, 'small_' . $filename, $mime, null);
+    }
+    @unlink($originalLocal);
+
+    $CI->db->where('staffid', $staffId);
+    $CI->db->update(db_prefix() . 'staff', ['profile_image' => $filename]);
+
+    $hookData['handled_externally'] = true;
+    $hookData['handled_externally_successfully'] = true;
+
+    return $hookData;
 }
 
 function wasabi_storage_filter_contact_profile($hookData)
 {
-    return wasabi_storage_filter_passthrough_company($hookData);
+    if (!wasabi_storage_enabled()) {
+        return $hookData;
+    }
+    $contactId = (int) ($hookData['contact_id'] ?? 0);
+    $index = $hookData['index_name'] ?? 'profile_image';
+    if ($contactId <= 0 || empty($_FILES[$index]['name']) || empty($_FILES[$index]['tmp_name'])) {
+        return $hookData;
+    }
+    if (_perfex_upload_error($_FILES[$index]['error'])) {
+        return wasabi_storage_fail_external_upload($hookData, _perfex_upload_error($_FILES[$index]['error']));
+    }
+
+    $extension = strtolower(pathinfo($_FILES[$index]['name'], PATHINFO_EXTENSION));
+    $allowed = ['jpg', 'jpeg', 'png'];
+    if (!in_array($extension, $allowed, true)) {
+        return wasabi_storage_fail_external_upload($hookData, _l('file_php_extension_blocked'));
+    }
+
+    $path = CONTACT_PROFILE_IMAGES_FOLDER . $contactId . '/';
+    if (!is_dir($path)) {
+        _maybe_create_upload_path($path);
+    }
+    $filename = unique_filename($path, $_FILES[$index]['name']);
+    $tmp = $_FILES[$index]['tmp_name'];
+    $mime = $_FILES[$index]['type'] ?: wasabi_storage_guess_mime_from_name($filename) ?: 'image/jpeg';
+
+    if (!wasabi_storage_store_branding_file($tmp, 'contact', $contactId, $filename, $mime, null)) {
+        return wasabi_storage_fail_external_upload($hookData);
+    }
+
+    $originalLocal = $path . $filename;
+    @copy($tmp, $originalLocal);
+    $CI = &get_instance();
+    $config = [
+        'image_library'  => 'gd2',
+        'source_image'   => $originalLocal,
+        'new_image'      => $path . 'thumb_' . $filename,
+        'maintain_ratio' => true,
+        'width'          => hooks()->apply_filters('contact_profile_image_thumb_width', 320),
+        'height'         => hooks()->apply_filters('contact_profile_image_thumb_height', 320),
+    ];
+    $CI->image_lib->initialize($config);
+    $CI->image_lib->resize();
+    $CI->image_lib->clear();
+    $config['new_image'] = $path . 'small_' . $filename;
+    $config['width'] = hooks()->apply_filters('contact_profile_image_small_width', 32);
+    $config['height'] = hooks()->apply_filters('contact_profile_image_small_height', 32);
+    $CI->image_lib->initialize($config);
+    $CI->image_lib->resize();
+    $CI->image_lib->clear();
+
+    if (is_file($path . 'thumb_' . $filename)) {
+        wasabi_storage_store_branding_file($path . 'thumb_' . $filename, 'contact', $contactId, 'thumb_' . $filename, $mime, null);
+    }
+    if (is_file($path . 'small_' . $filename)) {
+        wasabi_storage_store_branding_file($path . 'small_' . $filename, 'contact', $contactId, 'small_' . $filename, $mime, null);
+    }
+    @unlink($originalLocal);
+
+    $CI->db->where('id', $contactId);
+    $CI->db->update(db_prefix() . 'contacts', ['profile_image' => $filename]);
+
+    $hookData['handled_externally'] = true;
+    $hookData['handled_externally_successfully'] = true;
+
+    return $hookData;
 }
 
 /* -------------------- Download / URL -------------------- */

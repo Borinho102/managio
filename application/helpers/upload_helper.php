@@ -22,6 +22,10 @@ function handle_estimate_request_attachments($estimateRequestId, $index_name = '
         return $hookData['handled_externally_successfully'];
     }
 
+    if (function_exists('wasabi_storage_block_local_fallback') && wasabi_storage_block_local_fallback('estimate request attachments')) {
+        return false;
+    }
+
     $totalUploaded = 0;
     if (
         (isset($_FILES[$index_name]['name']) && !empty($_FILES[$index_name]['name'])) ||
@@ -134,6 +138,14 @@ function handle_newsfeed_post_attachments($postid)
         return;
     }
 
+    if (function_exists('wasabi_storage_block_local_fallback') && wasabi_storage_block_local_fallback('newsfeed attachments')) {
+        echo json_encode([
+            'success' => false,
+            'postid'  => $postid,
+        ]);
+        return;
+    }
+
     if (isset($_FILES['file']) && _perfex_upload_error($_FILES['file']['error'])) {
         header('HTTP/1.0 400 Bad error');
         echo _perfex_upload_error($_FILES['file']['error']);
@@ -195,6 +207,10 @@ function handle_project_file_uploads($project_id)
 
     if ($hookData['handled_externally']) {
         return $hookData['handled_externally_successfully'];
+    }
+
+    if (function_exists('wasabi_storage_block_local_fallback') && wasabi_storage_block_local_fallback('project files')) {
+        return false;
     }
 
     $filesIDS = [];
@@ -320,6 +336,10 @@ function handle_contract_attachment($id)
         return $hookData['handled_externally_successfully'];
     }
 
+    if (function_exists('wasabi_storage_block_local_fallback') && wasabi_storage_block_local_fallback('contract attachments')) {
+        return false;
+    }
+
     if (isset($_FILES['file']) && _perfex_upload_error($_FILES['file']['error'])) {
         header('HTTP/1.0 400 Bad error');
         echo _perfex_upload_error($_FILES['file']['error']);
@@ -370,6 +390,10 @@ function handle_lead_attachments($leadid, $index_name = 'file', $form_activity =
 
     if ($hookData['handled_externally']) {
         return $hookData['handled_externally_successfully'];
+    }
+
+    if (function_exists('wasabi_storage_block_local_fallback') && wasabi_storage_block_local_fallback('lead attachments')) {
+        return false;
     }
 
     $path           = get_upload_path_by_type('lead') . $leadid . '/';
@@ -437,6 +461,10 @@ function handle_task_attachments_array($taskid, $index_name = 'attachments')
 
     if ($hookData['handled_externally']) {
         return count($hookData['uploaded_files']) > 0 ? $hookData['uploaded_files'] : false;
+    }
+
+    if (function_exists('wasabi_storage_block_local_fallback') && wasabi_storage_block_local_fallback('task attachments')) {
+        return false;
     }
 
     $uploaded_files = [];
@@ -509,6 +537,12 @@ function handle_sales_attachments($rel_id, $rel_type)
     if ($hookData['handled_externally']) {
         echo $hookData['handled_externally_successfully'];
         return;
+    }
+
+    if (function_exists('wasabi_storage_block_local_fallback') && wasabi_storage_block_local_fallback('sales attachments')) {
+        header('HTTP/1.0 400 Bad error');
+        echo function_exists('_l') ? _l('wasabi_storage_upload_failed') : 'Wasabi upload failed';
+        die;
     }
 
     if (isset($_FILES['file']) && _perfex_upload_error($_FILES['file']['error'])) {
@@ -595,6 +629,10 @@ function handle_client_attachments_upload($id, $customer_upload = false)
         return $hookData['total_uploaded'];
     }
 
+    if (function_exists('wasabi_storage_block_local_fallback') && wasabi_storage_block_local_fallback('client attachments')) {
+        return 0;
+    }
+
     $path          = get_upload_path_by_type('customer') . $id . '/';
     $CI            = & get_instance();
     $totalUploaded = 0;
@@ -676,6 +714,9 @@ function handle_expense_attachments($id)
         return $hookData['handled_externally_successfully'];
     }
 
+    if (function_exists('wasabi_storage_block_local_fallback') && wasabi_storage_block_local_fallback('expense attachments')) {
+        return false;
+    }
 
     $path = get_upload_path_by_type('expense') . $id . '/';
     $CI   = & get_instance();
@@ -720,6 +761,10 @@ function handle_ticket_attachments($ticketid, $index_name = 'attachments')
 
     if ($hookData['handled_externally']) {
         return count($hookData['uploaded_files']) > 0 ? $hookData['uploaded_files'] : false;
+    }
+
+    if (function_exists('wasabi_storage_block_local_fallback') && wasabi_storage_block_local_fallback('ticket attachments')) {
+        return false;
     }
 
     $path           = get_upload_path_by_type('ticket') . $ticketid . '/';
@@ -1141,6 +1186,12 @@ function handle_project_discussion_comment_attachments($discussion_id, $post_dat
         return isset($hookData['insert_data']) ? $hookData['insert_data'] : $insert_data;
     }
 
+    if (function_exists('wasabi_storage_block_local_fallback') && wasabi_storage_block_local_fallback('discussion attachments')) {
+        header('HTTP/1.0 400 Bad error');
+        echo json_encode(['message' => function_exists('_l') ? _l('wasabi_storage_upload_failed') : 'Wasabi upload failed']);
+        die;
+    }
+
     if (isset($_FILES['file']['name'])) {
         hooks()->do_action('before_upload_project_discussion_comment_attachment');
         $path = PROJECT_DISCUSSION_ATTACHMENT_FOLDER . $discussion_id . '/';
@@ -1185,6 +1236,12 @@ function handle_project_discussion_comment_attachments($discussion_id, $post_dat
  */
 function create_img_thumb($path, $filename, $width = 300, $height = 300)
 {
+    // When Wasabi is enabled, originals live in object storage — do not write local *_thumb files.
+    // Previews are served via wasabi_storage/preview/{id} or preview_image_missing → Wasabi.
+    if (function_exists('wasabi_storage_enabled') && wasabi_storage_enabled()) {
+        return;
+    }
+
     $CI = &get_instance();
 
     $source_path  = rtrim($path, '/') . '/' . $filename;

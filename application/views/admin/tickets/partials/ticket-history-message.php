@@ -93,7 +93,13 @@
         <hr />
         <?php foreach ($ticket->attachments as $attachment) {
             $path     = get_upload_path_by_type('ticket') . $ticket->ticketid . '/' . $attachment['file_name'];
-            $is_image = is_image($path);
+            $wasabiPreview = function_exists('wasabi_storage_ticket_attachment_preview_url')
+                ? wasabi_storage_ticket_attachment_preview_url($attachment['file_name'], $ticket->ticketid)
+                : null;
+            $is_image = $wasabiPreview
+                ? (function_exists('wasabi_storage_is_image_attachment') && wasabi_storage_is_image_attachment($attachment))
+                : is_image($path);
+            $img_src = $wasabiPreview ?: site_url('download/preview_image?path=' . protected_file_url_by_path($path) . '&type=' . $attachment['filetype']);
 
             if ($is_image) { ?>
         <div class="preview_image">
@@ -105,7 +111,7 @@
                 <?= e($attachment['file_name']); ?>
                 <?php if ($is_image) { ?>
                 <img class="mtop5"
-                    src="<?= site_url('download/preview_image?path=' . protected_file_url_by_path($path) . '&type=' . $attachment['filetype']); ?>">
+                    src="<?= e($img_src); ?>">
                 <?php } ?>
             </a>
             <?php if ($is_image) { ?>

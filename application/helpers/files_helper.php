@@ -435,6 +435,30 @@ function parse_upload_size($size)
  */
 function protected_file_url_by_path($path, $preview = false)
 {
+    // Prefer Wasabi preview when the local file (or thumb) is missing.
+    if (function_exists('wasabi_storage_enabled') && wasabi_storage_enabled()) {
+        $checkPath = $path;
+        if ($preview) {
+            $fname     = pathinfo($path, PATHINFO_FILENAME);
+            $fext      = pathinfo($path, PATHINFO_EXTENSION);
+            $thumbPath = pathinfo($path, PATHINFO_DIRNAME) . '/' . $fname . '_thumb.' . $fext;
+            if (file_exists($thumbPath)) {
+                return str_replace(FCPATH, '', $thumbPath);
+            }
+            $checkPath = $path;
+        }
+        if (!file_exists($checkPath) && function_exists('wasabi_storage_preview_url_from_local_path')) {
+            $wasabiPreview = wasabi_storage_preview_url_from_local_path($path);
+            if ($wasabiPreview) {
+                // Signal to callers that use this inside download/preview_image?path=
+                // Prefer returning relative path still so preview_image_missing can resolve;
+                // returning absolute wasabi admin URL breaks path join with FCPATH.
+                // Keep original relative path — Download::preview_image missing filter handles Wasabi.
+                return str_replace(FCPATH, '', $path);
+            }
+        }
+    }
+
     if ($preview) {
         $fname     = pathinfo($path, PATHINFO_FILENAME);
         $fext      = pathinfo($path, PATHINFO_EXTENSION);

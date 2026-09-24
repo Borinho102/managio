@@ -77,10 +77,26 @@
                     $img_url     = '';
                     $lightBoxUrl = '';
 
-                    if (empty($_att['external'])) {
-                        $is_image    = is_image($path);
-                        $img_url     = site_url('download/preview_image?path=' . protected_file_url_by_path($path, true) . '&type=' . $_att['filetype']);
-                        $lightBoxUrl = site_url('download/preview_image?path=' . protected_file_url_by_path($path) . '&type=' . $_att['filetype']);
+                    if (!empty($_att['external']) && $_att['external'] === 'wasabi' && function_exists('wasabi_storage_attachment_preview_url')) {
+                        $wasabiPreview = wasabi_storage_attachment_preview_url($_att);
+                        if ($wasabiPreview) {
+                            $is_image    = true;
+                            $img_url     = $wasabiPreview;
+                            $lightBoxUrl = $wasabiPreview;
+                        }
+                    } elseif (empty($_att['external'])) {
+                        $wasabiPreview = function_exists('wasabi_storage_attachment_preview_url')
+                            ? wasabi_storage_attachment_preview_url($_att)
+                            : null;
+                        if ($wasabiPreview) {
+                            $is_image    = true;
+                            $img_url     = $wasabiPreview;
+                            $lightBoxUrl = $wasabiPreview;
+                        } else {
+                            $is_image    = is_image($path);
+                            $img_url     = site_url('download/preview_image?path=' . protected_file_url_by_path($path, true) . '&type=' . $_att['filetype']);
+                            $lightBoxUrl = site_url('download/preview_image?path=' . protected_file_url_by_path($path) . '&type=' . $_att['filetype']);
+                        }
                     } elseif (! empty($_att['external'])) {
                         if (! empty($_att['thumbnail_link']) && $_att['external'] === 'dropbox') {
                             $is_image = true;
