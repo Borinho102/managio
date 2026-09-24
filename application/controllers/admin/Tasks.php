@@ -1033,6 +1033,9 @@ class Tasks extends AdminController
             if (function_exists('update_option')) {
                 update_option('wasabi_last_error', $e->getMessage());
             }
+            if (function_exists('wasabi_storage_activity_log')) {
+                wasabi_storage_activity_log('error', 'Task upload_file exception: ' . $e->getMessage());
+            }
             $message = $e->getMessage();
             $success = false;
         }

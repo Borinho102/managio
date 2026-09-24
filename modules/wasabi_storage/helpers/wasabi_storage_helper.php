@@ -198,21 +198,197 @@ function wasabi_storage_looks_like_object_key($value)
 function wasabi_storage_upload_tmp($tmpPath, $objectKey, $mime = 'application/octet-stream')
 {
     if (!is_uploaded_file($tmpPath) && !is_file($tmpPath)) {
+        wasabi_storage_activity_log('error', 'Invalid upload temp file for key ' . $objectKey);
+
         return false;
     }
     try {
         $client = wasabi_storage_client();
         $ok = $client->put_object($objectKey, $tmpPath, $mime ?: 'application/octet-stream');
         if (!$ok) {
-            update_option('wasabi_last_error', $client->get_last_error());
+            $err = $client->get_last_error();
+            update_option('wasabi_last_error', $err);
+            wasabi_storage_activity_log('error', 'PUT failed for ' . $objectKey . ': ' . $err);
+        } else {
+            wasabi_storage_activity_log('info', 'PUT ok: ' . $objectKey);
         }
 
         return $ok;
     } catch (Throwable $e) {
         update_option('wasabi_last_error', $e->getMessage());
+        wasabi_storage_activity_log('error', 'PUT exception for ' . $objectKey . ': ' . $e->getMessage());
 
         return false;
     }
+}
+
+/**
+ * Append a line to the module activity log (and CI log).
+ */
+function wasabi_storage_activity_log($level, $message)
+{
+    $level = strtolower((string) $level);
+    if (!in_array($level, ['debug', 'info', 'error', 'warning'], true)) {
+        $level = 'info';
+    }
+    $line = '[' . date('Y-m-d H:i:s') . '] ' . strtoupper($level) . ': ' . trim((string) $message);
+
+    $dir = wasabi_storage_logs_directory();
+    if ($dir) {
+        $file = $dir . 'wasabi-' . date('Y-m-d') . '.log';
+        @file_put_contents($file, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
+    }
+
+    if (function_exists('log_message')) {
+        log_message($level === 'warning' ? 'error' : $level, 'Wasabi: ' . $message);
+    }
+}
+
+function wasabi_storage_logs_directory()
+{
+    $dir = FCPATH . 'uploads/wasabi_storage/logs/';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+        if (is_dir($dir) && !is_file($dir . 'index.html')) {
+            @file_put_contents($dir . 'index.html', '');
+        }
+        if (is_dir($dir) && !is_file($dir . '.htaccess')) {
+            @file_put_contents($dir . '.htaccess', "Order Deny,Allow\nDeny from all\n");
+        }
+    }
+
+    return is_dir($dir) && is_writable($dir) ? $dir : null;
+}
+
+/**
+ * Collect preview data for the Logs tab.
+ *
+ * @return array{last_error:string,activity:string,php_log:string,activity_file:?string,php_log_file:?string}
+ */
+function wasabi_storage_collect_log_preview($maxLines = 200)
+{
+    $maxLines = max(50, min((int) $maxLines, 1000));
+    $preview = [
+        'last_error'    => (string) get_option('wasabi_last_error'),
+        'activity'      => '',
+        'php_log'       => '',
+        'activity_file' => null,
+        'php_log_file'  => null,
+    ];
+
+    $dir = wasabi_storage_logs_directory();
+    if ($dir) {
+        $today = $dir . 'wasabi-' . date('Y-m-d') . '.log';
+        $yesterday = $dir . 'wasabi-' . date('Y-m-d', strtotime('-1 day')) . '.log';
+        $files = [];
+        if (is_file($today)) {
+            $files[] = $today;
+        }
+        if (is_file($yesterday)) {
+            $files[] = $yesterday;
+        }
+        if (!$files) {
+            $all = glob($dir . 'wasabi-*.log') ?: [];
+            rsort($all);
+            if (!empty($all[0])) {
+                $files[] = $all[0];
+            }
+        }
+        $chunks = [];
+        foreach (array_reverse($files) as $file) {
+            $chunks[] = wasabi_storage_tail_file($file, $maxLines);
+            $preview['activity_file'] = $file;
+        }
+        $preview['activity'] = trim(implode("\n", array_filter($chunks)));
+    }
+
+    $ciLogDir = defined('APPPATH') ? APPPATH . 'logs/' : (FCPATH . 'application/logs/');
+    if (is_dir($ciLogDir)) {
+        $ciToday = $ciLogDir . 'log-' . date('Y-m-d') . '.php';
+        $ciFile = is_file($ciToday) ? $ciToday : null;
+        if (!$ciFile) {
+            $all = glob($ciLogDir . 'log-*.php') ?: [];
+            rsort($all);
+            $ciFile = $all[0] ?? null;
+        }
+        if ($ciFile) {
+            $preview['php_log_file'] = $ciFile;
+            $raw = wasabi_storage_tail_file($ciFile, $maxLines * 3);
+            $filtered = [];
+            foreach (preg_split('/\R/', $raw) as $line) {
+                if ($line === '' || strpos($line, '<?php') === 0 || strpos($line, 'defined(') === 0) {
+                    continue;
+                }
+                if (preg_match('/wasabi|Wasabi|S3|upload_file|task upload|Task upload/i', $line)) {
+                    $filtered[] = $line;
+                }
+            }
+            if (!$filtered) {
+                // Fall back to last raw lines (minus PHP guard) so the tab is never empty when logs exist.
+                foreach (array_slice(preg_split('/\R/', $raw), -$maxLines) as $line) {
+                    if ($line === '' || strpos($line, '<?php') === 0 || strpos($line, 'defined(') === 0) {
+                        continue;
+                    }
+                    $filtered[] = $line;
+                }
+            }
+            $preview['php_log'] = implode("\n", array_slice($filtered, -$maxLines));
+        }
+    }
+
+    if ($preview['activity'] === '') {
+        $preview['activity'] = _l('wasabi_storage_logs_empty');
+    }
+    if ($preview['php_log'] === '') {
+        $preview['php_log'] = _l('wasabi_storage_logs_php_empty');
+    }
+
+    return $preview;
+}
+
+function wasabi_storage_tail_file($path, $maxLines = 200)
+{
+    if (!is_file($path) || !is_readable($path)) {
+        return '';
+    }
+    $size = filesize($path);
+    if ($size === false || $size === 0) {
+        return '';
+    }
+    $fh = fopen($path, 'rb');
+    if (!$fh) {
+        return '';
+    }
+    $buffer = '';
+    $chunk = 8192;
+    $pos = $size;
+    $lines = 0;
+    while ($pos > 0 && $lines <= $maxLines) {
+        $read = ($pos >= $chunk) ? $chunk : $pos;
+        $pos -= $read;
+        fseek($fh, $pos);
+        $buffer = fread($fh, $read) . $buffer;
+        $lines = substr_count($buffer, "\n");
+    }
+    fclose($fh);
+    $parts = preg_split('/\R/', $buffer);
+    $parts = array_slice($parts, -$maxLines);
+
+    return implode("\n", $parts);
+}
+
+function wasabi_storage_clear_activity_logs()
+{
+    $dir = wasabi_storage_logs_directory();
+    if (!$dir) {
+        return false;
+    }
+    foreach (glob($dir . 'wasabi-*.log') ?: [] as $file) {
+        @unlink($file);
+    }
+    update_option('wasabi_last_error', '');
+
+    return true;
 }
 
 function wasabi_storage_unique_name($original)
@@ -271,6 +447,7 @@ function wasabi_storage_fail_external_upload(array $hookData, $message = null)
 {
     $err = $message ?: get_option('wasabi_last_error') ?: 'Wasabi upload failed';
     update_option('wasabi_last_error', $err);
+    wasabi_storage_activity_log('error', 'External upload hard-fail: ' . $err);
     if (function_exists('set_alert')) {
         $label = 'Wasabi upload failed';
         if (function_exists('_l')) {

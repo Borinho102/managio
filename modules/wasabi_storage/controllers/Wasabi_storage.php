@@ -21,7 +21,19 @@ class Wasabi_storage extends AdminController
         $data['title'] = _l('wasabi_storage');
         $data['migrate_status'] = get_option('wasabi_migrate_status');
         $data['last_error'] = get_option('wasabi_last_error');
+        $data['active_tab'] = $this->input->get('tab') === 'logs' ? 'logs' : 'settings';
+        $data['log_preview'] = wasabi_storage_collect_log_preview(250);
         $this->load->view('settings', $data);
+    }
+
+    public function clear_logs()
+    {
+        if (wasabi_storage_clear_activity_logs()) {
+            set_alert('success', _l('wasabi_storage_logs_cleared'));
+        } else {
+            set_alert('warning', _l('wasabi_storage_logs_clear_failed'));
+        }
+        redirect(admin_url('wasabi_storage?tab=logs'));
     }
 
     public function save()
@@ -56,6 +68,7 @@ class Wasabi_storage extends AdminController
                 update_option('wasabi_secret_key', $secret);
             }
 
+            wasabi_storage_activity_log('info', 'Settings saved (enabled=' . get_option('wasabi_storage_enabled') . ', backup=' . get_option('wasabi_backup_enabled') . ')');
             set_alert('success', _l('updated_successfully', _l('wasabi_storage')));
         }
 
@@ -68,12 +81,14 @@ class Wasabi_storage extends AdminController
         $ok = $client->test_connection();
         if ($ok) {
             update_option('wasabi_last_error', '');
+            wasabi_storage_activity_log('info', 'Connection test OK');
             set_alert('success', _l('wasabi_storage_connection_ok'));
         } else {
             update_option('wasabi_last_error', $client->get_last_error());
+            wasabi_storage_activity_log('error', 'Connection test failed: ' . $client->get_last_error());
             set_alert('danger', _l('wasabi_storage_connection_failed') . ': ' . $client->get_last_error());
         }
-        redirect(admin_url('wasabi_storage'));
+        redirect(admin_url('wasabi_storage?tab=logs'));
     }
 
     public function migrate()
@@ -86,8 +101,15 @@ class Wasabi_storage extends AdminController
         $purge = (bool) $this->input->post('purge_local');
         $result = $this->run_migrate($purge);
         update_option('wasabi_migrate_status', json_encode($result));
+        wasabi_storage_activity_log(
+            ((int) ($result['failed'] ?? 0) > 0) ? 'warning' : 'info',
+            'Migration finished: uploaded=' . ($result['uploaded'] ?? 0)
+            . ' skipped=' . ($result['skipped'] ?? 0)
+            . ' failed=' . ($result['failed'] ?? 0)
+            . ' total=' . ($result['total'] ?? 0)
+        );
         set_alert('success', _l('wasabi_storage_migrate_done', $result['uploaded'] . '/' . $result['total']));
-        redirect(admin_url('wasabi_storage'));
+        redirect(admin_url('wasabi_storage?tab=logs'));
     }
 
     public function push_backups()
@@ -118,14 +140,17 @@ class Wasabi_storage extends AdminController
         }
 
         if ($count > 0 && $failed === 0) {
+            wasabi_storage_activity_log('info', 'Backups pushed: ' . $count);
             set_alert('success', _l('wasabi_storage_backups_pushed', $count));
         } elseif ($count > 0) {
+            wasabi_storage_activity_log('warning', 'Backups partial: ' . $count . ' ok, ' . $failed . ' failed');
             set_alert('warning', _l('wasabi_storage_backups_pushed_partial', [$count, $failed]));
         } else {
             $err = get_option('wasabi_last_error');
+            wasabi_storage_activity_log('error', 'Backups push failed: ' . $err);
             set_alert('danger', _l('wasabi_storage_backups_push_failed') . ($err ? ': ' . $err : ''));
         }
-        redirect(admin_url('wasabi_storage'));
+        redirect(admin_url('wasabi_storage?tab=logs'));
     }
 
     /**
