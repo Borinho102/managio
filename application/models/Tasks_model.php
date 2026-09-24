@@ -1305,7 +1305,7 @@ class Tasks_model extends App_Model
             $this->db->where('id', $rel_id);
             $task = $this->db->get(db_prefix() . 'tasks')->row();
 
-            if ($task->rel_type == 'project') {
+            if ($task && $task->rel_type == 'project') {
                 $this->projects_model->log_activity($task->rel_id, 'project_activity_new_task_attachment', $task->name, $task->visible_to_client);
             }
 
@@ -1319,14 +1319,16 @@ class Tasks_model extends App_Model
 
             if ($task_attachment_as_comment == 'true') {
                 $file = $this->misc_model->get_file($file_id);
-                $this->db->insert(db_prefix() . 'task_comments', [
-                    'content'    => '[task_attachment]',
-                    'taskid'     => $rel_id,
-                    'staffid'    => $file->staffid,
-                    'contact_id' => $file->contact_id,
-                    'file_id'    => $file_id,
-                    'dateadded'  => date('Y-m-d H:i:s'),
-                ]);
+                if ($file) {
+                    $this->db->insert(db_prefix() . 'task_comments', [
+                        'content'    => '[task_attachment]',
+                        'taskid'     => $rel_id,
+                        'staffid'    => $file->staffid,
+                        'contact_id' => $file->contact_id,
+                        'file_id'    => $file_id,
+                        'dateadded'  => date('Y-m-d H:i:s'),
+                    ]);
+                }
             }
 
             return true;

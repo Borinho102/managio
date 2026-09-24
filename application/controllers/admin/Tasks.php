@@ -983,10 +983,17 @@ class Tasks extends AdminController
      */
     public function upload_file()
     {
-        if ($this->input->post()) {
-            $taskid  = $this->input->post('taskid');
-            $files   = handle_task_attachments_array($taskid, 'file');
-            $success = false;
+        if (!$this->input->post()) {
+            return;
+        }
+
+        $taskid  = $this->input->post('taskid');
+        $success = false;
+        $message = null;
+        $taskHtml = '';
+
+        try {
+            $files = handle_task_attachments_array($taskid, 'file');
 
             if ($files) {
                 $i   = 0;
@@ -999,7 +1006,7 @@ class Tasks extends AdminController
                         $attachment = [[
                             'name' => $file['file_name'] ?? $file['name'],
                             'link' => $file['external_link'] ?? $file['link'],
-                            'mime' => $file['filetype'] ?? $file['mime'] ?? null,
+                            'mime' => $file['filetype'] ?? $file['mime'] ?? 'application/octet-stream',
                         ]];
                         if (!empty($file['task_comment_id'])) {
                             $attachment[0]['task_comment_id'] = $file['task_comment_id'];
@@ -1011,16 +1018,30 @@ class Tasks extends AdminController
                     $success = $this->tasks_model->add_attachment_to_database($taskid, $attachment, $external, ($i == $len - 1 ? true : false));
                     $i++;
                 }
+            } elseif (function_exists('wasabi_storage_enabled') && wasabi_storage_enabled()) {
+                $message = get_option('wasabi_last_error') ?: (function_exists('_l') ? _l('wasabi_storage_upload_failed') : 'Wasabi upload failed');
             }
 
-            echo json_encode([
-                'success'  => $success,
-                'taskHtml' => $this->get_task_data($taskid, true),
-                'message'  => (!$success && function_exists('wasabi_storage_enabled') && wasabi_storage_enabled())
-                    ? (get_option('wasabi_last_error') ?: _l('wasabi_storage_upload_failed'))
-                    : null,
-            ]);
+            try {
+                $taskHtml = $this->get_task_data($taskid, true);
+            } catch (Throwable $e) {
+                $taskHtml = '';
+                log_message('error', 'Wasabi/task get_task_data after upload: ' . $e->getMessage());
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Task upload_file failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            if (function_exists('update_option')) {
+                update_option('wasabi_last_error', $e->getMessage());
+            }
+            $message = $e->getMessage();
+            $success = false;
         }
+
+        echo json_encode([
+            'success'  => $success,
+            'taskHtml' => $taskHtml,
+            'message'  => $message,
+        ]);
     }
 
     public function timer_tracking()

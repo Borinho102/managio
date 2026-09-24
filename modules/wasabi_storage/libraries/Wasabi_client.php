@@ -76,10 +76,10 @@ class Wasabi_client
             $body = (string) $bodyOrPath;
         }
 
-        // Do not send x-amz-acl: many Wasabi buckets enforce "Bucket owner enforced" and reject ACL headers.
+        // Let cURL set Content-Length for POSTFIELDS to avoid duplicate/mismatched headers.
+        // Still include it in the SigV4 canonical request below via headerMap.
         $headers = [
-            'Content-Type'   => $contentType ?: 'application/octet-stream',
-            'Content-Length' => (string) strlen($body),
+            'Content-Type' => $contentType ?: 'application/octet-stream',
         ];
 
         $ok = $this->request('PUT', '/' . rawurlencode($this->bucket) . '/' . $this->encode_key($key), $body, $headers);
@@ -115,6 +115,9 @@ class Wasabi_client
         $ttl = max(60, min($ttl, 604800));
 
         $host = parse_url($this->endpoint, PHP_URL_HOST);
+        if (!$host) {
+            return '';
+        }
         $amzDate = gmdate('Ymd\THis\Z');
         $dateStamp = gmdate('Ymd');
         $credentialScope = $dateStamp . '/' . $this->region . '/s3/aws4_request';
@@ -267,15 +270,14 @@ class Wasabi_client
 
         $curlHeaders = ['Authorization: ' . $authorization];
         foreach ($headerMap as $lower => $value) {
-            if ($lower === 'host') {
+            if ($lower === 'host' || $lower === 'content-length') {
+                // Host is implicit; Content-Length is set by cURL from POSTFIELDS.
                 continue;
             }
             // Restore common header casing for intermediaries; SigV4 already used lowercase names.
             $display = $lower;
             if ($lower === 'content-type') {
                 $display = 'Content-Type';
-            } elseif ($lower === 'content-length') {
-                $display = 'Content-Length';
             }
             $curlHeaders[] = $display . ': ' . $value;
         }

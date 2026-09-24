@@ -18,10 +18,19 @@ function wasabi_storage_credentials_ready()
 function wasabi_storage_client()
 {
     $CI = &get_instance();
-    // Pass [] so MX Loader does not construct the library with null (PHP 8 array-offset fatal).
-    if (!isset($CI->wasabi_client) || !(is_object($CI->wasabi_client) && get_class($CI->wasabi_client) === 'Wasabi_client')) {
-        $CI->load->library(WASABI_STORAGE_MODULE_NAME . '/wasabi_client', []);
+    if (isset($CI->wasabi_client) && is_object($CI->wasabi_client) && get_class($CI->wasabi_client) === 'Wasabi_client') {
+        return $CI->wasabi_client;
     }
+
+    // Load directly — MX Loader can pass null config / fail class resolve on some PHP/Linux setups (HTTP 500).
+    if (!class_exists('Wasabi_client', false)) {
+        $path = module_dir_path(WASABI_STORAGE_MODULE_NAME, 'libraries/Wasabi_client.php');
+        if (!is_file($path)) {
+            throw new RuntimeException('Wasabi_client library not found at ' . $path);
+        }
+        require_once $path;
+    }
+    $CI->wasabi_client = new Wasabi_client([]);
 
     return $CI->wasabi_client;
 }
@@ -263,7 +272,14 @@ function wasabi_storage_fail_external_upload(array $hookData, $message = null)
     $err = $message ?: get_option('wasabi_last_error') ?: 'Wasabi upload failed';
     update_option('wasabi_last_error', $err);
     if (function_exists('set_alert')) {
-        set_alert('danger', _l('wasabi_storage_upload_failed') . ': ' . $err);
+        $label = 'Wasabi upload failed';
+        if (function_exists('_l')) {
+            $translated = _l('wasabi_storage_upload_failed');
+            if (is_string($translated) && $translated !== '' && $translated !== 'wasabi_storage_upload_failed') {
+                $label = $translated;
+            }
+        }
+        set_alert('danger', $label . ': ' . $err);
     }
     $hookData['handled_externally'] = true;
     $hookData['uploaded_files'] = [];
