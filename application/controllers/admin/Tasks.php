@@ -660,6 +660,11 @@ class Tasks extends AdminController
             $data['content'] = nl2br($this->input->post('content'));
         }
 
+        // Normalize empty TinyMCE shells (<p><br></p>, &nbsp;, etc.) so they don't create blank comments.
+        if (function_exists('task_comment_is_empty_content') && task_comment_is_empty_content($data['content'] ?? '')) {
+            $data['content'] = '';
+        }
+
         $comment_id = false;
         $message    = null;
         $taskHtml   = '';
@@ -689,12 +694,15 @@ class Tasks extends AdminController
                         $message = function_exists('wasabi_storage_enabled') && wasabi_storage_enabled()
                             ? (get_option('wasabi_last_error') ?: (function_exists('_l') ? _l('wasabi_storage_upload_failed') : 'Wasabi upload failed'))
                             : 'File upload failed';
-                        // Drop empty orphan comment created only for the failed attachment upload.
-                        $content = trim(strip_tags((string) ($data['content'] ?? '')));
-                        if ($content === '' || $content === '[task_attachment]') {
+                        // Always drop orphan comments that have no meaningful text left.
+                        if ($data['content'] === '' || (function_exists('task_comment_is_empty_content') && task_comment_is_empty_content($data['content']))) {
                             $this->tasks_model->remove_comment($comment_id, true);
+                            $comment_id = false;
                         }
-                        $comment_id = false;
+                        // If there was real text, keep the text comment and report the file failure.
+                        if ($comment_id) {
+                            $message = $message . ' (comment text was saved)';
+                        }
                         if (function_exists('wasabi_storage_activity_log')) {
                             wasabi_storage_activity_log('error', 'Task comment upload failed: ' . $message);
                         }

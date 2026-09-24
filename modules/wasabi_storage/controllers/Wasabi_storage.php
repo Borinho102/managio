@@ -7,9 +7,18 @@ class Wasabi_storage extends AdminController
     public function __construct()
     {
         parent::__construct();
-        if (!is_admin()) {
+
+        $method = $this->router->fetch_method();
+        $staffPreview = in_array($method, ['preview', 'file'], true);
+
+        if ($staffPreview) {
+            if (!is_staff_logged_in()) {
+                access_denied('Wasabi Storage');
+            }
+        } elseif (!is_admin()) {
             access_denied('Wasabi Storage');
         }
+
         if (!function_exists('wasabi_storage_ensure_table')) {
             require_once module_dir_path(WASABI_STORAGE_MODULE_NAME, 'install.php');
         }
@@ -169,6 +178,60 @@ class Wasabi_storage extends AdminController
             show_404();
         }
         redirect($url);
+    }
+
+    /**
+     * Same-origin image/file preview for staff (used as <img src> after AJAX uploads).
+     * Avoids broken previews from long Wasabi signed URLs inside injected task HTML.
+     */
+    public function preview($fileId = 0)
+    {
+        $fileId = (int) $fileId;
+        if ($fileId <= 0 || !wasabi_storage_credentials_ready()) {
+            show_404();
+        }
+
+        $this->db->where('id', $fileId);
+        $file = $this->db->get(db_prefix() . 'files')->row();
+        if (!$file || empty($file->external) || $file->external !== WASABI_STORAGE_EXTERNAL) {
+            show_404();
+        }
+
+        $objectKey = wasabi_storage_resolve_object_key_for_file($file);
+        if (!$objectKey) {
+            show_404();
+        }
+
+        $client = wasabi_storage_client();
+        $body = $client->get_object($objectKey);
+        if ($body === false || $body === null) {
+            // Fallback: redirect to a fresh signed URL
+            $url = wasabi_storage_signed_url($objectKey);
+            if ($url) {
+                redirect($url);
+            }
+            show_404();
+        }
+
+        $mime = !empty($file->filetype) ? $file->filetype : 'application/octet-stream';
+        if (strpos($mime, 'image/') !== 0 && function_exists('wasabi_storage_guess_mime_from_name')) {
+            $guessed = wasabi_storage_guess_mime_from_name($file->file_name);
+            if ($guessed) {
+                $mime = $guessed;
+            }
+        }
+
+        $filename = basename((string) $file->file_name);
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        header('Content-Type: ' . $mime);
+        header('Content-Length: ' . strlen($body));
+        header('Content-Disposition: inline; filename="' . str_replace('"', '', $filename) . '"');
+        header('Cache-Control: private, max-age=120');
+        header('X-Content-Type-Options: nosniff');
+        echo $body;
+        exit;
     }
 
     private function run_migrate($purgeLocal = false)

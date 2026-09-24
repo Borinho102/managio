@@ -629,3 +629,25 @@ function is_task_created_by_staff($taskId, $staffId = null)
 
     return $CI->db->count_all_results(db_prefix() . 'tasks') > 0 ? true : false;
 }
+
+/**
+ * Plain text of a task comment (strips HTML, nbsp, attachment placeholder).
+ */
+function task_comment_plain_text($content)
+{
+    $content = html_entity_decode((string) $content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $content = str_replace('[task_attachment]', '', $content);
+    $content = strip_tags($content);
+    $content = preg_replace('/\x{00A0}/u', ' ', $content);
+    $content = preg_replace('/\s+/u', ' ', $content);
+
+    return trim((string) $content);
+}
+
+/**
+ * True when comment body has no meaningful text (empty TinyMCE / nbsp / placeholder only).
+ */
+function task_comment_is_empty_content($content)
+{
+    return task_comment_plain_text($content) === '';
+}

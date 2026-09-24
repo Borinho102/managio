@@ -1418,7 +1418,24 @@ class Tasks_model extends App_Model
             }
         }
 
-        return $comments;
+        // Drop blank shells left by failed image uploads (empty TinyMCE / unresolved [task_attachment]).
+        foreach ($comments as $key => $comment) {
+            $hasLinkedAttachments = !empty($comment['attachments']) && count($comment['attachments']) > 0;
+            $hasFileId = !empty($comment['file_id']) && (int) $comment['file_id'] !== 0;
+            if ($hasFileId && !$hasLinkedAttachments) {
+                // file_id comment: confirm the file row still exists
+                $this->db->where('id', (int) $comment['file_id']);
+                $hasFileId = $this->db->count_all_results(db_prefix() . 'files') > 0;
+            }
+            if ($hasLinkedAttachments || $hasFileId) {
+                continue;
+            }
+            if (function_exists('task_comment_is_empty_content') && task_comment_is_empty_content($comment['content'])) {
+                unset($comments[$key]);
+            }
+        }
+
+        return array_values($comments);
     }
 
     public function edit_comment($data)

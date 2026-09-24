@@ -6566,6 +6566,10 @@ function _task_append_html(html) {
     }
     init_form_reminder("task");
     fix_task_modal_left_col_height();
+    // Re-bind lightbox for newly injected Wasabi/local attachment images
+    if (typeof init_lightbox === "function") {
+      init_lightbox();
+    }
 
     // Show the comment area on mobile when task modal is opened
     // Because the user may want only to upload file, but if the comment textarea is not focused the dropzone won't be shown
@@ -8708,6 +8712,9 @@ function init_new_task_comment(manual) {
             );
             $("#addTaskCommentBtn").button("reset");
             return;
+          }
+          if (response.message) {
+            alert_float("warning", response.message);
           }
           _task_append_html(response.taskHtml);
           tinymce.remove("#task_comment");

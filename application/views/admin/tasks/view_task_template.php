@@ -552,17 +552,16 @@ foreach ($task->timesheets as $timesheet) { ?>
                     $is_image = is_image($path);
                     $img_url  = site_url('download/preview_image?path=' . protected_file_url_by_path($path, true) . '&type=' . $attachment['filetype']);
                 } elseif ($attachment['external'] === 'wasabi') {
-                    // Keep download controller URL (external_link may already be that URL after insert)
-                    $href_url = !empty($attachment['external_link']) ? $attachment['external_link'] : $href_url;
-                    if (!empty($attachment['filetype']) && strpos($attachment['filetype'], 'image/') === 0 && function_exists('wasabi_storage_find_key_by_filename')) {
-                        $wKey = wasabi_storage_find_key_by_filename($attachment['file_name'], 'task', $task->id);
-                        if ($wKey) {
-                            $signed = wasabi_storage_signed_url($wKey);
-                            if ($signed) {
-                                $is_image = true;
-                                $img_url  = $signed;
-                            }
-                        }
+                    // Prefer stable same-origin download/preview URLs (AJAX taskHtml + lightbox).
+                    $href_url = site_url('download/file/taskattachment/' . $attachment['attachment_key']);
+                    if (!empty($attachment['external_link']) && strpos($attachment['external_link'], 'download/file/') !== false) {
+                        $href_url = $attachment['external_link'];
+                    }
+                    if (function_exists('wasabi_storage_is_image_attachment') && wasabi_storage_is_image_attachment($attachment)) {
+                        $is_image = true;
+                        $img_url  = function_exists('wasabi_storage_preview_url')
+                            ? wasabi_storage_preview_url($attachment['id'])
+                            : $href_url;
                     }
                 } elseif ((! empty($attachment['thumbnail_link']) || ! empty($attachment['external']))
                 && ! empty($attachment['thumbnail_link'])) {
@@ -694,10 +693,41 @@ foreach ($task->timesheets as $timesheet) { ?>
             <div id="task-comments" class="mtop10">
                 <?php
                   $comments = '';
-$len                        = count($task->comments);
-$i                          = 0;
+$comments_attachments = isset($comments_attachments) && is_array($comments_attachments) ? $comments_attachments : [];
+$attachments_data     = isset($attachments_data) && is_array($attachments_data) ? $attachments_data : [];
+$visible_comments     = 0;
 
 foreach ($task->comments as $comment) {
+    // Expand attachment placeholders safely
+    if (!empty($comment['file_id']) && isset($attachments_data[$comment['file_id']])) {
+        $comment['content'] = str_replace('[task_attachment]', '<div class="clearfix"></div>' . $attachments_data[$comment['file_id']], $comment['content']);
+        $comment['content'] = str_replace('data-lightbox="task-attachment"', 'data-lightbox="task-attachment-comment-' . $comment['id'] . '"', $comment['content']);
+    } elseif (!empty($comment['attachments']) && isset($comments_attachments[$comment['id']])) {
+        $comment_attachments_html = '';
+        foreach ($comments_attachments[$comment['id']] as $comment_attachment) {
+            $comment_attachments_html .= trim($comment_attachment);
+        }
+        $comment['content'] = str_replace('[task_attachment]', '<div class="clearfix"></div>' . $comment_attachments_html, $comment['content']);
+        $comment['content'] = str_replace('data-lightbox="task-attachment"', 'data-lightbox="task-comment-files-' . $comment['id'] . '"', $comment['content']);
+        $comment['content'] .= '<div class="clearfix"></div>';
+        $comment['content'] .= '<div class="text-center download-all">
+                   <hr class="hr-10" />
+                   <a href="' . admin_url('tasks/download_files/' . $task->id . '/' . $comment['id']) . '" class="bold">' . _l('download_all') . ' (.zip)
+                   </a>
+                   </div>';
+    } else {
+        // Missing file(s): don't leave a blank comment shell with unresolved placeholder
+        $comment['content'] = str_replace('[task_attachment]', '', $comment['content']);
+    }
+
+    $hasAttachmentHtml = (strpos($comment['content'], 'task-attachment') !== false)
+        || (strpos($comment['content'], 'preview-image') !== false)
+        || (strpos($comment['content'], 'download-all') !== false);
+    if (function_exists('task_comment_is_empty_content') && task_comment_is_empty_content($comment['content']) && !$hasAttachmentHtml) {
+        continue;
+    }
+
+    $visible_comments++;
     $comments .= '<div id="comment_' . $comment['id'] . '" data-commentid="' . $comment['id'] . '" data-task-attachment-id="' . $comment['file_id'] . '" class="tc-content tw-group/comment task-comment' . (strtotime($comment['dateadded']) >= strtotime('-16 hours') ? ' highlight-bg' : '') . '">';
     $comments .= '<a data-task-comment-href-id="' . $comment['id'] . '" href="' . admin_url('tasks/view/' . $task->id) . '#comment_' . $comment['id'] . '" class="task-date-as-comment-id"><span class="tw-text-sm"><span class="text-has-action inline-block" data-toggle="tooltip" data-title="' . e(_dt($comment['dateadded'])) . '">' . e(time_ago($comment['dateadded'])) . '</span></span></a>';
     if ($comment['staffid'] != 0) {
@@ -731,34 +761,10 @@ foreach ($task->comments as $comment) {
                   <button type="button" class="btn btn-primary pull-right" onclick="save_edited_comment(' . $comment['id'] . ',' . $task->id . ')">' . _l('submit') . '</button>
                   <button type="button" class="btn btn-default pull-right mright5" onclick="cancel_edit_comment(' . $comment['id'] . ')">' . _l('cancel') . '</button>
                   </div>';
-    if ($comment['file_id'] != 0) {
-        $comment['content'] = str_replace('[task_attachment]', '<div class="clearfix"></div>' . $attachments_data[$comment['file_id']], $comment['content']);
-        // Replace lightbox to prevent loading the image twice
-        $comment['content'] = str_replace('data-lightbox="task-attachment"', 'data-lightbox="task-attachment-comment-' . $comment['id'] . '"', $comment['content']);
-    } elseif (count($comment['attachments']) > 0 && isset($comments_attachments[$comment['id']])) {
-        $comment_attachments_html = '';
-
-        foreach ($comments_attachments[$comment['id']] as $comment_attachment) {
-            $comment_attachments_html .= trim($comment_attachment);
-        }
-        $comment['content'] = str_replace('[task_attachment]', '<div class="clearfix"></div>' . $comment_attachments_html, $comment['content']);
-        // Replace lightbox to prevent loading the image twice
-        $comment['content'] = str_replace('data-lightbox="task-attachment"', 'data-lightbox="task-comment-files-' . $comment['id'] . '"', $comment['content']);
-        $comment['content'] .= '<div class="clearfix"></div>';
-        $comment['content'] .= '<div class="text-center download-all">
-                   <hr class="hr-10" />
-                   <a href="' . admin_url('tasks/download_files/' . $task->id . '/' . $comment['id']) . '" class="bold">' . _l('download_all') . ' (.zip)
-                   </a>
-                   </div>';
-    }
     $comments .= '<div class="comment-content mtop10">' . app_happy_text(check_for_links($comment['content'])) . '</div>';
     $comments .= '</div>';
-    if ($i >= 0 && $i != $len - 1) {
-        $comments .= '<hr class="task-info-separator" />';
-    }
     $comments .= '</div>';
     $comments .= '</div>';
-    $i++;
 }
 echo $comments;
 ?>

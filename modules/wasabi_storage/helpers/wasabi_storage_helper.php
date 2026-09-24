@@ -151,6 +151,70 @@ function wasabi_storage_signed_url($objectKey)
 }
 
 /**
+ * Same-origin preview URL for a tblfiles row (safe for <img src> after AJAX HTML inject).
+ */
+function wasabi_storage_preview_url($fileId)
+{
+    return admin_url('wasabi_storage/preview/' . (int) $fileId);
+}
+
+function wasabi_storage_guess_mime_from_name($fileName)
+{
+    $ext = strtolower(pathinfo((string) $fileName, PATHINFO_EXTENSION));
+    $map = [
+        'jpg'  => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png'  => 'image/png',
+        'gif'  => 'image/gif',
+        'webp' => 'image/webp',
+        'bmp'  => 'image/bmp',
+        'svg'  => 'image/svg+xml',
+    ];
+
+    return $map[$ext] ?? null;
+}
+
+function wasabi_storage_is_image_attachment($attachment)
+{
+    if (is_object($attachment)) {
+        $attachment = (array) $attachment;
+    }
+    $filetype = (string) ($attachment['filetype'] ?? '');
+    if ($filetype !== '' && strpos($filetype, 'image/') === 0) {
+        return true;
+    }
+    $name = (string) ($attachment['file_name'] ?? $attachment['name'] ?? '');
+
+    return (bool) preg_match('/\.(jpe?g|png|gif|webp|bmp|svg)$/i', $name);
+}
+
+/**
+ * Resolve Wasabi object key for a files-table row (mapping table, then external_link if still a key).
+ */
+function wasabi_storage_resolve_object_key_for_file($file)
+{
+    if (is_array($file)) {
+        $file = (object) $file;
+    }
+    if (!$file) {
+        return null;
+    }
+    $key = wasabi_storage_find_key_by_filename(
+        $file->file_name ?? '',
+        $file->rel_type ?? null,
+        isset($file->rel_id) ? (int) $file->rel_id : null
+    );
+    if ($key) {
+        return $key;
+    }
+    if (!empty($file->external_link) && wasabi_storage_looks_like_object_key($file->external_link)) {
+        return $file->external_link;
+    }
+
+    return null;
+}
+
+/**
  * Stable download URL for tblfiles rows stored on Wasabi (views use external_link as href).
  */
 function wasabi_storage_files_table_download_url($relType, $attachmentKey, $id, $relId)
@@ -597,6 +661,12 @@ function wasabi_storage_collect_uploads($files, $index, $type, $relId)
 
         $filename = wasabi_storage_unique_name($normalized['name'][$i]);
         $mime = $normalized['type'][$i] ?: 'application/octet-stream';
+        if ($mime === 'application/octet-stream' || $mime === '') {
+            $guessed = wasabi_storage_guess_mime_from_name($normalized['name'][$i]);
+            if ($guessed) {
+                $mime = $guessed;
+            }
+        }
         $key = wasabi_storage_object_key($type, $relId, $filename);
         if (!wasabi_storage_upload_tmp($normalized['tmp_name'][$i], $key, $mime)) {
             $hadFailure = true;
