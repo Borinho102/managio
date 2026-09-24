@@ -4892,6 +4892,8 @@ class Purchase_model extends App_Model
         if ($attachment) {
             if (empty($attachment->external)) {
                 unlink(PURCHASE_MODULE_UPLOAD_FOLDER .'/pur_order/'. $attachment->rel_id . '/' . $attachment->file_name);
+            } elseif ($attachment->external === 'wasabi' && function_exists('wasabi_storage_delete_mapping_and_object')) {
+                wasabi_storage_delete_mapping_and_object($attachment->rel_type ?: 'pur_order', $attachment->rel_id, $attachment->file_name);
             }
             $this->db->where('id', $attachment->id);
             $this->db->delete('tblfiles');
@@ -4954,6 +4956,8 @@ class Purchase_model extends App_Model
         if ($attachment) {
             if (empty($attachment->external)) {
                 unlink(PURCHASE_MODULE_UPLOAD_FOLDER .'/pur_request/'. $attachment->rel_id . '/' . $attachment->file_name);
+            } elseif ($attachment->external === 'wasabi' && function_exists('wasabi_storage_delete_mapping_and_object')) {
+                wasabi_storage_delete_mapping_and_object($attachment->rel_type ?: 'pur_request', $attachment->rel_id, $attachment->file_name);
             }
             $this->db->where('id', $attachment->id);
             $this->db->delete('tblfiles');

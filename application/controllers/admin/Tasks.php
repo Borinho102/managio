@@ -1016,6 +1016,9 @@ class Tasks extends AdminController
             echo json_encode([
                 'success'  => $success,
                 'taskHtml' => $this->get_task_data($taskid, true),
+                'message'  => (!$success && function_exists('wasabi_storage_enabled') && wasabi_storage_enabled())
+                    ? (get_option('wasabi_last_error') ?: _l('wasabi_storage_upload_failed'))
+                    : null,
             ]);
         }
     }

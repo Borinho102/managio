@@ -47,7 +47,12 @@ class Wasabi_client
 
     public function test_connection()
     {
-        return $this->head_bucket();
+        $ok = $this->head_bucket();
+        if (!$ok && $this->lastError) {
+            update_option('wasabi_last_error', $this->lastError);
+        }
+
+        return $ok;
     }
 
     public function head_bucket()
@@ -57,11 +62,13 @@ class Wasabi_client
 
     public function put_object($key, $bodyOrPath, $contentType = 'application/octet-stream')
     {
-        $key = ltrim($key, '/');
+        $key = ltrim((string) $key, '/');
+        $body = '';
         if (is_string($bodyOrPath) && is_file($bodyOrPath)) {
             $body = file_get_contents($bodyOrPath);
             if ($body === false) {
-                $this->lastError = 'Unable to read file for upload';
+                $this->lastError = 'Unable to read file for upload: ' . $bodyOrPath;
+                update_option('wasabi_last_error', $this->lastError);
 
                 return false;
             }
@@ -71,22 +78,28 @@ class Wasabi_client
 
         // Do not send x-amz-acl: many Wasabi buckets enforce "Bucket owner enforced" and reject ACL headers.
         $headers = [
-            'Content-Type' => $contentType ?: 'application/octet-stream',
+            'Content-Type'   => $contentType ?: 'application/octet-stream',
+            'Content-Length' => (string) strlen($body),
         ];
 
-        return $this->request('PUT', '/' . rawurlencode($this->bucket) . '/' . $this->encode_key($key), $body, $headers);
+        $ok = $this->request('PUT', '/' . rawurlencode($this->bucket) . '/' . $this->encode_key($key), $body, $headers);
+        if (!$ok && $this->lastError) {
+            update_option('wasabi_last_error', $this->lastError);
+        }
+
+        return $ok;
     }
 
     public function delete_object($key)
     {
-        $key = ltrim($key, '/');
+        $key = ltrim((string) $key, '/');
 
         return $this->request('DELETE', '/' . rawurlencode($this->bucket) . '/' . $this->encode_key($key), '', []);
     }
 
     public function get_object($key)
     {
-        $key = ltrim($key, '/');
+        $key = ltrim((string) $key, '/');
         $result = $this->request('GET', '/' . rawurlencode($this->bucket) . '/' . $this->encode_key($key), '', [], true);
         if ($result === false) {
             return false;
@@ -97,7 +110,7 @@ class Wasabi_client
 
     public function signed_url($key, $ttl = null)
     {
-        $key = ltrim($key, '/');
+        $key = ltrim((string) $key, '/');
         $ttl = (int) ($ttl ?: get_option('wasabi_signed_url_ttl') ?: 3600);
         $ttl = max(60, min($ttl, 604800));
 
@@ -123,7 +136,7 @@ class Wasabi_client
         }
         $canonicalQueryString = implode('&', $canonicalQuery);
 
-        $canonicalHeaders = 'host:' . $host . "\n";
+        $canonicalHeaders = 'host:' . strtolower($host) . "\n";
         $signedHeaders = 'host';
         $payloadHash = 'UNSIGNED-PAYLOAD';
         $canonicalRequest = "GET\n{$canonicalUri}\n{$canonicalQueryString}\n{$canonicalHeaders}\n{$signedHeaders}\n{$payloadHash}";
@@ -201,7 +214,7 @@ class Wasabi_client
             return false;
         }
 
-        $this->lastError = 'Unsupported method';
+        $this->lastError = 'Unsupported method: ' . $method;
 
         return false;
     }
@@ -209,25 +222,41 @@ class Wasabi_client
     private function request_curl($method, $uriPath, $body, array $headers, $returnBody)
     {
         $host = parse_url($this->endpoint, PHP_URL_HOST);
-        $amzDate = gmdate('Ymd\THis\Z');
-        $dateStamp = gmdate('Ymd');
-        $payloadHash = hash('sha256', $body);
-        $headers['Host'] = $host;
-        $headers['x-amz-content-sha256'] = $payloadHash;
-        $headers['x-amz-date'] = $amzDate;
-        if ($method === 'PUT' && !isset($headers['Content-Type'])) {
-            $headers['Content-Type'] = 'application/octet-stream';
+        if (!$host) {
+            $this->lastError = 'Invalid Wasabi endpoint URL';
+
+            return false;
         }
 
-        ksort($headers);
+        $amzDate = gmdate('Ymd\THis\Z');
+        $dateStamp = gmdate('Ymd');
+        $payloadHash = hash('sha256', $body === null ? '' : $body);
+
+        // Normalize headers to a lowercase-keyed map for stable SigV4 ordering.
+        $headerMap = [];
+        foreach ($headers as $name => $value) {
+            $headerMap[strtolower((string) $name)] = trim(preg_replace('/\s+/', ' ', (string) $value));
+        }
+        $headerMap['host'] = $host;
+        $headerMap['x-amz-content-sha256'] = $payloadHash;
+        $headerMap['x-amz-date'] = $amzDate;
+        if ($method === 'PUT' && !isset($headerMap['content-type'])) {
+            $headerMap['content-type'] = 'application/octet-stream';
+        }
+        if (($method === 'PUT' || $method === 'POST') && !isset($headerMap['content-length'])) {
+            $headerMap['content-length'] = (string) strlen((string) $body);
+        }
+
+        ksort($headerMap);
+
         $canonicalHeaders = '';
         $signedHeadersList = [];
-        foreach ($headers as $name => $value) {
-            $lower = strtolower($name);
-            $canonicalHeaders .= $lower . ':' . trim(preg_replace('/\s+/', ' ', $value)) . "\n";
+        foreach ($headerMap as $lower => $value) {
+            $canonicalHeaders .= $lower . ':' . $value . "\n";
             $signedHeadersList[] = $lower;
         }
         $signedHeaders = implode(';', $signedHeadersList);
+
         $canonicalRequest = $method . "\n" . $uriPath . "\n\n" . $canonicalHeaders . "\n" . $signedHeaders . "\n" . $payloadHash;
         $credentialScope = $dateStamp . '/' . $this->region . '/s3/aws4_request';
         $stringToSign = "AWS4-HMAC-SHA256\n{$amzDate}\n{$credentialScope}\n" . hash('sha256', $canonicalRequest);
@@ -237,25 +266,41 @@ class Wasabi_client
             . ', Signature=' . $signature;
 
         $curlHeaders = ['Authorization: ' . $authorization];
-        foreach ($headers as $name => $value) {
-            if (strtolower($name) === 'host') {
+        foreach ($headerMap as $lower => $value) {
+            if ($lower === 'host') {
                 continue;
             }
-            $curlHeaders[] = $name . ': ' . $value;
+            // Restore common header casing for intermediaries; SigV4 already used lowercase names.
+            $display = $lower;
+            if ($lower === 'content-type') {
+                $display = 'Content-Type';
+            } elseif ($lower === 'content-length') {
+                $display = 'Content-Length';
+            }
+            $curlHeaders[] = $display . ': ' . $value;
         }
 
         $url = $this->endpoint . $uriPath;
         $ch = curl_init($url);
+        if ($ch === false) {
+            $this->lastError = 'Unable to initialize cURL';
+
+            return false;
+        }
+
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $curlHeaders);
         curl_setopt($ch, CURLOPT_HEADER, false);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 120);
         if ($method === 'HEAD') {
             curl_setopt($ch, CURLOPT_NOBODY, true);
         }
         if ($method === 'PUT' || $method === 'POST') {
             curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
         }
+
         $response = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
@@ -267,7 +312,8 @@ class Wasabi_client
             return false;
         }
         if ($status < 200 || $status >= 300) {
-            $this->lastError = 'HTTP ' . $status . ($response ? ': ' . substr(strip_tags($response), 0, 300) : '');
+            $snippet = is_string($response) ? substr(strip_tags($response), 0, 300) : '';
+            $this->lastError = 'HTTP ' . $status . ($snippet !== '' ? ': ' . $snippet : ($error ? ': ' . $error : ''));
 
             return false;
         }

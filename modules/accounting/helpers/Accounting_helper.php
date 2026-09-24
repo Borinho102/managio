@@ -460,14 +460,17 @@ function handle_pay_bill_attachments($id){
     $CI   = & get_instance();
 
     if (isset($_FILES['file']['name'])) {
-        // Get the temp file path
         $tmpFilePath = $_FILES['file']['tmp_name'];
-        // Make sure we have a filepath
         if (!empty($tmpFilePath) && $tmpFilePath != '') {
+            if (function_exists('wasabi_storage_try_attach_to_database')) {
+                $wasabi = wasabi_storage_try_attach_to_database($id, 'pay_bill', $tmpFilePath, $_FILES['file']['name'], $_FILES['file']['type']);
+                if ($wasabi === true || $wasabi === false) {
+                    return;
+                }
+            }
             accounting_maybe_create_upload_path($path);
             $filename    = $_FILES['file']['name'];
             $newFilePath = $path . $filename;
-            // Upload the file into the temp dir
             if (move_uploaded_file($tmpFilePath, $newFilePath)) {
                 $attachment   = [];
                 $attachment[] = [

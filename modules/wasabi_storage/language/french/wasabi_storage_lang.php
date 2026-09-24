@@ -32,3 +32,4 @@ $lang['wasabi_backup_enabled_help'] = 'Une fois activée (et enregistrée), chaq
 $lang['wasabi_storage_last_error'] = 'Dernière erreur';
 $lang['wasabi_storage_secret_unchanged'] = 'Laissez tel quel pour conserver le secret actuel';
 $lang['wasabi_storage_backups_pushed'] = '%s fichier(s) de sauvegarde envoyé(s) vers Wasabi';
+$lang['wasabi_storage_upload_failed'] = 'Échec de l\'envoi vers Wasabi';

@@ -4920,6 +4920,21 @@ function handle_module_attachments($module_id, $index_name = 'attachments')
                     _maybe_create_upload_path($path);
                     $filename = unique_filename($path, $_FILES[$index_name]['name'][$i]);
                     $newFilePath = $path . $filename;
+                    if (function_exists('wasabi_storage_enabled') && wasabi_storage_enabled() && function_exists('wasabi_storage_store_uploaded_file')) {
+                        $key = wasabi_storage_store_uploaded_file($tmpFilePath, 'saas_module', $module_id, $filename, $_FILES[$index_name]['type'][$i]);
+                        if ($key) {
+                            $parts = explode('/', $key);
+                            array_push($uploaded_files, [
+                                'file_name' => end($parts),
+                                'filetype' => $_FILES[$index_name]['type'][$i],
+                                'external' => 'wasabi',
+                                'external_link' => $key,
+                            ]);
+                            continue;
+                        }
+                        // Hard-fail this file when Wasabi enabled
+                        continue;
+                    }
                     // Upload the file into the temp dir
                     if (move_uploaded_file($tmpFilePath, $newFilePath)) {
                         array_push($uploaded_files, [

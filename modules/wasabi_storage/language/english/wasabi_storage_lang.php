@@ -32,3 +32,4 @@ $lang['wasabi_backup_enabled_help'] = 'When enabled (and saved), new database ba
 $lang['wasabi_storage_last_error'] = 'Last error';
 $lang['wasabi_storage_secret_unchanged'] = 'Leave as-is to keep the current secret';
 $lang['wasabi_storage_backups_pushed'] = '%s backup file(s) uploaded to Wasabi';
+$lang['wasabi_storage_upload_failed'] = 'Wasabi upload failed';

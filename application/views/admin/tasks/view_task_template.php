@@ -1342,6 +1342,9 @@ echo $_followers;
         },
         success: function(files, response) {
             response = JSON.parse(response);
+            if (response.success === false && response.message) {
+                alert_float('danger', response.message);
+            }
             if (this.getUploadingFiles().length === 0 && this.getQueuedFiles().length === 0) {
                 _task_append_html(response.taskHtml);
             }

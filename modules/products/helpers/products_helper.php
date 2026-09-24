@@ -96,6 +96,14 @@ function handle_product_upload($product_id)
         if (wasabi_storage_handle_product_image($product_id)) {
             return true;
         }
+        // Hard-fail when Wasabi is enabled: do not silently fall back to local disk.
+        if (!empty($_FILES['product']['name'])) {
+            if (function_exists('set_alert')) {
+                set_alert('danger', _l('wasabi_storage_upload_failed') . ': ' . get_option('wasabi_last_error'));
+            }
+
+            return false;
+        }
     }
 
     $CI = &get_instance();
@@ -126,14 +134,30 @@ function handle_digital_product_upload($product_id)
     if (empty($_FILES['digital_file']['name'])) {
         return false;
     }
-    $path = get_upload_path_by_type('products') . 'digital/';
-    _maybe_create_upload_path($path);
     $ext = strtolower(pathinfo($_FILES['digital_file']['name'], PATHINFO_EXTENSION));
     $allowed = ['pdf', 'zip', 'mp3', 'mp4', 'epub', 'doc', 'docx'];
     if (!in_array($ext, $allowed)) {
         return false;
     }
     $filename = 'digital_' . $product_id . '_' . time() . '.' . $ext;
+    $mime = $_FILES['digital_file']['type'] ?: 'application/octet-stream';
+    if (function_exists('wasabi_storage_enabled') && wasabi_storage_enabled() && function_exists('wasabi_storage_store_uploaded_file')) {
+        $key = wasabi_storage_store_uploaded_file($_FILES['digital_file']['tmp_name'], 'products_digital', $product_id, $filename, $mime);
+        if ($key) {
+            $parts = explode('/', $key);
+            $stored = end($parts);
+            $CI->products_model->edit_product(['digital_file_path' => 'wasabi:' . $key], $product_id);
+
+            return true;
+        }
+        if (function_exists('set_alert')) {
+            set_alert('danger', _l('wasabi_storage_upload_failed') . ': ' . get_option('wasabi_last_error'));
+        }
+
+        return false;
+    }
+    $path = get_upload_path_by_type('products') . 'digital/';
+    _maybe_create_upload_path($path);
     if (move_uploaded_file($_FILES['digital_file']['tmp_name'], $path . $filename)) {
         $CI->products_model->edit_product(['digital_file_path' => 'digital/' . $filename], $product_id);
         return true;

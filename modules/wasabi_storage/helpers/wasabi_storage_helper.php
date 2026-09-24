@@ -118,7 +118,7 @@ function wasabi_storage_delete_mapping_and_object($relType, $relId, $fileName)
         $CI->db->where('file_name', $fileName);
         $CI->db->where('external', WASABI_STORAGE_EXTERNAL);
         $file = $CI->db->get(db_prefix() . 'files')->row();
-        if ($file && !empty($file->external_link)) {
+        if ($file && !empty($file->external_link) && wasabi_storage_looks_like_object_key($file->external_link)) {
             $key = $file->external_link;
         }
     }
@@ -239,6 +239,140 @@ function wasabi_storage_normalize_files_index($files, $index)
     return $f;
 }
 
+function wasabi_storage_has_incoming_files($files, $index)
+{
+    $normalized = wasabi_storage_normalize_files_index($files, $index);
+    if (!$normalized) {
+        return false;
+    }
+    for ($i = 0; $i < count($normalized['name']); $i++) {
+        if (!_perfex_upload_error($normalized['error'][$i]) && !empty($normalized['tmp_name'][$i])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * When Wasabi is enabled, claim external handling with empty result so Perfex does not
+ * silently fall back to local disk. Surfaces wasabi_last_error to the admin.
+ */
+function wasabi_storage_fail_external_upload(array $hookData, $message = null)
+{
+    $err = $message ?: get_option('wasabi_last_error') ?: 'Wasabi upload failed';
+    update_option('wasabi_last_error', $err);
+    if (function_exists('set_alert')) {
+        set_alert('danger', _l('wasabi_storage_upload_failed') . ': ' . $err);
+    }
+    $hookData['handled_externally'] = true;
+    $hookData['uploaded_files'] = [];
+    $hookData['handled_externally_successfully'] = false;
+
+    return $hookData;
+}
+
+/**
+ * Store a single uploaded temp file on Wasabi and remember the mapping.
+ *
+ * @return string|false Object key on success, false on failure
+ */
+function wasabi_storage_store_uploaded_file($tmpPath, $relType, $relId, $fileName, $mime = 'application/octet-stream')
+{
+    if (!wasabi_storage_enabled()) {
+        return false;
+    }
+    if (!is_uploaded_file($tmpPath) && !is_file($tmpPath)) {
+        update_option('wasabi_last_error', 'Invalid upload temp file');
+
+        return false;
+    }
+    $fileName = wasabi_storage_unique_name($fileName);
+    $mime = $mime ?: 'application/octet-stream';
+    $key = wasabi_storage_object_key($relType, $relId, $fileName);
+    if (!wasabi_storage_upload_tmp($tmpPath, $key, $mime)) {
+        return false;
+    }
+    wasabi_storage_remember_mapping($relType, (int) $relId, $fileName, $key, $mime);
+
+    return $key;
+}
+
+/**
+ * Drop-in replacement for move_uploaded_file when Wasabi is enabled.
+ * Returns ['ok'=>bool,'file_name'=>string,'object_key'=>string|null,'local'=>bool]
+ */
+function wasabi_storage_move_or_store($tmpPath, $localFullPath, $relType, $relId, $fileName, $mime = 'application/octet-stream')
+{
+    if (wasabi_storage_enabled()) {
+        $key = wasabi_storage_store_uploaded_file($tmpPath, $relType, $relId, $fileName, $mime);
+        if ($key) {
+            $parts = explode('/', $key);
+            $storedName = end($parts);
+
+            return [
+                'ok'         => true,
+                'file_name'  => $storedName,
+                'object_key' => $key,
+                'local'      => false,
+                'external'   => WASABI_STORAGE_EXTERNAL,
+            ];
+        }
+
+        return [
+            'ok'         => false,
+            'file_name'  => $fileName,
+            'object_key' => null,
+            'local'      => false,
+            'external'   => null,
+            'error'      => get_option('wasabi_last_error'),
+        ];
+    }
+
+    $dir = dirname($localFullPath);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+    $ok = @move_uploaded_file($tmpPath, $localFullPath);
+
+    return [
+        'ok'         => (bool) $ok,
+        'file_name'  => basename($localFullPath),
+        'object_key' => null,
+        'local'      => true,
+        'external'   => null,
+    ];
+}
+
+/**
+ * Prefer Wasabi for modules that persist via misc_model->add_attachment_to_database.
+ * Returns true on Wasabi success, false on Wasabi failure (hard-fail), null to use local disk.
+ */
+function wasabi_storage_try_attach_to_database($relId, $relType, $tmpPath, $originalName, $mime = 'application/octet-stream')
+{
+    if (!function_exists('wasabi_storage_enabled') || !wasabi_storage_enabled()) {
+        return null;
+    }
+    $key = wasabi_storage_store_uploaded_file($tmpPath, $relType, $relId, $originalName, $mime);
+    if (!$key) {
+        if (function_exists('set_alert')) {
+            set_alert('danger', _l('wasabi_storage_upload_failed') . ': ' . get_option('wasabi_last_error'));
+        }
+
+        return false;
+    }
+    $parts = explode('/', $key);
+    $filename = end($parts);
+    $CI = &get_instance();
+    $insertId = $CI->misc_model->add_attachment_to_database($relId, $relType, [[
+        'name' => $filename,
+        'link' => $key,
+        'mime' => $mime ?: 'application/octet-stream',
+    ]], WASABI_STORAGE_EXTERNAL);
+
+    return $insertId ? true : false;
+}
+
 function wasabi_storage_collect_uploads($files, $index, $type, $relId)
 {
     $normalized = wasabi_storage_normalize_files_index($files, $index);
@@ -288,14 +422,18 @@ function wasabi_storage_filter_task_attachments($hookData)
         $index = $hookData['index_name'] ?? 'attachments';
         $files = $hookData['files'] ?? $_FILES;
         $uploaded = wasabi_storage_collect_uploads($files, $index, 'task', $taskId);
-        // Only claim external handling when at least one file reached Wasabi; otherwise fall back to local disk.
         if (count($uploaded) === 0) {
+            // Hard-fail: do not let Perfex save locally when Wasabi is enabled and files were posted.
+            if (wasabi_storage_has_incoming_files($files, $index)) {
+                return wasabi_storage_fail_external_upload($hookData);
+            }
+
             return $hookData;
         }
         $hookData['handled_externally'] = true;
         $hookData['uploaded_files'] = $uploaded;
     } catch (Throwable $e) {
-        update_option('wasabi_last_error', $e->getMessage());
+        return wasabi_storage_fail_external_upload($hookData, $e->getMessage());
     }
 
     return $hookData;
@@ -312,6 +450,10 @@ function wasabi_storage_filter_ticket_attachments($hookData)
         $files = $hookData['files'] ?? $_FILES;
         $uploaded = wasabi_storage_collect_uploads($files, $index, 'ticket', $ticketId);
         if (count($uploaded) === 0) {
+            if (wasabi_storage_has_incoming_files($files, $index)) {
+                return wasabi_storage_fail_external_upload($hookData);
+            }
+
             return $hookData;
         }
         // tickets table has no external column — keep local-style array, mapping table used on download
@@ -325,7 +467,7 @@ function wasabi_storage_filter_ticket_attachments($hookData)
         $hookData['handled_externally'] = true;
         $hookData['uploaded_files'] = $localStyle;
     } catch (Throwable $e) {
-        update_option('wasabi_last_error', $e->getMessage());
+        return wasabi_storage_fail_external_upload($hookData, $e->getMessage());
     }
 
     return $hookData;
@@ -341,6 +483,10 @@ function wasabi_storage_filter_project_files($hookData)
         $files = $hookData['files'] ?? $_FILES;
         $uploaded = wasabi_storage_collect_uploads($files, 'file', 'project', $projectId);
         if (count($uploaded) === 0) {
+            if (wasabi_storage_has_incoming_files($files, 'file')) {
+                return wasabi_storage_fail_external_upload($hookData);
+            }
+
             return $hookData;
         }
         $CI = &get_instance();
@@ -377,7 +523,7 @@ function wasabi_storage_filter_project_files($hookData)
         $hookData['handled_externally'] = true;
         $hookData['handled_externally_successfully'] = $ok;
     } catch (Throwable $e) {
-        update_option('wasabi_last_error', $e->getMessage());
+        return wasabi_storage_fail_external_upload($hookData, $e->getMessage());
     }
 
     return $hookData;
@@ -394,6 +540,13 @@ function wasabi_storage_filter_sales_attachments($hookData)
         $files = $hookData['files'] ?? $_FILES;
         $uploaded = wasabi_storage_collect_uploads($files, 'file', $relType, $relId);
         if (count($uploaded) === 0) {
+            if (wasabi_storage_has_incoming_files($files, 'file')) {
+                $hookData = wasabi_storage_fail_external_upload($hookData);
+                $hookData['handled_externally_successfully'] = json_encode(['success' => false, 'rel_id' => $relId, 'error' => get_option('wasabi_last_error')]);
+
+                return $hookData;
+            }
+
             return $hookData;
         }
         $CI = &get_instance();
@@ -427,7 +580,8 @@ function wasabi_storage_filter_sales_attachments($hookData)
         $hookData['handled_externally'] = true;
         $hookData['handled_externally_successfully'] = json_encode($payload);
     } catch (Throwable $e) {
-        update_option('wasabi_last_error', $e->getMessage());
+        $hookData = wasabi_storage_fail_external_upload($hookData, $e->getMessage());
+        $hookData['handled_externally_successfully'] = json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
 
     return $hookData;
@@ -443,6 +597,10 @@ function wasabi_storage_filter_client_attachments($hookData)
         $files = $hookData['files'] ?? $_FILES;
         $uploaded = wasabi_storage_collect_uploads($files, 'file', 'customer', $customerId);
         if (count($uploaded) === 0) {
+            if (wasabi_storage_has_incoming_files($files, 'file')) {
+                return wasabi_storage_fail_external_upload($hookData);
+            }
+
             return $hookData;
         }
         $CI = &get_instance();
@@ -462,7 +620,7 @@ function wasabi_storage_filter_client_attachments($hookData)
         $hookData['handled_externally_successfully'] = $total > 0;
         $hookData['total_uploaded'] = $total;
     } catch (Throwable $e) {
-        update_option('wasabi_last_error', $e->getMessage());
+        return wasabi_storage_fail_external_upload($hookData, $e->getMessage());
     }
 
     return $hookData;
@@ -479,6 +637,10 @@ function wasabi_storage_filter_simple_rel($hookData, $idKey, $type, $index = nul
         $index = $index ?: ($hookData['index_name'] ?? 'file');
         $uploaded = wasabi_storage_collect_uploads($files, $index, $type, $relId);
         if (count($uploaded) === 0) {
+            if (wasabi_storage_has_incoming_files($files, $index)) {
+                return wasabi_storage_fail_external_upload($hookData);
+            }
+
             return $hookData;
         }
         $CI = &get_instance();
@@ -496,7 +658,7 @@ function wasabi_storage_filter_simple_rel($hookData, $idKey, $type, $index = nul
         $hookData['handled_externally'] = true;
         $hookData['handled_externally_successfully'] = $ok;
     } catch (Throwable $e) {
-        update_option('wasabi_last_error', $e->getMessage());
+        return wasabi_storage_fail_external_upload($hookData, $e->getMessage());
     }
 
     return $hookData;
@@ -527,6 +689,10 @@ function wasabi_storage_filter_newsfeed_attachments($hookData)
         $files = $hookData['files'] ?? $_FILES;
         $uploaded = wasabi_storage_collect_uploads($files, 'file', 'newsfeed', $postId);
         if (count($uploaded) === 0) {
+            if (wasabi_storage_has_incoming_files($files, 'file')) {
+                return wasabi_storage_fail_external_upload($hookData);
+            }
+
             return $hookData;
         }
         $CI = &get_instance();
@@ -544,7 +710,7 @@ function wasabi_storage_filter_newsfeed_attachments($hookData)
         $hookData['handled_externally'] = true;
         $hookData['handled_externally_successfully'] = $ok;
     } catch (Throwable $e) {
-        update_option('wasabi_last_error', $e->getMessage());
+        return wasabi_storage_fail_external_upload($hookData, $e->getMessage());
     }
 
     return $hookData;
@@ -565,6 +731,10 @@ function wasabi_storage_filter_discussion_attachment($hookData)
         $files = $hookData['files'] ?? $_FILES;
         $uploaded = wasabi_storage_collect_uploads($files, 'file', 'discussion', $discussionId);
         if (count($uploaded) === 0) {
+            if (wasabi_storage_has_incoming_files($files, 'file')) {
+                return wasabi_storage_fail_external_upload($hookData);
+            }
+
             return $hookData;
         }
         $hookData['handled_externally'] = true;
@@ -574,7 +744,7 @@ function wasabi_storage_filter_discussion_attachment($hookData)
             $hookData['insert_data']['file_mime_type'] = $uploaded[0]['filetype'];
         }
     } catch (Throwable $e) {
-        update_option('wasabi_last_error', $e->getMessage());
+        return wasabi_storage_fail_external_upload($hookData, $e->getMessage());
     }
 
     return $hookData;
@@ -669,6 +839,22 @@ function wasabi_storage_download_file_path($path, $data)
                 }
             } else {
                 $objectKey = wasabi_storage_find_key_by_filename($fileName, $relType, $relId);
+            }
+        }
+    }
+
+    // Module attachments (purchase/warehouse/accounting) stored with external=wasabi
+    if (!$objectKey && $attachmentid !== '') {
+        $att = null;
+        if (is_numeric($attachmentid)) {
+            $att = $loadFileById($attachmentid);
+        } else {
+            $att = $loadFileByKey($attachmentid);
+        }
+        if ($att && !empty($att->external) && $att->external === WASABI_STORAGE_EXTERNAL) {
+            $objectKey = wasabi_storage_find_key_by_filename($att->file_name, $att->rel_type, $att->rel_id);
+            if (!$objectKey && !empty($att->external_link) && wasabi_storage_looks_like_object_key($att->external_link)) {
+                $objectKey = $att->external_link;
             }
         }
     }

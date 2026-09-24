@@ -457,15 +457,21 @@ function handle_purchase_order_file($id)
 {
     if (isset($_FILES['file']['name']) && $_FILES['file']['name'] != '') {
         hooks()->do_action('before_upload_contract_attachment', $id);
-        $path = PURCHASE_MODULE_UPLOAD_FOLDER .'/pur_order/'. $id . '/';
-        // Get the temp file path
         $tmpFilePath = $_FILES['file']['tmp_name'];
-        // Make sure we have a filepath
         if (!empty($tmpFilePath) && $tmpFilePath != '') {
+            if (function_exists('wasabi_storage_try_attach_to_database')) {
+                $wasabi = wasabi_storage_try_attach_to_database($id, 'pur_order', $tmpFilePath, $_FILES['file']['name'], $_FILES['file']['type']);
+                if ($wasabi === true) {
+                    return true;
+                }
+                if ($wasabi === false) {
+                    return false;
+                }
+            }
+            $path = PURCHASE_MODULE_UPLOAD_FOLDER .'/pur_order/'. $id . '/';
             _maybe_create_upload_path($path);
             $filename    = unique_filename($path, $_FILES['file']['name']);
             $newFilePath = $path . $filename;
-            // Upload the file into the company uploads dir
             if (move_uploaded_file($tmpFilePath, $newFilePath)) {
                 $CI           = & get_instance();
                 $attachment   = [];
@@ -494,15 +500,21 @@ function handle_purchase_request_file($id)
 {
     if (isset($_FILES['file']['name']) && $_FILES['file']['name'] != '') {
         hooks()->do_action('before_upload_contract_attachment', $id);
-        $path = PURCHASE_MODULE_UPLOAD_FOLDER .'/pur_request/'. $id . '/';
-        // Get the temp file path
         $tmpFilePath = $_FILES['file']['tmp_name'];
-        // Make sure we have a filepath
         if (!empty($tmpFilePath) && $tmpFilePath != '') {
+            if (function_exists('wasabi_storage_try_attach_to_database')) {
+                $wasabi = wasabi_storage_try_attach_to_database($id, 'pur_request', $tmpFilePath, $_FILES['file']['name'], $_FILES['file']['type']);
+                if ($wasabi === true) {
+                    return true;
+                }
+                if ($wasabi === false) {
+                    return false;
+                }
+            }
+            $path = PURCHASE_MODULE_UPLOAD_FOLDER .'/pur_request/'. $id . '/';
             _maybe_create_upload_path($path);
             $filename    = unique_filename($path, $_FILES['file']['name']);
             $newFilePath = $path . $filename;
-            // Upload the file into the company uploads dir
             if (move_uploaded_file($tmpFilePath, $newFilePath)) {
                 $CI           = & get_instance();
                 $attachment   = [];
@@ -746,6 +758,17 @@ function handle_pur_vendor_attachments_upload($id, $customer_upload = false)
                 if (_perfex_upload_error($_FILES['file']['error'][$i])
                     || !_upload_extension_allowed($_FILES['file']['name'][$i])) {
                     continue;
+                }
+
+                if (function_exists('wasabi_storage_try_attach_to_database')) {
+                    $wasabi = wasabi_storage_try_attach_to_database($id, 'pur_vendor', $tmpFilePath, $_FILES['file']['name'][$i], $_FILES['file']['type'][$i]);
+                    if ($wasabi === true) {
+                        $totalUploaded++;
+                        continue;
+                    }
+                    if ($wasabi === false) {
+                        continue;
+                    }
                 }
 
                 _maybe_create_upload_path($path);
@@ -1259,6 +1282,17 @@ function handle_pur_contract_file($id){
                     continue;
                 }
 
+                if (function_exists('wasabi_storage_try_attach_to_database')) {
+                    $wasabi = wasabi_storage_try_attach_to_database($id, 'pur_contract', $tmpFilePath, $_FILES['attachments']['name'][$i], $_FILES['attachments']['type'][$i]);
+                    if ($wasabi === true) {
+                        $totalUploaded++;
+                        continue;
+                    }
+                    if ($wasabi === false) {
+                        continue;
+                    }
+                }
+
                 _maybe_create_upload_path($path);
                 $filename    = unique_filename($path, $_FILES['attachments']['name'][$i]);
                 $newFilePath = $path . $filename;
@@ -1346,15 +1380,21 @@ function handle_purchase_estimate_file($id)
 {
     if (isset($_FILES['file']['name']) && $_FILES['file']['name'] != '') {
         hooks()->do_action('before_upload_contract_attachment', $id);
-        $path = PURCHASE_MODULE_UPLOAD_FOLDER .'/pur_estimate/'. $id . '/';
-        // Get the temp file path
         $tmpFilePath = $_FILES['file']['tmp_name'];
-        // Make sure we have a filepath
         if (!empty($tmpFilePath) && $tmpFilePath != '') {
+            if (function_exists('wasabi_storage_try_attach_to_database')) {
+                $wasabi = wasabi_storage_try_attach_to_database($id, 'pur_estimate', $tmpFilePath, $_FILES['file']['name'], $_FILES['file']['type']);
+                if ($wasabi === true) {
+                    return true;
+                }
+                if ($wasabi === false) {
+                    return false;
+                }
+            }
+            $path = PURCHASE_MODULE_UPLOAD_FOLDER .'/pur_estimate/'. $id . '/';
             _maybe_create_upload_path($path);
             $filename    = unique_filename($path, $_FILES['file']['name']);
             $newFilePath = $path . $filename;
-            // Upload the file into the company uploads dir
             if (move_uploaded_file($tmpFilePath, $newFilePath)) {
                 $CI           = & get_instance();
                 $attachment   = [];
@@ -1604,6 +1644,17 @@ function handle_pur_invoice_file($id, $customer_upload = false) {
                 if (_perfex_upload_error($_FILES['attachments']['error'][$i])
                     || !_upload_extension_allowed($_FILES['attachments']['name'][$i])) {
                     continue;
+                }
+
+                if (function_exists('wasabi_storage_try_attach_to_database')) {
+                    $wasabi = wasabi_storage_try_attach_to_database($id, 'pur_invoice', $tmpFilePath, $_FILES['attachments']['name'][$i], $_FILES['attachments']['type'][$i]);
+                    if ($wasabi === true) {
+                        $totalUploaded++;
+                        continue;
+                    }
+                    if ($wasabi === false) {
+                        continue;
+                    }
                 }
 
                 _maybe_create_upload_path($path);
