@@ -197,8 +197,9 @@ function wasabi_storage_looks_like_object_key($value)
 
 function wasabi_storage_upload_tmp($tmpPath, $objectKey, $mime = 'application/octet-stream')
 {
-    if (!is_uploaded_file($tmpPath) && !is_file($tmpPath)) {
-        wasabi_storage_activity_log('error', 'Invalid upload temp file for key ' . $objectKey);
+    // Dropzone/temp uploads: accept readable files even if is_uploaded_file() is false on some hosts.
+    if ((!is_uploaded_file($tmpPath) && !is_file($tmpPath)) || !is_readable($tmpPath)) {
+        wasabi_storage_activity_log('error', 'Invalid/unreadable upload temp file for key ' . $objectKey);
 
         return false;
     }
@@ -574,11 +575,16 @@ function wasabi_storage_collect_uploads($files, $index, $type, $relId)
     }
 
     $uploaded = [];
+    $hadIncoming = false;
+    $hadFailure = false;
     for ($i = 0; $i < count($normalized['name']); $i++) {
         if (_perfex_upload_error($normalized['error'][$i]) || empty($normalized['tmp_name'][$i])) {
             continue;
         }
+        $hadIncoming = true;
         if (function_exists('_upload_extension_allowed') && !_upload_extension_allowed($normalized['name'][$i])) {
+            $hadFailure = true;
+            update_option('wasabi_last_error', 'File type not allowed: ' . $normalized['name'][$i]);
             continue;
         }
 
@@ -586,6 +592,7 @@ function wasabi_storage_collect_uploads($files, $index, $type, $relId)
         $mime = $normalized['type'][$i] ?: 'application/octet-stream';
         $key = wasabi_storage_object_key($type, $relId, $filename);
         if (!wasabi_storage_upload_tmp($normalized['tmp_name'][$i], $key, $mime)) {
+            $hadFailure = true;
             continue;
         }
         wasabi_storage_remember_mapping($type, $relId, $filename, $key, $mime);
@@ -598,6 +605,12 @@ function wasabi_storage_collect_uploads($files, $index, $type, $relId)
             'external'      => WASABI_STORAGE_EXTERNAL,
             'external_link' => $key,
         ];
+    }
+
+    // Any failure while Wasabi is enabled must surface as empty so callers hard-fail
+    // (never claim success when some PUTs failed, and never soft-skip into local disk).
+    if ($hadIncoming && ($hadFailure || count($uploaded) === 0)) {
+        return [];
     }
 
     return $uploaded;

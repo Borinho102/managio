@@ -15,7 +15,10 @@ $log_preview = isset($log_preview) && is_array($log_preview) ? $log_preview : [
                 <h4 class="tw-mt-0 tw-font-semibold tw-text-lg tw-text-neutral-700">
                     <?php echo _l('wasabi_storage'); ?>
                 </h4>
-                <p class="text-muted"><?php echo _l('wasabi_storage_settings_intro'); ?></p>
+                        <p class="text-muted"><?php echo _l('wasabi_storage_settings_intro'); ?></p>
+                        <div class="alert alert-info">
+                            <?php echo _l('wasabi_storage_bucket_hint'); ?>
+                        </div>
 
                 <div class="horizontal-scrollable-tabs panel-full-width-tabs">
                     <div class="scroller arrow-left"><i class="fa fa-angle-left"></i></div>

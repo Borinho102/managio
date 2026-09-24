@@ -81,12 +81,14 @@ class Wasabi_storage extends AdminController
         $ok = $client->test_connection();
         if ($ok) {
             update_option('wasabi_last_error', '');
-            wasabi_storage_activity_log('info', 'Connection test OK');
+            wasabi_storage_activity_log('info', 'Connection test OK (HEAD + PUT probe)');
             set_alert('success', _l('wasabi_storage_connection_ok'));
         } else {
-            update_option('wasabi_last_error', $client->get_last_error());
-            wasabi_storage_activity_log('error', 'Connection test failed: ' . $client->get_last_error());
-            set_alert('danger', _l('wasabi_storage_connection_failed') . ': ' . $client->get_last_error());
+            // Prefer the detailed message already written by Wasabi_client::test_connection().
+            $err = get_option('wasabi_last_error') ?: $client->get_last_error();
+            update_option('wasabi_last_error', $err);
+            wasabi_storage_activity_log('error', 'Connection test failed: ' . $err);
+            set_alert('danger', _l('wasabi_storage_connection_failed') . ': ' . $err);
         }
         redirect(admin_url('wasabi_storage?tab=logs'));
     }

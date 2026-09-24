@@ -15,6 +15,7 @@ const S3P_MODULE_GATEWAY_ID = 'S3p_gateway';
 
 register_payment_gateway(S3P_MODULE_GATEWAY_ID, S3P_MODULE_NAME);
 register_activation_hook(S3P_MODULE_NAME, 's3pModuleActivation');
+register_language_files(S3P_MODULE_NAME, [S3P_MODULE_NAME]);
 
 function s3pModuleActivation()
 {

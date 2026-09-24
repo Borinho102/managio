@@ -1301,33 +1301,41 @@ class Tasks_model extends App_Model
 
         $file_id = $this->misc_model->add_attachment_to_database($rel_id, 'task', $attachment, $external);
         if ($file_id) {
-            $this->db->select('rel_type,rel_id,name,visible_to_client');
-            $this->db->where('id', $rel_id);
-            $task = $this->db->get(db_prefix() . 'tasks')->row();
+            try {
+                $this->db->select('rel_type,rel_id,name,visible_to_client');
+                $this->db->where('id', $rel_id);
+                $task = $this->db->get(db_prefix() . 'tasks')->row();
 
-            if ($task && $task->rel_type == 'project') {
-                $this->projects_model->log_activity($task->rel_id, 'project_activity_new_task_attachment', $task->name, $task->visible_to_client);
-            }
+                if ($task && $task->rel_type == 'project') {
+                    $this->projects_model->log_activity($task->rel_id, 'project_activity_new_task_attachment', $task->name, $task->visible_to_client);
+                }
 
-            if ($notification == true) {
-                $description = 'not_task_new_attachment';
-                $this->_send_task_responsible_users_notification($description, $rel_id, false, 'task_new_attachment_to_staff');
-                $this->_send_customer_contacts_notification($rel_id, 'task_new_attachment_to_customer');
-            }
+                if ($notification == true) {
+                    $description = 'not_task_new_attachment';
+                    $this->_send_task_responsible_users_notification($description, $rel_id, false, 'task_new_attachment_to_staff');
+                    $this->_send_customer_contacts_notification($rel_id, 'task_new_attachment_to_customer');
+                }
 
-            $task_attachment_as_comment = hooks()->apply_filters('add_task_attachment_as_comment', 'true');
+                $task_attachment_as_comment = hooks()->apply_filters('add_task_attachment_as_comment', 'true');
 
-            if ($task_attachment_as_comment == 'true') {
-                $file = $this->misc_model->get_file($file_id);
-                if ($file) {
-                    $this->db->insert(db_prefix() . 'task_comments', [
-                        'content'    => '[task_attachment]',
-                        'taskid'     => $rel_id,
-                        'staffid'    => $file->staffid,
-                        'contact_id' => $file->contact_id,
-                        'file_id'    => $file_id,
-                        'dateadded'  => date('Y-m-d H:i:s'),
-                    ]);
+                if ($task_attachment_as_comment == 'true') {
+                    $file = $this->misc_model->get_file($file_id);
+                    if ($file) {
+                        $this->db->insert(db_prefix() . 'task_comments', [
+                            'content'    => '[task_attachment]',
+                            'taskid'     => $rel_id,
+                            'staffid'    => $file->staffid,
+                            'contact_id' => $file->contact_id,
+                            'file_id'    => $file_id,
+                            'dateadded'  => date('Y-m-d H:i:s'),
+                        ]);
+                    }
+                }
+            } catch (Throwable $e) {
+                // File is already stored; do not fail the upload request because of notifications/push.
+                log_message('error', 'Task attachment post-process failed: ' . $e->getMessage());
+                if (function_exists('wasabi_storage_activity_log')) {
+                    wasabi_storage_activity_log('warning', 'Task attachment post-process: ' . $e->getMessage());
                 }
             }
 

@@ -47,12 +47,31 @@ class Wasabi_client
 
     public function test_connection()
     {
-        $ok = $this->head_bucket();
-        if (!$ok && $this->lastError) {
-            update_option('wasabi_last_error', $this->lastError);
+        // 1) Bucket reachable
+        if (!$this->head_bucket()) {
+            if ($this->lastError) {
+                update_option('wasabi_last_error', 'HEAD bucket failed: ' . $this->lastError);
+            }
+
+            return false;
         }
 
-        return $ok;
+        // 2) Real PUT probe — HEAD can succeed while PutObject is denied / signature broken.
+        $prefix = function_exists('wasabi_storage_prefix') ? wasabi_storage_prefix() : '';
+        $key = $prefix . '_wasabi_probe/' . date('YmdHis') . '.txt';
+        $body = 'wasabi-probe ' . date('c');
+        if (!$this->put_object($key, $body, 'text/plain')) {
+            $err = 'PUT probe failed (credentials may lack s3:PutObject, or signature mismatch): ' . $this->lastError;
+            update_option('wasabi_last_error', $err);
+
+            return false;
+        }
+
+        // 3) Cleanup probe object (ignore delete failure)
+        $this->delete_object($key);
+        update_option('wasabi_last_error', '');
+
+        return true;
     }
 
     public function head_bucket()
@@ -76,8 +95,7 @@ class Wasabi_client
             $body = (string) $bodyOrPath;
         }
 
-        // Let cURL set Content-Length for POSTFIELDS to avoid duplicate/mismatched headers.
-        // Still include it in the SigV4 canonical request below via headerMap.
+        // Let cURL send Content-Length from POSTFIELDS; do not include it in SigV4.
         $headers = [
             'Content-Type' => $contentType ?: 'application/octet-stream',
         ];
@@ -233,21 +251,24 @@ class Wasabi_client
 
         $amzDate = gmdate('Ymd\THis\Z');
         $dateStamp = gmdate('Ymd');
-        $payloadHash = hash('sha256', $body === null ? '' : $body);
+        $body = ($body === null) ? '' : $body;
+        $payloadHash = hash('sha256', $body);
 
-        // Normalize headers to a lowercase-keyed map for stable SigV4 ordering.
+        // Only sign headers we also send explicitly. Do NOT sign content-length:
+        // cURL sets it from POSTFIELDS and signing it often breaks Wasabi PUTs.
         $headerMap = [];
         foreach ($headers as $name => $value) {
-            $headerMap[strtolower((string) $name)] = trim(preg_replace('/\s+/', ' ', (string) $value));
+            $lower = strtolower((string) $name);
+            if ($lower === 'content-length') {
+                continue;
+            }
+            $headerMap[$lower] = trim(preg_replace('/\s+/', ' ', (string) $value));
         }
-        $headerMap['host'] = $host;
+        $headerMap['host'] = strtolower($host);
         $headerMap['x-amz-content-sha256'] = $payloadHash;
         $headerMap['x-amz-date'] = $amzDate;
-        if ($method === 'PUT' && !isset($headerMap['content-type'])) {
+        if ($method === 'PUT' && empty($headerMap['content-type'])) {
             $headerMap['content-type'] = 'application/octet-stream';
-        }
-        if (($method === 'PUT' || $method === 'POST') && !isset($headerMap['content-length'])) {
-            $headerMap['content-length'] = (string) strlen((string) $body);
         }
 
         ksort($headerMap);
@@ -270,16 +291,19 @@ class Wasabi_client
 
         $curlHeaders = ['Authorization: ' . $authorization];
         foreach ($headerMap as $lower => $value) {
-            if ($lower === 'host' || $lower === 'content-length') {
-                // Host is implicit; Content-Length is set by cURL from POSTFIELDS.
+            if ($lower === 'host') {
                 continue;
             }
-            // Restore common header casing for intermediaries; SigV4 already used lowercase names.
             $display = $lower;
             if ($lower === 'content-type') {
                 $display = 'Content-Type';
+            } elseif ($lower === 'x-amz-content-sha256' || $lower === 'x-amz-date') {
+                $display = $lower; // AWS expects these lowercase commonly; either works
             }
             $curlHeaders[] = $display . ': ' . $value;
+        }
+        if ($method === 'PUT' || $method === 'POST') {
+            $curlHeaders[] = 'Content-Length: ' . strlen($body);
         }
 
         $url = $this->endpoint . $uriPath;
@@ -298,10 +322,12 @@ class Wasabi_client
         curl_setopt($ch, CURLOPT_TIMEOUT, 120);
         if ($method === 'HEAD') {
             curl_setopt($ch, CURLOPT_NOBODY, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, null);
         }
         if ($method === 'PUT' || $method === 'POST') {
             curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
         }
+        // Do not attach a body to DELETE/HEAD — that can break SigV4.
 
         $response = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -309,13 +335,18 @@ class Wasabi_client
         curl_close($ch);
 
         if ($response === false && $method !== 'HEAD') {
-            $this->lastError = $error ?: 'cURL request failed';
+            $this->lastError = $error ?: ('cURL request failed for ' . $method . ' ' . $url);
 
             return false;
         }
+        // HEAD may return empty body with falsey response string while status is OK
+        if ($method === 'HEAD' && $status >= 200 && $status < 300) {
+            return true;
+        }
         if ($status < 200 || $status >= 300) {
-            $snippet = is_string($response) ? substr(strip_tags($response), 0, 300) : '';
-            $this->lastError = 'HTTP ' . $status . ($snippet !== '' ? ': ' . $snippet : ($error ? ': ' . $error : ''));
+            $snippet = is_string($response) ? substr(strip_tags($response), 0, 400) : '';
+            $this->lastError = $method . ' ' . $url . ' → HTTP ' . $status
+                . ($snippet !== '' ? ': ' . $snippet : ($error ? ': ' . $error : ''));
 
             return false;
         }

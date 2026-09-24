@@ -18,6 +18,11 @@ function perfex_mobile_companion__notification_created($notification_id)
 {
     $CI = &get_instance();
 
+    // Tenant DBs (SaaS) may have the module active without tables from install.php.
+    if (!$CI->db->table_exists(db_prefix() . 'push_notification_devices')) {
+        return;
+    }
+
     $notification = $CI->db->where('id', $notification_id)->get(db_prefix() . 'notifications')->row();
     if (!empty($notification)) {
         $devices = $CI->db->where('user_id', $notification->touserid)->get(db_prefix() . 'push_notification_devices')->result_array();
@@ -110,6 +115,9 @@ hooks()->add_action('pr_chat_message_notification', 'mpc_mobile_app_connector__p
 function mpc_mobile_app_connector__push_notification($data)
 {
     $CI = &get_instance();
+    if (!$CI->db->table_exists(db_prefix() . 'push_notification_devices')) {
+        return;
+    }
     if (isset($data['type'])) {
 
         if($data['type'] == 'send-event') {
@@ -161,6 +169,23 @@ $CI->load->helper(PERFEX_MOBILE_COMPANION . '/perfex_mobile_companion');
 
 register_activation_hook(PERFEX_MOBILE_COMPANION, 'perfex_mobile_companion_activation_hook');
 register_deactivation_hook(PERFEX_MOBILE_COMPANION, 'perfex_mobile_companion_deactivation_hook');
+
+// Ensure tables exist on every request for SaaS tenants where activation did not run against this DB.
+hooks()->add_action('admin_init', 'perfex_mobile_companion_ensure_tables', 1);
+hooks()->add_action('app_init', 'perfex_mobile_companion_ensure_tables', 1);
+
+function perfex_mobile_companion_ensure_tables()
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    $CI = &get_instance();
+    if (!$CI->db->table_exists(db_prefix() . 'push_notification_devices')) {
+        require_once __DIR__ . '/install.php';
+    }
+}
 
 function perfex_mobile_companion_activation_hook()
 {
