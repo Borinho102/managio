@@ -240,9 +240,20 @@ if (true) {
             <!-- Logo container-->
 
 
-            <a class="logo" href="<?= base_url() ?>home"><img height="24" class="logo-light-mode"
-                                                              src="<?php echo saas_logo() ?>"
-                                                              alt="PerfexSaaS"></a>
+            <?php
+            $saasPublicLogo = function_exists('saas_logo') ? saas_logo() : '';
+            $saasBrand = function_exists('saas_brand_name') ? saas_brand_name() : 'Managio';
+            $saasLoginUrl = (function_exists('subdomain') && !empty(subdomain()))
+                ? admin_url('authentication')
+                : site_url('login');
+            ?>
+            <a class="logo" href="<?= base_url() ?>home">
+                <?php if ($saasPublicLogo !== '') { ?>
+                    <img height="24" class="logo-light-mode" src="<?php echo $saasPublicLogo; ?>" alt="<?= html_escape($saasBrand); ?>">
+                <?php } else { ?>
+                    <span class="fw-bold text-dark"><?= html_escape($saasBrand); ?></span>
+                <?php } ?>
+            </a>
             <!-- Logo End -->
 
             <!-- End Logo container-->
@@ -271,7 +282,7 @@ if (true) {
                             <i class="uil uil-arrow-right align-middle"></i></a>
                     </li>
                     <li class="list-inline-item mb-0">
-                        <a href="<?= base_url() . 'login' ?>" class="btn btn-pills btn-info">
+                        <a href="<?= $saasLoginUrl ?>" class="btn btn-pills btn-info">
                             <i class="uil uil-user-circle"></i> <?= _l('login') ?>
                             <i class="uil uil-arrow-right align-middle"></i></a>
                     </li>

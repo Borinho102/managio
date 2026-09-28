@@ -56,8 +56,11 @@ echo '<link href="' . module_dir_url(SaaS_MODULE, 'assets/css/style_media.css') 
                                href="<?= base_url('package_details/' . $package->id) ?>"><?= _l('see_details') ?></a>
 
                             <?php
-                            // Logged-in clients always subscribe from their profile (no re-register).
-                            if (!empty(is_client_logged_in())) {
+                            // An existing tenant upgrades in place. Do not send them to the
+                            // public signup page (that is a new-company register flow).
+                            if (function_exists('subdomain') && !empty(subdomain())) {
+                                $url = 'checkoutPayment/' . $package->id;
+                            } elseif (!empty(is_client_logged_in())) {
                                 $url = 'clients/subscribe/' . $package->id;
                             } else {
                                 $url = 'register/' . $package->id;

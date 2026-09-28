@@ -13,10 +13,14 @@ if (empty($affiliate)) {
 
                             <div class="col-lg-4 col-12 mb-0 mb-md-4 pb-0 pb-md-2">
                                 <a href="#" class="logo-footer">
-
-                                    <img style="width: 200px; height:50px"
-                                         src="<?php echo saas_logo() ?>"
-                                         alt="">
+                                    <?php
+                                    $footerLogo = function_exists('saas_logo') ? saas_logo() : '';
+                                    $footerBrand = function_exists('saas_brand_name') ? saas_brand_name() : 'Managio';
+                                    if ($footerLogo !== '') { ?>
+                                        <img style="width: 200px; height:50px" src="<?php echo $footerLogo; ?>" alt="<?= html_escape($footerBrand); ?>">
+                                    <?php } else { ?>
+                                        <span class="fw-bold h4"><?= html_escape($footerBrand); ?></span>
+                                    <?php } ?>
                                 </a>
                                 <p class="mt-4">
                                     <?= (!empty($footer_left_info->description)) ? $footer_left_info->description : '' ?>

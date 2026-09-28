@@ -4,7 +4,13 @@
             <div class="col-12 text-center">
                 <div class="pages-heading title-heading">
                     <h2 class="text-white title-dark"><?= !empty(get_option('saas_front_pricing_title')) ? get_option('saas_front_pricing_title') : 'Our Pricing Rates' ?></h2>
-                    <p class="text-white-50 para-desc mb-0 mx-auto"><?= !empty(get_option('saas_front_pricing_description')) ? get_option('saas_front_pricing_description') : 'Start working with Perfect SaaS that can provide everything you need to generate awareness, drive traffic, connect.' ?></p>
+                    <p class="text-white-50 para-desc mb-0 mx-auto"><?php
+                        $pricingDesc = get_option('saas_front_pricing_description');
+                        if (empty($pricingDesc) || stripos((string) $pricingDesc, 'Perfect SaaS') !== false) {
+                            $pricingDesc = (function_exists('saas_brand_name') ? saas_brand_name() : 'Managio') . ' — forfaits pour gérer votre activité.';
+                        }
+                        echo html_escape($pricingDesc);
+                    ?></p>
                 </div>
             </div>
         </div>

@@ -258,6 +258,8 @@ function wasabi_storage_attachment_uses_wasabi($attachment)
 
 /**
  * Same-origin Wasabi preview URL for a task/files attachment, or null if not Wasabi/image.
+ * Prefer admin wasabi_storage/preview/{id} (not raw signed URLs): AJAX inject + lightbox
+ * break long signed URLs, and cache-busting them invalidates SigV4 signatures.
  */
 function wasabi_storage_attachment_preview_url($attachment)
 {
@@ -267,11 +269,31 @@ function wasabi_storage_attachment_preview_url($attachment)
     if (!wasabi_storage_is_image_attachment($attachment) || !wasabi_storage_attachment_uses_wasabi($attachment)) {
         return null;
     }
-    if (empty($attachment['id'])) {
-        return null;
+
+    if (!empty($attachment['id'])) {
+        // Version from dateadded so a prior 404 is not reused after upload, without
+        // appending junk query params to signed URLs elsewhere.
+        $v = !empty($attachment['dateadded']) ? strtotime($attachment['dateadded']) : time();
+
+        return wasabi_storage_preview_url($attachment['id']) . '?v=' . (int) $v;
     }
 
-    return wasabi_storage_preview_url($attachment['id']);
+    $key = null;
+    if (!empty($attachment['file_name'])) {
+        $key = wasabi_storage_find_key_by_filename(
+            $attachment['file_name'],
+            $attachment['rel_type'] ?? 'task',
+            isset($attachment['rel_id']) ? (int) $attachment['rel_id'] : null
+        );
+    }
+    if ($key) {
+        $signed = wasabi_storage_signed_url($key);
+        if ($signed !== '') {
+            return $signed;
+        }
+    }
+
+    return null;
 }
 
 /**

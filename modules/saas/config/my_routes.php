@@ -14,6 +14,8 @@ $route['front/(:any)'] = 'saas/frontcms/home/page/$1';
 $route['pricing'] = 'saas/frontcms/home/page/pricing';
 $route['register'] = 'saas/frontcms/home/register';
 $route['register/(:any)'] = 'saas/frontcms/home/register/$1';
+$route['company/login'] = 'saas/frontcms/home/company_login';
+$route['company/forgot-password'] = 'saas/frontcms/home/company_forgot_password';
 $route['frontcms/(:any)'] = 'saas/frontcms/home/page/$1';
 $route['front'] = 'saas/frontcms/home/index';
 
@@ -275,7 +277,7 @@ if (!function_exists('saas_is_reserved_first_segment')) {
 
         $reserved = [
             'admin', 'authentication', 'clients', 'verification', 'login', 'logout',
-            'register', 'forgot_password', 'reset_password', 'invoice', 'estimate',
+            'register', 'company', 'forgot_password', 'reset_password', 'invoice', 'estimate',
             'proposal', 'contract', 'subscription', 'knowledge-base', 'knowledge_base',
             'forms', 'download', 'consent', 'cron', 'contacts', 'privacy-policy',
             'terms-and-conditions', 'check_emails', 'migration', 'gateways',

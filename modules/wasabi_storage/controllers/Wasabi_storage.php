@@ -193,19 +193,36 @@ class Wasabi_storage extends AdminController
 
         $this->db->where('id', $fileId);
         $file = $this->db->get(db_prefix() . 'files')->row();
-        if (!$file || empty($file->external) || $file->external !== WASABI_STORAGE_EXTERNAL) {
+        if (!$file) {
             show_404();
         }
 
         $objectKey = wasabi_storage_resolve_object_key_for_file($file);
+        // Allow mapped objects even if tblfiles.external was not healed yet.
+        if (!$objectKey && (empty($file->external) || $file->external !== WASABI_STORAGE_EXTERNAL)) {
+            show_404();
+        }
         if (!$objectKey) {
             show_404();
+        }
+
+        // Heal row so future HTML uses Wasabi preview paths.
+        if (empty($file->external) || $file->external !== WASABI_STORAGE_EXTERNAL) {
+            $this->db->where('id', $file->id);
+            $this->db->update(db_prefix() . 'files', [
+                'external'      => WASABI_STORAGE_EXTERNAL,
+                'external_link' => wasabi_storage_files_table_download_url(
+                    $file->rel_type,
+                    $file->attachment_key,
+                    $file->id,
+                    $file->rel_id
+                ),
+            ]);
         }
 
         $client = wasabi_storage_client();
         $body = $client->get_object($objectKey);
         if ($body === false || $body === null) {
-            // Fallback: redirect to a fresh signed URL
             $url = wasabi_storage_signed_url($objectKey);
             if ($url) {
                 redirect($url);

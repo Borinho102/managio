@@ -6557,6 +6557,26 @@ function _task_append_html(html) {
   recalculate_checklist_items_progress();
   do_task_checklist_items_height();
 
+  // Bust cached broken placeholders on newly injected attachment images.
+  // Never mutate AWS/Wasabi signed URLs — extra query params invalidate SigV4.
+  $taskModal.find(".preview-image img, .preview_image img").each(function () {
+    var $img = $(this);
+    var src = $img.attr("src");
+    if (!src || src.indexOf("data:") === 0) {
+      return;
+    }
+    if (
+      src.indexOf("X-Amz-Signature=") !== -1 ||
+      src.indexOf("Signature=") !== -1
+    ) {
+      return;
+    }
+    $img.attr(
+      "src",
+      src + (src.indexOf("?") >= 0 ? "&" : "?") + "_t=" + Date.now()
+    );
+  });
+
   setTimeout(function () {
     $taskModal.modal("show");
     // Init_tags_input is trigged too when task modal is shown
@@ -8716,8 +8736,14 @@ function init_new_task_comment(manual) {
           if (response.message) {
             alert_float("warning", response.message);
           }
-          _task_append_html(response.taskHtml);
-          tinymce.remove("#task_comment");
+          // Fresh fetch ensures Wasabi signed preview URLs are in the HTML immediately.
+          var taskId = $("#addTaskCommentBtn").attr("data-comment-task-id");
+          if (typeof init_task_modal === "function" && taskId) {
+            init_task_modal(taskId);
+          } else {
+            _task_append_html(response.taskHtml);
+            tinymce.remove("#task_comment");
+          }
         }
       },
       error: function (file, response) {

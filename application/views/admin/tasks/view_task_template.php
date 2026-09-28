@@ -569,9 +569,11 @@ foreach ($task->timesheets as $timesheet) { ?>
                     }
                     if (function_exists('wasabi_storage_is_image_attachment') && wasabi_storage_is_image_attachment($attachment)) {
                         $is_image = true;
-                        $img_url  = function_exists('wasabi_storage_preview_url')
-                            ? wasabi_storage_preview_url($attachment['id'])
-                            : $href_url;
+                        $img_url  = function_exists('wasabi_storage_attachment_preview_url')
+                            ? (wasabi_storage_attachment_preview_url($attachment) ?: wasabi_storage_preview_url($attachment['id']))
+                            : (function_exists('wasabi_storage_preview_url')
+                                ? wasabi_storage_preview_url($attachment['id'])
+                                : $href_url);
                     }
                 } elseif ((! empty($attachment['thumbnail_link']) || ! empty($attachment['external']))
                 && ! empty($attachment['thumbnail_link'])) {
@@ -1357,13 +1359,35 @@ echo $_followers;
                 '<?= e($task->id); ?>');
         },
         success: function(files, response) {
-            response = JSON.parse(response);
+            try {
+                if (typeof response === 'string') {
+                    response = JSON.parse(response);
+                }
+            } catch (e) {
+                alert_float('danger', 'Upload failed');
+                return;
+            }
             if (response.success === false && response.message) {
                 alert_float('danger', response.message);
             }
             if (this.getUploadingFiles().length === 0 && this.getQueuedFiles().length === 0) {
-                _task_append_html(response.taskHtml);
+                // Prefer a fresh modal fetch so Wasabi preview URLs are present immediately.
+                if (typeof this.removeAllFiles === 'function') {
+                    this.removeAllFiles(true);
+                }
+                if (typeof init_task_modal === 'function') {
+                    init_task_modal(<?= (int) $task->id; ?>);
+                } else if (response.taskHtml) {
+                    _task_append_html(response.taskHtml);
+                }
             }
+        },
+        error: function(file, response) {
+            var msg = typeof response === 'string' ? response : (response && response.message) || 'Upload failed';
+            if (typeof msg === 'string' && msg.indexOf('<') !== -1) {
+                msg = 'Upload failed (server error)';
+            }
+            alert_float('danger', msg);
         }
     }));
 

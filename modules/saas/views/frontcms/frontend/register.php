@@ -3,13 +3,10 @@
         <div class="row mt-5 justify-content-center">
             <div class="col-12 text-center">
                 <div class="pages-heading title-heading">
-                    <h2 class="text-white title-dark">START YOUR JOURNEY</h2>
+                    <h2 class="text-white title-dark"><?= html_escape(function_exists('saas_brand_name') ? saas_brand_name() : 'Managio'); ?></h2>
                     <p class="text-white-50 para-desc mb-0 mx-auto">
-                        Start working with
-                        <?= (!empty(get_option('saas_companyname')) ? get_option('saas_companyname') : 'Perfect SaaS') ?>
-                        that can provide everything you need to
-                        save time, drive traffic, connect with customers, and increase sales and revenue for your
-                        business.
+                        <?= html_escape(function_exists('saas_brand_name') ? saas_brand_name() : 'Managio'); ?>
+                        — gestion, facturation et relation client pour votre entreprise.
                     </p>
                 </div>
             </div>

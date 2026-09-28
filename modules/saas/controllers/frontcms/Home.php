@@ -253,6 +253,26 @@ class Home extends App_Controller
         $this->theme($theme, $page, $params);
     }
 
+    /**
+     * Legacy "already have an account" link (company/login) had no controller
+     * and was swallowed by the tenant theme catch-all (404).
+     */
+    public function company_login()
+    {
+        if (function_exists('subdomain') && !empty(subdomain())) {
+            redirect(admin_url('authentication'));
+        }
+        redirect(site_url('login'));
+    }
+
+    public function company_forgot_password()
+    {
+        if (function_exists('subdomain') && !empty(subdomain())) {
+            redirect(admin_url('authentication/forgot_password'));
+        }
+        redirect(site_url('authentication/forgot_password'));
+    }
+
     public
     function login($id = null)
     {
@@ -278,6 +298,17 @@ class Home extends App_Controller
     public
     function register($id = null)
     {
+        // Tenant hosts must not show the platform marketing signup.
+        // Upgrade stays on this company's checkout; otherwise staff login.
+        if (function_exists('subdomain') && !empty(subdomain())) {
+            if (is_staff_logged_in() && !empty($id)) {
+                redirect('checkoutPayment/' . (int) $id);
+            }
+            if (is_staff_logged_in()) {
+                redirect('upgrade');
+            }
+            redirect(admin_url('authentication'));
+        }
         if (function_exists('saas_capture_affiliate_referral')) {
             saas_capture_affiliate_referral();
         }

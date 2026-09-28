@@ -11,12 +11,11 @@ if ($active_menu == 'home') {
                     <div class="col-12 text-center">
                         <div class="pages-heading title-heading">
                             <h2 class="text-white title-dark">
-                                <?= get_option('saas_companyname') ? get_option('saas_companyname') : 'Perfect SaaS' ?>
+                                <?= html_escape(function_exists('saas_brand_name') ? saas_brand_name() : 'Managio'); ?>
                             </h2>
                             <p class="text-white-50 para-desc mb-0 mx-auto">
-                                <?= get_option('saas_companyname') ? get_option('saas_companyname') : 'Perfect SaaS' ?>
-                                is a powerful, self-hosted, all-in-one invoicing, accounting, and CRM software.
-                                Perfect for small businesses, freelancers and startups.
+                                <?= html_escape(function_exists('saas_brand_name') ? saas_brand_name() : 'Managio'); ?>
+                                — gestion, facturation et relation client.
                                 <br>
                                 <br>
                                 <a href="<?= site_url('register') ?>" class="btn btn-light">Get Started</a>

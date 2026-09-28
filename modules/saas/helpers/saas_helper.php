@@ -5465,14 +5465,50 @@ function saas_payment_recorded($payment)
     return $payment;
 }
 
+function saas_vendor_default_name($name)
+{
+    $name = trim((string) $name);
+
+    return $name === '' || strcasecmp($name, 'Perfect SaaS') === 0 || strcasecmp($name, 'Perfect Saas') === 0;
+}
+
+/**
+ * Public brand. Vendor "Perfect SaaS" defaults are shown as Managio.
+ */
+function saas_brand_name()
+{
+    $name = trim((string) get_option('saas_companyname'));
+    if (saas_vendor_default_name($name)) {
+        return 'Managio';
+    }
+
+    return $name;
+}
+
+function saas_logo_is_vendor_default()
+{
+    $logo = (string) get_option('saas_company_logo');
+    $defaults = [
+        '',
+        'd33bf9a5e1bb7471b7534ecfe8e12ff1.png',
+        'd85f63a4a464cba0dcc2e84805f209c4.png',
+    ];
+
+    return in_array($logo, $defaults, true);
+}
+
 function saas_logo()
 {
     $logo = get_option('saas_company_logo');
+    // Stock Perfect SaaS artwork is not a custom logo.
+    if (saas_logo_is_vendor_default()) {
+        return '';
+    }
     // check if logo is not empty and file exists
     if (!empty($logo) && file_exists(FCPATH . 'uploads/company/' . $logo)) {
         $logo = base_url('uploads/company/' . $logo);
     } else {
-        $logo = base_url('modules/saas/assets/images/logo.png');
+        return '';
     }
     return $logo;
 }
