@@ -2041,30 +2041,30 @@ $(function () {
     tinymce.remove($(this).data("editor-id"));
   });
 
-  // Customizer close and remove open from session
-  $(".close-customizer").on("click", function (e) {
+  // Settings menu is already opened by openSetupMenu() in the sidebar markup.
+  // Keep a delegated fallback so the panel still opens if that script is missing.
+  $("body").on("click", ".close-customizer", function (e) {
+    if (typeof closeSetupMenu === "function") {
+      closeSetupMenu(e);
+      return;
+    }
     e.preventDefault();
-
     setup_menu.addClass(isRTL == "true" ? "fadeOutRight" : "fadeOutLeft");
-    // Clear the session for setup menu so in reload wont be closed
-    requestGet("misc/set_setup_menu_closed");
   });
 
-  // Open customizer and add that is open to session
-  $(".open-customizer").on("click", function (e) {
-    e.preventDefault();
-
-    if (setup_menu.hasClass(isRTL == "true" ? "fadeOutRight" : "fadeOutLeft")) {
-      setup_menu.removeClass(isRTL == "true" ? "fadeOutRight" : "fadeOutLeft");
+  $("body").on("click", ".open-customizer", function (e) {
+    if (typeof openSetupMenu === "function") {
+      openSetupMenu(e);
+      if (typeof mainWrapperHeightFix === "function") {
+        mainWrapperHeightFix();
+      }
+      return;
     }
-
+    e.preventDefault();
+    setup_menu.removeClass(isRTL == "true" ? "fadeOutRight" : "fadeOutLeft");
     setup_menu.addClass(
       "display-block " + (isRTL == "true" ? "fadeInRight" : "fadeInLeft")
     );
-    // Set session that the setup menu is open in case of reload
-    if (!is_mobile()) {
-      requestGet("misc/set_setup_menu_open");
-    }
     mainWrapperHeightFix();
   });
 

@@ -367,6 +367,7 @@ class Misc extends AdminController
             $this->session->set_userdata([
                 'setup-menu-open' => '',
             ]);
+            session_write_close();
         }
     }
 
@@ -377,6 +378,7 @@ class Misc extends AdminController
             $this->session->set_userdata([
                 'setup-menu-open' => true,
             ]);
+            session_write_close();
         }
     }
 

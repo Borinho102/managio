@@ -127,7 +127,7 @@
         <li<?php if (get_option('show_setup_menu_item_only_on_hover') == 1) {
             echo ' style="display:none;"';
         } ?> id="setup-menu-item">
-            <a href="#" class="open-customizer"><i class="fa fa-cog menu-icon"></i>
+            <a href="#" class="open-customizer" onclick="return openSetupMenu(event);"><i class="fa fa-cog menu-icon"></i>
                 <span class="menu-text">
                     <?= _l('setting_bar_heading'); ?>
                     <?php

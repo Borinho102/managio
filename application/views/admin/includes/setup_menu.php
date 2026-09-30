@@ -1,4 +1,59 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed'); ?>
+<script>
+function managioSetupMenuRtl() {
+    return (typeof isRTL !== 'undefined' && isRTL == 'true') || document.documentElement.getAttribute('dir') === 'rtl';
+}
+
+function openSetupMenu(e) {
+    if (e && e.preventDefault) {
+        e.preventDefault();
+    }
+    var menu = document.getElementById('setup-menu-wrapper');
+    if (!menu) {
+        return false;
+    }
+    var rtl = managioSetupMenuRtl();
+    menu.classList.remove(rtl ? 'fadeOutRight' : 'fadeOutLeft');
+    menu.classList.add('display-block', rtl ? 'fadeInRight' : 'fadeInLeft');
+    menu.style.display = 'block';
+    rememberSetupMenu(true);
+    return false;
+}
+
+function closeSetupMenu(e) {
+    if (e && e.preventDefault) {
+        e.preventDefault();
+    }
+    var menu = document.getElementById('setup-menu-wrapper');
+    if (!menu) {
+        return false;
+    }
+    var rtl = managioSetupMenuRtl();
+    menu.classList.remove('display-block', rtl ? 'fadeInRight' : 'fadeInLeft');
+    menu.classList.add(rtl ? 'fadeOutRight' : 'fadeOutLeft');
+    menu.style.display = 'none';
+    rememberSetupMenu(false);
+    return false;
+}
+
+function rememberSetupMenu(open) {
+    if (typeof admin_url === 'undefined' || typeof fetch !== 'function') {
+        return;
+    }
+    var path = admin_url + (open ? 'misc/set_setup_menu_open' : 'misc/set_setup_menu_closed');
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, 1500) : null;
+    fetch(path, {
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        signal: controller ? controller.signal : undefined
+    }).catch(function () {}).then(function () {
+        if (timer) {
+            clearTimeout(timer);
+        }
+    });
+}
+</script>
 <div id="setup-menu-wrapper"
     class="sidebar animated<?= $this->session->has_userdata('setup-menu-open')
     && $this->session->userdata('setup-menu-open') == true ? ' display-block' : ''; ?>">
@@ -9,7 +64,7 @@
             <span class="text-left tw-font-semibold customizer-heading">
                 <?= _l('setting_bar_heading'); ?>
             </span>
-            <a
+            <a href="#" onclick="return closeSetupMenu(event);"
                 class="close-customizer tw-text-neutral-500 hover:tw-text-neutral-700 focus:tw-text-neutral-700 hover:tw-bg-neutral-200 tw-p-0.5 hover:tw-rounded-md">
                 <i class="fa fa-close fa-fw"></i>
             </a>
