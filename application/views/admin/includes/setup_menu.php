@@ -13,8 +13,8 @@ function openSetupMenu(e) {
         return false;
     }
     var rtl = managioSetupMenuRtl();
-    menu.classList.remove(rtl ? 'fadeOutRight' : 'fadeOutLeft');
-    menu.classList.add('display-block', rtl ? 'fadeInRight' : 'fadeInLeft');
+    menu.classList.remove('animated', 'fadeInLeft', 'fadeInRight', 'fadeOutLeft', 'fadeOutRight');
+    menu.classList.add('display-block');
     menu.style.display = 'block';
     rememberSetupMenu(true);
     return false;
@@ -28,13 +28,49 @@ function closeSetupMenu(e) {
     if (!menu) {
         return false;
     }
-    var rtl = managioSetupMenuRtl();
-    menu.classList.remove('display-block', rtl ? 'fadeInRight' : 'fadeInLeft');
-    menu.classList.add(rtl ? 'fadeOutRight' : 'fadeOutLeft');
+    menu.classList.remove('display-block', 'fadeInLeft', 'fadeInRight');
     menu.style.display = 'none';
     rememberSetupMenu(false);
     return false;
 }
+
+function toggleSetupSubmenu(link) {
+    var item = link.parentElement;
+    var submenu = item ? item.querySelector(':scope > ul.nav-second-level') : null;
+    if (!submenu) {
+        return false;
+    }
+    var willOpen = !item.classList.contains('active');
+    var siblings = item.parentElement ? item.parentElement.children : [];
+    Array.prototype.forEach.call(siblings, function (sibling) {
+        if (sibling === item) {
+            return;
+        }
+        sibling.classList.remove('active');
+        var nested = sibling.querySelector(':scope > ul.nav-second-level');
+        if (nested) {
+            nested.classList.remove('in', 'collapsing');
+            nested.style.display = 'none';
+            nested.style.height = '';
+        }
+    });
+    item.classList.toggle('active', willOpen);
+    submenu.classList.remove('collapsing');
+    submenu.classList.toggle('in', willOpen);
+    submenu.style.height = '';
+    submenu.style.display = willOpen ? 'block' : 'none';
+    return true;
+}
+
+document.addEventListener('click', function (e) {
+    var link = e.target.closest('#setup-menu > li > a');
+    if (!link || !link.parentElement.querySelector(':scope > ul.nav-second-level')) {
+        return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    toggleSetupSubmenu(link);
+}, true);
 
 function rememberSetupMenu(open) {
     if (typeof admin_url === 'undefined' || typeof fetch !== 'function') {
@@ -55,7 +91,7 @@ function rememberSetupMenu(open) {
 }
 </script>
 <div id="setup-menu-wrapper"
-    class="sidebar animated<?= $this->session->has_userdata('setup-menu-open')
+    class="sidebar<?= $this->session->has_userdata('setup-menu-open')
     && $this->session->userdata('setup-menu-open') == true ? ' display-block' : ''; ?>">
     <ul class="nav metis-menu tw-mt-[57px]" id="setup-menu">
         <div
