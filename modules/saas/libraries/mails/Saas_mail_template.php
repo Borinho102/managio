@@ -439,11 +439,21 @@ class Saas_mail_template
         } else {
             if ($template && $template->message == '') {
                 // Template message blank use the active language default template
-                $template = $this->ci->emails_model->get(['language' => get_option('active_language'), 'slug' => $slug], 'row');
-
-                if ($template->message == '') {
+                $fallback = $this->ci->emails_model->get(['language' => get_option('active_language'), 'slug' => $slug], 'row');
+                if ($fallback && $fallback->message != '') {
+                    $template = $fallback;
+                } else {
                     $template = $this->ci->emails_model->get(['language' => 'english', 'slug' => $slug], 'row');
                 }
+            }
+        }
+
+        // Inactive / disabled language row — fall back to an active English template
+        // so credentials/welcome are not silently skipped for French (etc.) variants.
+        if ($template && (int) $template->active === 0) {
+            $english = $this->ci->emails_model->get(['language' => 'english', 'slug' => $slug, 'active' => 1], 'row');
+            if ($english) {
+                $template = $english;
             }
         }
 

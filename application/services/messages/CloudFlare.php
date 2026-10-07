@@ -15,7 +15,22 @@ class CloudFlare extends AbstractMessage
         $CI     = &get_instance();
         $header = $CI->input->get_request_header('Cf-Ray');
 
-        return $header && !empty($header) && get_option('show_cloudflare_notice') == '1' && is_admin();
+        if (!$header || empty($header) || get_option('show_cloudflare_notice') != '1' || !is_admin()) {
+            return false;
+        }
+
+        // Cloudflare is managed at platform level — never show to SaaS tenants in production
+        if (ENVIRONMENT === 'production') {
+            if (function_exists('subdomain') && !empty(subdomain())) {
+                return false;
+            }
+
+            if (function_exists('is_super_admin')) {
+                return !empty(is_super_admin());
+            }
+        }
+
+        return true;
     }
 
     public function getMessage()

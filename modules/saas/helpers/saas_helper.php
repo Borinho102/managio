@@ -407,8 +407,9 @@ Best regards,<br/>
 function saas_credentials_email_message()
 {
     return 'Dear {name},<br/><br/>
+<strong>IMPORTANT — Your login details</strong><br/><br/>
 Thank you for registering on the <b>{companyname}</b> platform.<br/><br/>
-Here are your account credentials. Please keep them safe:<br/><br/>
+Please save this email. Below are the credentials you need to access your account:<br/><br/>
 <b>Company URL:</b> <a href="{company_url}">{company_url}</a><br/>
 <b>Admin URL:</b> <a href="{admin_url}">{admin_url}</a><br/>
 <b>Subdomain:</b> {domain}<br/>
@@ -452,7 +453,8 @@ function saas_ensure_credentials_email_template()
             'message' => saas_welcome_email_message(),
         ],
         'saas-credentials-mail' => [
-            'subject' => 'Your account credentials',
+            // Distinct subject so providers do not collapse this with the welcome mail.
+            'subject' => 'Your login details — keep this email',
             'name'    => 'SaaS Account Credentials',
             'message' => saas_credentials_email_message(),
         ],
@@ -495,6 +497,15 @@ Best regards,<br/>
         ],
     ];
 
+    $password_block = '<br/><br/>
+Here are your account credentials. Please keep them safe:<br/><br/>
+<b>Company URL:</b> <a href="{company_url}">{company_url}</a><br/>
+<b>Admin URL:</b> <a href="{admin_url}">{admin_url}</a><br/>
+<b>Subdomain:</b> {domain}<br/>
+<b>Email / Username:</b> {email}<br/>
+<b>Password:</b> {password}<br/>
+<b>Package:</b> {package_name}<br/>';
+
     $ok = true;
     foreach ($templates as $slug => $tpl) {
         $exists = get_row($table, ['slug' => $slug, 'language' => 'english']);
@@ -503,7 +514,10 @@ Best regards,<br/>
         }
         if (empty($exists)) {
             create_email_template($tpl['subject'], $tpl['message'], 'saas', $tpl['name'], $slug);
-            $exists = get_row($table, ['slug' => $slug]);
+            $exists = get_row($table, ['slug' => $slug, 'language' => 'english']);
+            if (empty($exists)) {
+                $exists = get_row($table, ['slug' => $slug]);
+            }
         }
 
         if (empty($exists)) {
@@ -512,20 +526,28 @@ Best regards,<br/>
             continue;
         }
 
-        // Older welcome templates omitted login credentials — add them without wiping custom copy.
-        if ($slug === 'saas-welcome-mail' && isset($exists->message) && strpos((string) $exists->message, '{password}') === false) {
+        // Keep credentials subject distinct (dedupe-safe) without wiping custom subjects.
+        if ($slug === 'saas-credentials-mail') {
             $CI->db->where('slug', $slug);
-            $CI->db->where('language', $exists->language ?? 'english');
-            $CI->db->update($table, [
-                'message' => rtrim((string) $exists->message) . '<br/><br/>
-Here are your account credentials. Please keep them safe:<br/><br/>
-<b>Company URL:</b> <a href="{company_url}">{company_url}</a><br/>
-<b>Admin URL:</b> <a href="{admin_url}">{admin_url}</a><br/>
-<b>Subdomain:</b> {domain}<br/>
-<b>Email / Username:</b> {email}<br/>
-<b>Password:</b> {password}<br/>
-<b>Package:</b> {package_name}<br/>',
-            ]);
+            $CI->db->where('subject', 'Your account credentials');
+            $CI->db->update($table, ['subject' => $tpl['subject']]);
+        }
+
+        // Older / empty language variants omitted login credentials — fix ALL languages.
+        if ($slug === 'saas-welcome-mail' || $slug === 'saas-credentials-mail') {
+            $rows = $CI->db->where('slug', $slug)->get($table)->result();
+            foreach ($rows as $row) {
+                $message = (string) ($row->message ?? '');
+                $update = [];
+                if (trim($message) === '') {
+                    $update['message'] = $tpl['message'];
+                } elseif (strpos($message, '{password}') === false) {
+                    $update['message'] = rtrim($message) . $password_block;
+                }
+                if (!empty($update)) {
+                    $CI->db->where('emailtemplateid', $row->emailtemplateid)->update($table, $update);
+                }
+            }
         }
 
         $CI->db->where('slug', $slug);
@@ -546,16 +568,16 @@ Here are your account credentials. Please keep them safe:<br/><br/>
 }
 
 /**
- * Send welcome + credentials emails after SaaS registration.
+ * Send credentials (first) + welcome emails after SaaS registration.
  * Never throws — signup must succeed even if mail fails.
  *
  * @param int         $company_id
  * @param string|null $plain_password
- * @return bool True if at least one credentials-bearing email was sent
+ * @return bool True if credentials email was sent (template or plain fallback)
  */
 function saas_send_signup_emails($company_id, $plain_password = null)
 {
-    $sent = false;
+    $credentials_sent = false;
 
     try {
         if (function_exists('saas_ensure_credentials_email_template')) {
@@ -567,29 +589,36 @@ function saas_send_signup_emails($company_id, $plain_password = null)
             $CI->load->model('saas/saas_model');
         }
 
-        if (method_exists($CI->saas_model, 'send_welcome_email')) {
-            $welcome = $CI->saas_model->send_welcome_email($company_id, true, $plain_password);
-            $sent = $sent || (bool) $welcome;
-        }
-
+        // Credentials first — most important; welcome success must not skip this.
         if (method_exists($CI->saas_model, 'send_credentials_email')) {
-            $credentials = $CI->saas_model->send_credentials_email($company_id, true, $plain_password);
-            $sent = $sent || (bool) $credentials;
+            $credentials_sent = (bool) $CI->saas_model->send_credentials_email($company_id, true, $plain_password);
         }
 
-        if (!$sent) {
-            $sent = saas_send_plain_credentials_email($company_id, $plain_password);
+        if (!$credentials_sent) {
+            $credentials_sent = (bool) saas_send_plain_credentials_email($company_id, $plain_password);
+            if (!$credentials_sent) {
+                log_message('error', '[saas] credentials email failed for company_id=' . $company_id);
+            }
+        }
+
+        // Welcome is informational; failure must not block credentials (already handled).
+        if (method_exists($CI->saas_model, 'send_welcome_email')) {
+            try {
+                $CI->saas_model->send_welcome_email($company_id, true, $plain_password);
+            } catch (Throwable $e) {
+                log_message('error', '[saas] welcome email after credentials: ' . $e->getMessage());
+            }
         }
     } catch (Throwable $e) {
         log_message('error', '[saas] saas_send_signup_emails: ' . $e->getMessage());
         try {
-            $sent = saas_send_plain_credentials_email($company_id, $plain_password);
+            $credentials_sent = (bool) saas_send_plain_credentials_email($company_id, $plain_password);
         } catch (Throwable $e2) {
             log_message('error', '[saas] fallback credentials email failed: ' . $e2->getMessage());
         }
     }
 
-    return $sent;
+    return $credentials_sent;
 }
 
 /**
@@ -635,7 +664,7 @@ function saas_send_plain_credentials_email($company, $plain_password = null)
     $CI->email->clear(true);
     $CI->email->from($from_email, $from_name);
     $CI->email->to($company->email);
-    $CI->email->subject('Your account credentials');
+    $CI->email->subject('Your login details — keep this email');
     $CI->email->message($message);
 
     $ok = (bool) $CI->email->send(true);

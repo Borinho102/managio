@@ -301,7 +301,12 @@ class Saas_cron_model extends App_model
             if ($time_elapsed > 24 * 60 * 60) {
                 $this->saas_model->delete_company($company->id);
             } else if ($time_elapsed > 6 * 60 * 60) {
-                $this->saas_model->send_welcome_email($company->id, true);
+                if (function_exists('saas_send_signup_emails')) {
+                    saas_send_signup_emails($company->id);
+                } else {
+                    $this->saas_model->send_credentials_email($company->id, true);
+                    $this->saas_model->send_welcome_email($company->id, true);
+                }
             }
         }
 

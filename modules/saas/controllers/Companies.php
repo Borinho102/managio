@@ -55,10 +55,13 @@ class Companies extends AdminController
                 $name .= '| <a
                 data-toggle="tooltip" data-placement="top" 
                 href="' . base_url('saas/companies/details/' . $row->id) . '"  title="' . _l('details') . '">' . _l('details') . '</a>';
-                // send welcome email
+                // send welcome / credentials emails
                 $name .= '| <a href="' . base_url('saas/companies/send_welcome_email/' . $row->id) . '"
                 data-toggle="tooltip" data-placement="top"
                   title="' . _l('send_welcome_mail') . '">' . _l('mail') . '</a>';
+                $name .= '| <a href="' . base_url('saas/companies/send_credentials_email/' . $row->id) . '"
+                data-toggle="tooltip" data-placement="top"
+                  title="' . _l('send_credentials_mail') . '">' . _l('credentials') . '</a>';
                 if (!empty($access)) {
                     $name .= '| <a 
                     data-toggle="tooltip" data-placement="top"
@@ -401,8 +404,16 @@ class Companies extends AdminController
             }
 
             log_activity($activity . ' - ' . $data['name'] . ' [ID:' . $id . ']');
-            log_message('debug', '[save_companies] Done. Sending welcome email for company ID=' . $id);
-            $this->saas_model->send_welcome_email($id);
+            if ($is_new) {
+                log_message('debug', '[save_companies] Done. Sending signup emails for company ID=' . $id);
+                $plain = !empty($data['password']) ? $data['password'] : null;
+                if (function_exists('saas_send_signup_emails')) {
+                    saas_send_signup_emails($id, $plain);
+                } else {
+                    $this->saas_model->send_credentials_email($id, true, $plain);
+                    $this->saas_model->send_welcome_email($id, true, $plain);
+                }
+            }
 
             $type = "success";
         }
@@ -487,6 +498,15 @@ class Companies extends AdminController
         $this->saas_model->send_welcome_email($id);
         $type = "success";
         $message = _l('welcome_email_sent');
+        set_alert($type, $message);
+        redirect('saas/companies');
+    }
+
+    public function send_credentials_email($id)
+    {
+        $sent = $this->saas_model->send_credentials_email($id, true);
+        $type = $sent ? 'success' : 'warning';
+        $message = $sent ? _l('credentials_email_sent') : _l('email_not_sent_please_configure_email_settings');
         set_alert($type, $message);
         redirect('saas/companies');
     }

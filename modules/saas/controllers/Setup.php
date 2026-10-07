@@ -438,10 +438,15 @@ class Setup extends CI_Controller
             $this->saas_model->_primary_key = 'id';
             $this->saas_model->save($c_data, $id);
 
-            $this->saas_model->save_client($id, $data['password']);
+            $this->saas_model->save_client($id, $data['password'], null, false);
 
-
-            $this->saas_model->send_welcome_email($id, true);
+            $plain = $data['password'] ?? null;
+            if (function_exists('saas_send_signup_emails')) {
+                saas_send_signup_emails($id, $plain);
+            } else {
+                $this->saas_model->send_credentials_email($id, true, $plain);
+                $this->saas_model->send_welcome_email($id, true, $plain);
+            }
             return true;
         } else {
             return false;
