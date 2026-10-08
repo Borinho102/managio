@@ -143,3 +143,123 @@
             <?php $this->load->view('admin/projects/pinned'); ?>
     </ul>
 </aside>
+<script>
+(function () {
+    window.managioEarlyMenus = true;
+
+    function managioClosest(el, selector) {
+        if (!el) {
+            return null;
+        }
+        if (el.closest) {
+            return el.closest(selector);
+        }
+        while (el && el.nodeType === 1) {
+            if (el.matches && el.matches(selector)) {
+                return el;
+            }
+            if (el.msMatchesSelector && el.msMatchesSelector(selector)) {
+                return el;
+            }
+            el = el.parentElement;
+        }
+        return null;
+    }
+
+    function managioDirectSubmenu(li) {
+        if (!li || !li.children) {
+            return null;
+        }
+        for (var i = 0; i < li.children.length; i++) {
+            var child = li.children[i];
+            if (child.tagName === 'UL' && child.classList.contains('nav-second-level')) {
+                return child;
+            }
+        }
+        return null;
+    }
+
+    function managioToggleNavSubmenu(link) {
+        var item = link.parentElement;
+        var submenu = managioDirectSubmenu(item);
+        if (!submenu) {
+            return false;
+        }
+        var willOpen = !item.classList.contains('active');
+        var siblings = item.parentElement ? item.parentElement.children : [];
+        for (var i = 0; i < siblings.length; i++) {
+            var sibling = siblings[i];
+            if (sibling === item || sibling.nodeType !== 1) {
+                continue;
+            }
+            sibling.classList.remove('active');
+            var nested = managioDirectSubmenu(sibling);
+            if (nested) {
+                nested.classList.remove('in', 'collapsing');
+                nested.style.display = 'none';
+                nested.style.height = '';
+            }
+        }
+        if (willOpen) {
+            item.classList.add('active');
+            submenu.classList.add('in');
+            submenu.style.display = 'block';
+        } else {
+            item.classList.remove('active');
+            submenu.classList.remove('in');
+            submenu.style.display = 'none';
+        }
+        submenu.classList.remove('collapsing');
+        submenu.style.height = '';
+        link.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        return true;
+    }
+
+    function managioCloseDropdowns(except) {
+        var opens = document.querySelectorAll('.dropdown.open, .dropdown-submenu.open');
+        for (var i = 0; i < opens.length; i++) {
+            if (except && (opens[i] === except || opens[i].contains(except))) {
+                continue;
+            }
+            opens[i].classList.remove('open');
+            var toggle = opens[i].querySelector('[data-toggle="dropdown"]');
+            if (toggle) {
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+        }
+    }
+
+    document.addEventListener('click', function (e) {
+        var sideLink = managioClosest(e.target, '#side-menu > li > a');
+        if (sideLink && managioDirectSubmenu(sideLink.parentElement)) {
+            e.preventDefault();
+            e.stopPropagation();
+            managioToggleNavSubmenu(sideLink);
+            return;
+        }
+
+        var dropdownToggle = managioClosest(e.target, '#header [data-toggle="dropdown"], #menu [data-toggle="dropdown"]');
+        if (dropdownToggle && !managioClosest(dropdownToggle, '.bootstrap-select')) {
+            var dropdown = managioClosest(dropdownToggle, '.dropdown, .dropdown-submenu');
+            if (dropdown) {
+                e.preventDefault();
+                e.stopPropagation();
+                var willOpen = !dropdown.classList.contains('open');
+                managioCloseDropdowns(dropdown);
+                if (willOpen) {
+                    dropdown.classList.add('open');
+                    dropdownToggle.setAttribute('aria-expanded', 'true');
+                } else {
+                    dropdown.classList.remove('open');
+                    dropdownToggle.setAttribute('aria-expanded', 'false');
+                }
+                return;
+            }
+        }
+
+        if (!managioClosest(e.target, '.dropdown.open, .dropdown-submenu.open')) {
+            managioCloseDropdowns();
+        }
+    }, true);
+})();
+</script>

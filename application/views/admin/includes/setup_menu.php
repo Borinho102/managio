@@ -4,6 +4,19 @@ function managioSetupMenuRtl() {
     return (typeof isRTL !== 'undefined' && isRTL == 'true') || document.documentElement.getAttribute('dir') === 'rtl';
 }
 
+function managioDirectSubmenu(li) {
+    if (!li || !li.children) {
+        return null;
+    }
+    for (var i = 0; i < li.children.length; i++) {
+        var child = li.children[i];
+        if (child.tagName === 'UL' && child.classList.contains('nav-second-level')) {
+            return child;
+        }
+    }
+    return null;
+}
+
 function openSetupMenu(e) {
     if (e && e.preventDefault) {
         e.preventDefault();
@@ -12,7 +25,6 @@ function openSetupMenu(e) {
     if (!menu) {
         return false;
     }
-    var rtl = managioSetupMenuRtl();
     menu.classList.remove('animated', 'fadeInLeft', 'fadeInRight', 'fadeOutLeft', 'fadeOutRight');
     menu.classList.add('display-block');
     menu.style.display = 'block';
@@ -36,35 +48,55 @@ function closeSetupMenu(e) {
 
 function toggleSetupSubmenu(link) {
     var item = link.parentElement;
-    var submenu = item ? item.querySelector(':scope > ul.nav-second-level') : null;
+    var submenu = managioDirectSubmenu(item);
     if (!submenu) {
         return false;
     }
     var willOpen = !item.classList.contains('active');
     var siblings = item.parentElement ? item.parentElement.children : [];
-    Array.prototype.forEach.call(siblings, function (sibling) {
-        if (sibling === item) {
-            return;
+    for (var i = 0; i < siblings.length; i++) {
+        var sibling = siblings[i];
+        if (sibling === item || sibling.nodeType !== 1) {
+            continue;
         }
         sibling.classList.remove('active');
-        var nested = sibling.querySelector(':scope > ul.nav-second-level');
+        var nested = managioDirectSubmenu(sibling);
         if (nested) {
             nested.classList.remove('in', 'collapsing');
             nested.style.display = 'none';
             nested.style.height = '';
         }
-    });
-    item.classList.toggle('active', willOpen);
+    }
+    if (willOpen) {
+        item.classList.add('active');
+        submenu.classList.add('in');
+        submenu.style.display = 'block';
+    } else {
+        item.classList.remove('active');
+        submenu.classList.remove('in');
+        submenu.style.display = 'none';
+    }
     submenu.classList.remove('collapsing');
-    submenu.classList.toggle('in', willOpen);
     submenu.style.height = '';
-    submenu.style.display = willOpen ? 'block' : 'none';
+    link.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
     return true;
 }
 
 document.addEventListener('click', function (e) {
-    var link = e.target.closest('#setup-menu > li > a');
-    if (!link || !link.parentElement.querySelector(':scope > ul.nav-second-level')) {
+    var target = e.target;
+    var link = null;
+    while (target && target !== document) {
+        if (target.matches && target.matches('#setup-menu > li > a')) {
+            link = target;
+            break;
+        }
+        if (target.msMatchesSelector && target.msMatchesSelector('#setup-menu > li > a')) {
+            link = target;
+            break;
+        }
+        target = target.parentElement;
+    }
+    if (!link || !managioDirectSubmenu(link.parentElement)) {
         return;
     }
     e.preventDefault();
@@ -93,18 +125,17 @@ function rememberSetupMenu(open) {
 <div id="setup-menu-wrapper"
     class="sidebar<?= $this->session->has_userdata('setup-menu-open')
     && $this->session->userdata('setup-menu-open') == true ? ' display-block' : ''; ?>">
-    <ul class="nav metis-menu tw-mt-[57px]" id="setup-menu">
-        <div
-            class="tw-flex tw-items-center tw-justify-between tw-space-x-2 rtl:tw-space-x-reverse tw-pl-4 tw-pr-2.5 tw-py-3">
-
-            <span class="text-left tw-font-semibold customizer-heading">
-                <?= _l('setting_bar_heading'); ?>
-            </span>
-            <a href="#" onclick="return closeSetupMenu(event);"
-                class="close-customizer tw-text-neutral-500 hover:tw-text-neutral-700 focus:tw-text-neutral-700 hover:tw-bg-neutral-200 tw-p-0.5 hover:tw-rounded-md">
-                <i class="fa fa-close fa-fw"></i>
-            </a>
-        </div>
+    <div
+        class="setup-menu-header tw-flex tw-items-center tw-justify-between tw-space-x-2 rtl:tw-space-x-reverse tw-pl-4 tw-pr-2.5 tw-py-3 tw-mt-[57px]">
+        <span class="text-left tw-font-semibold customizer-heading">
+            <?= _l('setting_bar_heading'); ?>
+        </span>
+        <a href="#" onclick="return closeSetupMenu(event);"
+            class="close-customizer tw-text-neutral-500 hover:tw-text-neutral-700 focus:tw-text-neutral-700 hover:tw-bg-neutral-200 tw-p-0.5 hover:tw-rounded-md">
+            <i class="fa fa-close fa-fw"></i>
+        </a>
+    </div>
+    <ul class="nav metis-menu" id="setup-menu">
         <?php
         $totalSetupMenuItems = 0;
 

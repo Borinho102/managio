@@ -29,17 +29,25 @@ if (get_option('pusher_realtime_notifications') == 1) { ?>
         $pusher_options['cluster'] = get_option('pusher_cluster');
     }
     ?>
-        var
-            pusher_options = <?= json_encode($pusher_options); ?> ;
-        var pusher = new Pusher(
-            "<?= get_option('pusher_app_key'); ?>",
-            pusher_options);
-        var channel = pusher.subscribe(
-            'notifications-channel-<?= get_staff_user_id(); ?>'
-        );
-        channel.bind('notification', function(data) {
-            fetch_notifications();
-        });
+        var pusher_options = <?= json_encode($pusher_options); ?> ;
+        // Pusher CDN may load async — wait briefly so menus are never blocked
+        (function initPusherWhenReady(attempts) {
+            if (typeof Pusher === 'undefined') {
+                if (attempts < 100) {
+                    setTimeout(function () { initPusherWhenReady(attempts + 1); }, 100);
+                }
+                return;
+            }
+            var pusher = new Pusher(
+                "<?= get_option('pusher_app_key'); ?>",
+                pusher_options);
+            var channel = pusher.subscribe(
+                'notifications-channel-<?= get_staff_user_id(); ?>'
+            );
+            channel.bind('notification', function(data) {
+                fetch_notifications();
+            });
+        })(0);
     });
 </script>
 <?php } ?>

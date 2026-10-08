@@ -54,7 +54,13 @@ function _init_admin_assets()
     add_jquery_validation_js_assets();
 
     if (get_option('pusher_realtime_notifications') == 1) {
-        $CI->app_scripts->add('pusher-js', 'https://js.pusher.com/5.0/pusher.min.js');
+        // async: do not block main.js / menus on slow CDN
+        $CI->app_scripts->add('pusher-js', [
+            'path'       => 'https://js.pusher.com/5.0/pusher.min.js',
+            'attributes' => [
+                'async',
+            ],
+        ]);
     }
 
     add_dropbox_js_assets();
@@ -183,6 +189,7 @@ function add_dropbox_js_assets($group = 'admin')
             'path'       => 'https://www.dropbox.com/static/api/2/dropins.js',
             'attributes' => [
                 'data-app-key' => get_option('dropbox_app_key'),
+                'async',
             ],
         ], $group);
     }

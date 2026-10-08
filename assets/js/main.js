@@ -12,19 +12,29 @@ $(window).on("load", function () {
   init_btn_with_tooltips();
 });
 
-// Set datatables error throw console log
-$.fn.dataTable.ext.errMode = "throw";
-$.fn.dataTableExt.oStdClasses.sWrapper =
-  "dataTables_wrapper form-inline dt-bootstrap table-loading";
+// Set datatables error mode (do not throw — keeps menus/UI alive on Invalid JSON)
+if ($.fn.dataTable) {
+  $.fn.dataTable.ext.errMode = "none";
+  if ($.fn.dataTableExt) {
+    $.fn.dataTableExt.oStdClasses.sWrapper =
+      "dataTables_wrapper form-inline dt-bootstrap table-loading";
+  }
+}
 
-if (app.options.enable_google_picker == "1") {
+if (
+  app.options.enable_google_picker == "1" &&
+  $.fn.googleDrivePicker &&
+  $.fn.googleDrivePicker.defaults
+) {
   $.fn.googleDrivePicker.defaults.clientId = app.options.google_client_id;
   $.fn.googleDrivePicker.defaults.developerKey = app.options.google_api;
 }
 
 // Set dropzone not auto discover
-Dropzone.options.newsFeedDropzone = false;
-Dropzone.options.salesUpload = false;
+if (typeof Dropzone !== "undefined") {
+  Dropzone.options.newsFeedDropzone = false;
+  Dropzone.options.salesUpload = false;
+}
 
 // Check for desktop notifications permissions
 if ("Notification" in window && app.options.desktop_notifications == "1") {
@@ -492,10 +502,13 @@ $(function () {
     }
   }
 
-  // Init now metisMenu for the main admin sidebar
-  side_bar.metisMenu();
-  // Init setup menu
-  setup_menu.metisMenu();
+  // Early vanilla menus already handle toggles; skip MetisMenu to avoid double-toggle
+  if (!window.managioEarlyMenus) {
+    // Init now metisMenu for the main admin sidebar
+    side_bar.metisMenu();
+    // Init setup menu
+    setup_menu.metisMenu();
+  }
 
   // Handle minimalize sidebar menu
   $(".hide-menu").click(function (e) {
