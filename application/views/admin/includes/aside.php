@@ -230,6 +230,11 @@
     }
 
     document.addEventListener('click', function (e) {
+        // Never interfere with bootstrap-select (client picker on invoices/estimates, etc.)
+        if (managioClosest(e.target, '.bootstrap-select')) {
+            return;
+        }
+
         var sideLink = managioClosest(e.target, '#side-menu > li > a');
         if (sideLink && managioDirectSubmenu(sideLink.parentElement)) {
             e.preventDefault();
@@ -239,7 +244,7 @@
         }
 
         var dropdownToggle = managioClosest(e.target, '#header [data-toggle="dropdown"], #menu [data-toggle="dropdown"]');
-        if (dropdownToggle && !managioClosest(dropdownToggle, '.bootstrap-select')) {
+        if (dropdownToggle) {
             var dropdown = managioClosest(dropdownToggle, '.dropdown, .dropdown-submenu');
             if (dropdown) {
                 e.preventDefault();

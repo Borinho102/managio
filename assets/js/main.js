@@ -93,13 +93,21 @@ $("body").on("loaded.bs.select change", "select.ajax-search", function (e) {
   }
 });
 
-// On render select remove the placeholder
-$("body").on("rendered.bs.select", "select", function () {
-  $(this).parents().removeClass("select-placeholder");
-  $(this)
+// Clear select-placeholder skeleton once bootstrap-select has rendered
+function clear_select_placeholder($el) {
+  if (!$el || !$el.length) {
+    return;
+  }
+  $el.parents().removeClass("select-placeholder");
+  $el
     .parents(".form-group")
     .find(".select-placeholder")
     .removeClass("select-placeholder");
+}
+
+// On render/load select remove the placeholder (Chrome can miss rendered.bs.select)
+$("body").on("rendered.bs.select loaded.bs.select", "select", function () {
+  clear_select_placeholder($(this));
 });
 
 $("body").on("loaded.bs.select", "select", function () {
@@ -468,6 +476,23 @@ $(function () {
   init_form_reminder();
   // On document read check and init for client ajax-search
   init_ajax_search("customer", "#clientid.ajax-search");
+  // Fallback: never leave client select invisible if bs.select event is missed (Chrome)
+  setTimeout(function () {
+    var $clientSelect = $("#clientid.ajax-search");
+    if (!$clientSelect.length) {
+      return;
+    }
+    if ($clientSelect.parent().hasClass("bootstrap-select")) {
+      clear_select_placeholder($clientSelect);
+      return;
+    }
+    if ($clientSelect.closest(".select-placeholder").length) {
+      clear_select_placeholder($clientSelect);
+      if (typeof $.fn.selectpicker === "undefined") {
+        $clientSelect.css("display", "block");
+      }
+    }
+  }, 1500);
 
   // Check for active class in sidebar links
   var $linkSidebarActive = side_bar.find('li > a[href="' + location + '"]');
@@ -8869,58 +8894,92 @@ function initializeTinyMceMentions(editor, usersCallback) {
 function init_ajax_search(type, selector, server_data, url) {
   var ajaxSelector = $("body").find(selector);
 
-  if (ajaxSelector.length) {
-    var options = {
-      ajax: {
-        url:
-          typeof url == "undefined"
-            ? admin_url + "misc/get_relation_data"
-            : url,
-        data: function () {
-          var data = {};
-          data.type = type;
-          data.rel_id = "";
-          data.q = "{{{q}}}";
-          if (typeof server_data != "undefined") {
-            jQuery.extend(data, server_data);
-          }
-          return data;
-        },
-      },
-      locale: {
-        emptyTitle: app.lang.search_ajax_empty,
-        statusInitialized: app.lang.search_ajax_initialized,
-        statusSearching: app.lang.search_ajax_searching,
-        statusNoResults: app.lang.not_results_found,
-        searchPlaceholder: app.lang.search_ajax_placeholder,
-        currentlySelected: app.lang.currently_selected,
-      },
-      requestDelay: 500,
-      cache: false,
-      preprocessData: function (processData) {
-        var bs_data = [];
-        var len = processData.length;
-        for (var i = 0; i < len; i++) {
-          var tmp_data = {
-            value: processData[i].id,
-            text: processData[i].name,
-          };
-          if (processData[i].subtext) {
-            tmp_data.data = {
-              subtext: processData[i].subtext,
-            };
-          }
-          bs_data.push(tmp_data);
+  if (!ajaxSelector.length) {
+    return;
+  }
+
+  if (
+    typeof $.fn.selectpicker === "undefined" ||
+    typeof $.fn.ajaxSelectPicker === "undefined"
+  ) {
+    // Plugins missing: show native select so the field is never blank
+    ajaxSelector.each(function () {
+      var $el = $(this);
+      clear_select_placeholder($el);
+      $el.css("display", "block");
+    });
+    return;
+  }
+
+  var options = {
+    ajax: {
+      url:
+        typeof url == "undefined"
+          ? admin_url + "misc/get_relation_data"
+          : url,
+      data: function () {
+        var data = {};
+        data.type = type;
+        data.rel_id = "";
+        data.q = "{{{q}}}";
+        if (typeof server_data != "undefined") {
+          jQuery.extend(data, server_data);
         }
-        return bs_data;
+        return data;
       },
-      preserveSelectedPosition: "after",
-      preserveSelected: true,
-    };
-    if (ajaxSelector.data("empty-title")) {
-      options.locale.emptyTitle = ajaxSelector.data("empty-title");
-    }
+    },
+    locale: {
+      emptyTitle: app.lang.search_ajax_empty,
+      statusInitialized: app.lang.search_ajax_initialized,
+      statusSearching: app.lang.search_ajax_searching,
+      statusNoResults: app.lang.not_results_found,
+      searchPlaceholder: app.lang.search_ajax_placeholder,
+      currentlySelected: app.lang.currently_selected,
+    },
+    requestDelay: 500,
+    cache: false,
+    preprocessData: function (processData) {
+      var bs_data = [];
+      var len = processData.length;
+      for (var i = 0; i < len; i++) {
+        var tmp_data = {
+          value: processData[i].id,
+          text: processData[i].name,
+        };
+        if (processData[i].subtext) {
+          tmp_data.data = {
+            subtext: processData[i].subtext,
+          };
+        }
+        bs_data.push(tmp_data);
+      }
+      return bs_data;
+    },
+    preserveSelectedPosition: "after",
+    preserveSelected: true,
+  };
+  if (ajaxSelector.data("empty-title")) {
+    options.locale.emptyTitle = ajaxSelector.data("empty-title");
+  }
+
+  try {
     ajaxSelector.selectpicker().ajaxSelectPicker(options);
+    // Clear skeleton as soon as wrapper exists (do not wait only for events)
+    ajaxSelector.each(function () {
+      var $el = $(this);
+      if ($el.parent().hasClass("bootstrap-select")) {
+        clear_select_placeholder($el);
+      }
+    });
+  } catch (e) {
+    if (typeof console !== "undefined" && console.error) {
+      console.error("init_ajax_search failed", e);
+    }
+    ajaxSelector.each(function () {
+      var $el = $(this);
+      clear_select_placeholder($el);
+      $el.css("display", "block");
+    });
   }
 }
 
