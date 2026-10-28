@@ -1609,6 +1609,7 @@ class purchase extends AdminController
                     redirect(admin_url('purchase/purchase_order/' . $po_id));
                     
                 }
+                set_alert('warning', _l('something_went_wrong'));
             } else if($id != '' && (!isset($pur_order_data['is_copy']))) {
                 if (!has_permission('purchase_orders', '', 'edit')) {
                     access_denied('purchase_order');

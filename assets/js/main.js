@@ -2526,16 +2526,24 @@ $(function () {
   $("body").on("click", ".transaction-submit", function () {
     var that = $(this);
     var form = that.parents("form._transaction_form");
-    if (form.valid()) {
-      if (that.hasClass("save-as-draft")) {
-        form.append(hidden_input("save_as_draft", "true"));
-      } else if (that.hasClass("save-and-send")) {
-        form.append(hidden_input("save_and_send", "true"));
-      } else if (that.hasClass("save-and-record-payment")) {
-        form.append(hidden_input("save_and_record_payment", "true"));
-      } else if (that.hasClass("save-and-send-later")) {
-        form.append(hidden_input("save_and_send_later", "true"));
+    if (!form.length) {
+      return;
+    }
+    if (!form.valid()) {
+      var $error = form.find(".error:visible, label.error:visible, .has-error").first();
+      if ($error.length) {
+        $("html,body").animate({ scrollTop: $error.offset().top - 100 }, 300);
       }
+      return;
+    }
+    if (that.hasClass("save-as-draft")) {
+      form.append(hidden_input("save_as_draft", "true"));
+    } else if (that.hasClass("save-and-send")) {
+      form.append(hidden_input("save_and_send", "true"));
+    } else if (that.hasClass("save-and-record-payment")) {
+      form.append(hidden_input("save_and_record_payment", "true"));
+    } else if (that.hasClass("save-and-send-later")) {
+      form.append(hidden_input("save_and_send_later", "true"));
     }
     form.submit();
   });

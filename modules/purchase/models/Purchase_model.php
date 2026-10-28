@@ -2478,6 +2478,27 @@ class Purchase_model extends App_Model
             unset($data['grand_total']);
         }
 
+        // Normalize empty numeric FKs / amounts so STRICT SQL mode does not fail silently
+        foreach (['estimate', 'pur_request', 'department', 'project', 'buyer', 'days_owed', 'vendor'] as $intField) {
+            if (!isset($data[$intField]) || $data[$intField] === '' || $data[$intField] === null) {
+                $data[$intField] = 0;
+            }
+        }
+        if (!isset($data['subtotal']) || $data['subtotal'] === '' || $data['subtotal'] === null) {
+            $data['subtotal'] = 0;
+        }
+        if (!isset($data['total']) || $data['total'] === '' || $data['total'] === null) {
+            $data['total'] = 0;
+        }
+        if (!isset($data['total_tax'])) {
+            $data['total_tax'] = 0;
+        }
+        if (isset($data['delivery_date']) && ($data['delivery_date'] === false || $data['delivery_date'] === '')) {
+            $data['delivery_date'] = null;
+        }
+        // Never persist UI-only / non-column keys
+        unset($data['isedit'], $data['is_copy']);
+
         $this->db->insert(db_prefix() . 'pur_orders', $data);
         $insert_id = $this->db->insert_id();
         if ($insert_id) {

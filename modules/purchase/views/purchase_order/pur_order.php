@@ -78,7 +78,7 @@
                         <div class="form-group col-md-6">
                           
                           <label for="vendor"><?php echo _l('vendor'); ?></label>
-                          <select name="vendor" id="vendor" class="ajax-sesarch" onchange="estimate_by_vendor(this); return false;" data-live-search="true" data-width="100%" data-none-selected-text="<?php echo _l('ticket_settings_none_assigned'); ?>" >
+                          <select name="vendor" id="vendor" class="ajax-search" onchange="estimate_by_vendor(this); return false;" data-live-search="true" data-width="100%" data-none-selected-text="<?php echo _l('ticket_settings_none_assigned'); ?>" >
                                 <?php
                             if(isset($pur_order)) {
                                 $rel_data = pur_get_relation_data('vendors', $pur_order->vendor);
@@ -126,7 +126,7 @@
                       <?php } ?>
                       <div class="col-md-<?php if(get_purchase_option('purchase_order_setting') == 1 ){ echo '12' ;}else{ echo '6' ;} ;?> form-group">
                         <label for="department"><?php if(get_option('pur_department_required_condition') == 1){ echo '<span class="text-danger">* </span>'; } ?><?php echo _l('department'); ?></label>
-                          <select name="department" id="department" class="selectpicker" <?php if(get_option('pur_department_required_condition') == 1){ echo 'required="1"'; } ?><?php echo _l('department'); ?> data-live-search="true" data-width="100%" data-none-selected-text="<?php echo _l('ticket_settings_none_assigned'); ?>">
+                          <select name="department" id="department" class="selectpicker" <?php if(get_option('pur_department_required_condition') == 1){ echo 'required="1"'; } ?> data-live-search="true" data-width="100%" data-none-selected-text="<?php echo _l('ticket_settings_none_assigned'); ?>">
                             <option value=""></option>
                             <?php foreach($departments as $s) { ?>
                               <option value="<?php echo pur_html_entity_decode($s['departmentid']); ?>" <?php if(isset($pur_order) && $s['departmentid'] == $pur_order->department){ echo 'selected'; } ?>><?php echo pur_html_entity_decode($s['name']); ?></option>

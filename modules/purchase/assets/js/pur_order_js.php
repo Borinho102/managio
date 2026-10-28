@@ -13,7 +13,29 @@ $(function(){
     <?php } ?>
 
     pur_calculate_total();
-    init_pur_ajax_search('vendors', '#vendor');
+    init_pur_ajax_search('vendors', '#vendor.ajax-search, #vendor.ajax-sesarch, #vendor');
+    // Fallback: never leave vendor select invisible if bootstrap-select event is missed (Chrome)
+    setTimeout(function () {
+      var $vendorSelect = $('#vendor');
+      if (!$vendorSelect.length) {
+        return;
+      }
+      if ($vendorSelect.parent().hasClass('bootstrap-select')) {
+        if (typeof clear_select_placeholder === 'function') {
+          clear_select_placeholder($vendorSelect);
+        }
+        return;
+      }
+      if (typeof $.fn.selectpicker === 'undefined') {
+        $vendorSelect.css('display', 'block');
+      } else if (!$vendorSelect.parent().hasClass('bootstrap-select')) {
+        try {
+          init_pur_ajax_search('vendors', '#vendor');
+        } catch (e) {
+          $vendorSelect.css('display', 'block');
+        }
+      }
+    }, 1500);
 
     validate_purorder_form();
     function validate_purorder_form(selector) {

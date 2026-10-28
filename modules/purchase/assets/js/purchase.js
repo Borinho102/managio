@@ -90,57 +90,96 @@ function initPurchaseEditor(selector, settings) {
 function init_pur_ajax_search(type, selector, server_data, url) {
   var ajaxSelector = $("body").find(selector);
 
-  if (ajaxSelector.length) {
-    var options = {
-      ajax: {
-        url:
-          typeof url == "undefined"
-            ? admin_url + "purchase/get_relation_data"
-            : url,
-        data: function () {
-          var data = {};
-          data.type = type;
-          data.rel_id = "";
-          data.q = "{{{q}}}";
-          if (typeof server_data != "undefined") {
-            jQuery.extend(data, server_data);
-          }
-          return data;
-        },
-      },
-      locale: {
-        emptyTitle: app.lang.search_ajax_empty,
-        statusInitialized: app.lang.search_ajax_initialized,
-        statusSearching: app.lang.search_ajax_searching,
-        statusNoResults: app.lang.not_results_found,
-        searchPlaceholder: app.lang.search_ajax_placeholder,
-        currentlySelected: app.lang.currently_selected,
-      },
-      requestDelay: 500,
-      cache: false,
-      preprocessData: function (processData) {
-        var bs_data = [];
-        var len = processData.length;
-        for (var i = 0; i < len; i++) {
-          var tmp_data = {
-            value: processData[i].id,
-            text: processData[i].name,
-          };
-          if (processData[i].subtext) {
-            tmp_data.data = {
-              subtext: processData[i].subtext,
-            };
-          }
-          bs_data.push(tmp_data);
+  if (!ajaxSelector.length) {
+    return;
+  }
+
+  if (
+    typeof $.fn.selectpicker === "undefined" ||
+    typeof $.fn.ajaxSelectPicker === "undefined"
+  ) {
+    ajaxSelector.each(function () {
+      var $el = $(this);
+      if (typeof clear_select_placeholder === "function") {
+        clear_select_placeholder($el);
+      }
+      $el.css("display", "block");
+    });
+    return;
+  }
+
+  var options = {
+    ajax: {
+      url:
+        typeof url == "undefined"
+          ? admin_url + "purchase/get_relation_data"
+          : url,
+      data: function () {
+        var data = {};
+        data.type = type;
+        data.rel_id = "";
+        data.q = "{{{q}}}";
+        if (typeof server_data != "undefined") {
+          jQuery.extend(data, server_data);
         }
-        return bs_data;
+        return data;
       },
-      preserveSelectedPosition: "after",
-      preserveSelected: true,
-    };
-    if (ajaxSelector.data("empty-title")) {
-      options.locale.emptyTitle = ajaxSelector.data("empty-title");
-    }
+    },
+    locale: {
+      emptyTitle: app.lang.search_ajax_empty,
+      statusInitialized: app.lang.search_ajax_initialized,
+      statusSearching: app.lang.search_ajax_searching,
+      statusNoResults: app.lang.not_results_found,
+      searchPlaceholder: app.lang.search_ajax_placeholder,
+      currentlySelected: app.lang.currently_selected,
+    },
+    requestDelay: 500,
+    cache: false,
+    preprocessData: function (processData) {
+      var bs_data = [];
+      var len = processData.length;
+      for (var i = 0; i < len; i++) {
+        var tmp_data = {
+          value: processData[i].id,
+          text: processData[i].name,
+        };
+        if (processData[i].subtext) {
+          tmp_data.data = {
+            subtext: processData[i].subtext,
+          };
+        }
+        bs_data.push(tmp_data);
+      }
+      return bs_data;
+    },
+    preserveSelectedPosition: "after",
+    preserveSelected: true,
+  };
+  if (ajaxSelector.data("empty-title")) {
+    options.locale.emptyTitle = ajaxSelector.data("empty-title");
+  }
+
+  try {
     ajaxSelector.selectpicker().ajaxSelectPicker(options);
+    ajaxSelector.each(function () {
+      var $el = $(this);
+      if (
+        $el.parent().hasClass("bootstrap-select") &&
+        typeof clear_select_placeholder === "function"
+      ) {
+        clear_select_placeholder($el);
+      }
+    });
+  } catch (e) {
+    if (typeof console !== "undefined" && console.error) {
+      console.error("init_pur_ajax_search failed", e);
+    }
+    ajaxSelector.each(function () {
+      var $el = $(this);
+      if (typeof clear_select_placeholder === "function") {
+        clear_select_placeholder($el);
+      }
+      $el.css("display", "block");
+    });
   }
 }
