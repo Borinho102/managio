@@ -2525,43 +2525,40 @@ class warehouse extends AdminController {
 
 		if (count($arr_commodity_file) > 0) {
 			foreach ($arr_commodity_file as $key => $value) {
+				$url = function_exists('wh_get_commodity_attachment_url')
+					? wh_get_commodity_attachment_url($value, false)
+					: null;
+				$rel_type = function_exists('wh_get_commodity_attachment_rel_type')
+					? wh_get_commodity_attachment_rel_type($value)
+					: '';
+
+				if (!$url && $rel_type === '') {
+					continue;
+				}
+				if (!$url) {
+					$url = function_exists('wh_get_commodity_attachment_url')
+						? wh_get_commodity_attachment_url($value, true)
+						: site_url('modules/warehouse/uploads/nul_image.jpg');
+				}
+				if ($rel_type === '') {
+					$rel_type = 'warehouse';
+				}
+
 				$images_old_value .= '<div class="dz-preview dz-image-preview image_old' . $value["id"] . '">';
-				$rel_type = '';
-
 				$images_old_value .= '<div class="dz-image">';
-				if (file_exists(WAREHOUSE_ITEM_UPLOAD . $value["rel_id"] . '/' . $value["file_name"])) {
-					$images_old_value .= '<img class="image-w-h" data-dz-thumbnail alt="' . $value["file_name"] . '" src="' . site_url('modules/warehouse/uploads/item_img/' . $value["rel_id"] . '/' . $value["file_name"]) . '">';
+				$images_old_value .= '<img class="image-w-h" data-dz-thumbnail alt="' . $value["file_name"] . '" src="' . $url . '">';
+				$images_old_value .= '</div>';
 
-					$rel_type = 'warehouse' ;
-				} elseif(file_exists('modules/purchase/uploads/item_img/'. $value["rel_id"] . '/' . $value["file_name"])) {
-					$images_old_value .= '<img class="image-w-h" data-dz-thumbnail alt="' . $value["file_name"] . '" src="' . site_url('modules/purchase/uploads/item_img/' . $value["rel_id"] . '/' . $value["file_name"]) . '">';
+				$images_old_value .= '<div class="dz-error-mark">';
+				$images_old_value .= '<a class="dz-remove" data-dz-remove>Remove file';
+				$images_old_value .= '</a>';
+				$images_old_value .= '</div>';
 
-					$rel_type = 'purchase' ;
-				}elseif(file_exists('modules/manufacturing/uploads/products/'. $value["rel_id"] . '/' . $value["file_name"])) {
-					$images_old_value .= '<img class="image-w-h" data-dz-thumbnail alt="' . $value["file_name"] . '" src="' . site_url('modules/manufacturing/uploads/products/' . $value["rel_id"] . '/' . $value["file_name"]) . '">';
+				$images_old_value .= '<div class="remove_file">';
+				$images_old_value .= '<a href="#" class="text-danger" onclick="delete_product_attachment(this,' . $value["id"] . ','.'\''.$rel_type.'\'); return false;"><i class="fa fa fa-times"></i></a>';
+				$images_old_value .= '</div>';
 
-					$rel_type = 'manufacturing' ;
-				}elseif(file_exists('modules/rental/uploads/products/'. $value["rel_id"] . '/' . $value["file_name"])) {
-					$images_old_value .= '<img class="image-w-h" data-dz-thumbnail alt="' . $value["file_name"] . '" src="' . site_url('modules/rental/uploads/products/' . $value["rel_id"] . '/' . $value["file_name"]) . '">';
-
-					$rel_type = 'rental' ;
-				}
-
-				if ($rel_type != '') {
-					$images_old_value .= '</div>';
-
-					$images_old_value .= '<div class="dz-error-mark">';
-					$images_old_value .= '<a class="dz-remove" data-dz-remove>Remove file';
-					$images_old_value .= '</a>';
-					$images_old_value .= '</div>';
-
-
-					$images_old_value .= '<div class="remove_file">';
-					$images_old_value .= '<a href="#" class="text-danger" onclick="delete_product_attachment(this,' . $value["id"] . ','.'\''.$rel_type.'\'); return false;"><i class="fa fa fa-times"></i></a>';
-					$images_old_value .= '</div>';
-
-					$images_old_value .= '</div>';
-				}
+				$images_old_value .= '</div>';
 			}
 		}
 

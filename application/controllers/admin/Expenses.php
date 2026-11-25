@@ -355,6 +355,15 @@ class Expenses extends AdminController
             $this->app->get_table_data('expenses_categories');
         }
         $data['title'] = _l('expense_categories');
+        $data['budget_categories'] = [];
+        $data['acc_accounts'] = [];
+        if ($this->db->table_exists(db_prefix() . 'acc_project_budget_categories')) {
+            $data['budget_categories'] = $this->db->order_by('name', 'asc')->get(db_prefix() . 'acc_project_budget_categories')->result_array();
+        }
+        if ($this->db->table_exists(db_prefix() . 'acc_accounts')) {
+            $this->load->model('accounting/accounting_model');
+            $data['acc_accounts'] = $this->accounting_model->get_accounts('', db_prefix() . 'acc_accounts.active = 1');
+        }
         $this->load->view('admin/expenses/manage_categories', $data);
     }
 
@@ -381,6 +390,38 @@ class Expenses extends AdminController
                 echo json_encode(['success' => $success, 'message' => $message]);
             }
         }
+    }
+
+    /**
+     * AJAX: return budget/accounting links for an expense category (auto-fill on expense forms).
+     */
+    public function category_links($id = '')
+    {
+        if (staff_cant('view', 'expenses') && staff_cant('view_own', 'expenses') && !is_admin()) {
+            ajax_access_denied();
+        }
+        $id = (int) $id;
+        $out = [
+            'budget_category_id' => 0,
+            'payment_account'    => 0,
+            'deposit_to'         => 0,
+        ];
+        if ($id > 0) {
+            if ($this->db->field_exists('budget_category_id', db_prefix() . 'expenses_categories')) {
+                $cat = $this->db->select('budget_category_id')->where('id', $id)->get(db_prefix() . 'expenses_categories')->row();
+                if ($cat) {
+                    $out['budget_category_id'] = (int) $cat->budget_category_id;
+                }
+            }
+            if ($this->db->table_exists(db_prefix() . 'acc_expense_category_mappings')) {
+                $map = $this->db->where('category_id', $id)->get(db_prefix() . 'acc_expense_category_mappings')->row();
+                if ($map) {
+                    $out['payment_account'] = (int) $map->payment_account;
+                    $out['deposit_to'] = (int) $map->deposit_to;
+                }
+            }
+        }
+        echo json_encode($out);
     }
 
     public function delete_category($id)

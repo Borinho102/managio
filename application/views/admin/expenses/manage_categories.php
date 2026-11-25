@@ -19,7 +19,10 @@
         </div>
     </div>
 </div>
-<?php $this->load->view('admin/expenses/expense_category'); ?>
+<?php $this->load->view('admin/expenses/expense_category', [
+    'budget_categories' => $budget_categories ?? [],
+    'acc_accounts'      => $acc_accounts ?? [],
+]); ?>
 <?php init_tail(); ?>
 <script>
     $(function() {

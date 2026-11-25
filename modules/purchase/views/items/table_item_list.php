@@ -76,19 +76,10 @@ foreach ($rResult as $aRow) {
         if ($aColumns[$i] == db_prefix().'items.id') {
             $arr_images = $this->ci->purchase_model->get_item_attachments($aRow[db_prefix().'items.id']);
 
-            if(count($arr_images) > 0){
-                if(file_exists(PURCHASE_MODULE_ITEM_UPLOAD_FOLDER .$arr_images[0]['rel_id'] .'/'.$arr_images[0]['file_name'])){
-                    $_data = '<img class="images_w_table" src="' . site_url('modules/purchase/uploads/item_img/' . $arr_images[0]['rel_id'] .'/'.$arr_images[0]['file_name']).'" alt="'.$arr_images[0]['file_name'] .'" >';
-                }else if(file_exists('modules/warehouse/uploads/item_img/' . $arr_images[0]['rel_id'] . '/' . $arr_images[0]['file_name'])){
-                    $_data = '<img class="images_w_table" src="' . site_url('modules/warehouse/uploads/item_img/' . $arr_images[0]['rel_id'] .'/'.$arr_images[0]['file_name']).'" alt="'.$arr_images[0]['file_name'] .'" >';
-                }else if(file_exists('modules/manufacturing/uploads/products/' . $arr_images[0]['rel_id'] . '/' . $arr_images[0]['file_name'])) {
-                    $_data = '<img class="images_w_table" src="' . site_url('modules/manufacturing/uploads/products/' . $arr_images[0]['rel_id'] . '/' . $arr_images[0]['file_name']) . '" alt="' . $arr_images[0]['file_name'] . '" >';
-                }else{
-                    
-                    $_data = '<img class="images_w_table" src="' . site_url('modules/purchase/uploads/nul_image.jpg' ).'" alt="nul_image.jpg">'; 
-                   
-                }
-
+            if(count($arr_images) > 0 && function_exists('wh_commodity_attachment_img_html')){
+                $_data = wh_commodity_attachment_img_html($arr_images[0], 'images_w_table');
+            }elseif(count($arr_images) > 0 && function_exists('pur_commodity_attachment_img_html')){
+                $_data = pur_commodity_attachment_img_html($arr_images[0], 'images_w_table');
             }else{
                 $_data = '<img class="images_w_table" src="' . site_url('modules/purchase/uploads/nul_image.jpg' ).'" alt="nul_image.jpg">';
                 if(is_numeric($aRow['from_vendor_item'])){

@@ -628,6 +628,20 @@ function handle_item_attachments($id)
         // Make sure we have a filepath
         if (!empty($tmpFilePath) && $tmpFilePath != '') {
 
+            // Prefer Wasabi when enabled (same as warehouse commodity uploads)
+            if (function_exists('wasabi_storage_try_attach_to_database')) {
+                $wasabi = wasabi_storage_try_attach_to_database(
+                    $id,
+                    'commodity_item_file',
+                    $tmpFilePath,
+                    $_FILES['file']['name'],
+                    $_FILES['file']['type']
+                );
+                if ($wasabi) {
+                    return;
+                }
+            }
+
             _maybe_create_upload_path($path);
             $filename    = $_FILES['file']['name'];
             $newFilePath = $path . $filename;
@@ -645,6 +659,60 @@ function handle_item_attachments($id)
         }
     }
 
+}
+
+/**
+ * Fallback commodity image helpers when warehouse module helpers are not loaded.
+ */
+if (!function_exists('pur_get_commodity_attachment_url')) {
+    function pur_get_commodity_attachment_url($attachment, $use_placeholder = true)
+    {
+        if (function_exists('wh_get_commodity_attachment_url')) {
+            return wh_get_commodity_attachment_url($attachment, $use_placeholder);
+        }
+        if (is_object($attachment)) {
+            $attachment = (array) $attachment;
+        }
+        if (empty($attachment['file_name'])) {
+            return $use_placeholder ? site_url('modules/purchase/uploads/nul_image.jpg') : null;
+        }
+        if (function_exists('wasabi_storage_attachment_preview_url')) {
+            $wasabiUrl = wasabi_storage_attachment_preview_url($attachment);
+            if (!empty($wasabiUrl)) {
+                return $wasabiUrl;
+            }
+        }
+        $relId = $attachment['rel_id'] ?? '';
+        $fileName = $attachment['file_name'];
+        $paths = [
+            [PURCHASE_MODULE_ITEM_UPLOAD_FOLDER . $relId . '/' . $fileName, site_url('modules/purchase/uploads/item_img/' . $relId . '/' . $fileName)],
+            ['modules/warehouse/uploads/item_img/' . $relId . '/' . $fileName, site_url('modules/warehouse/uploads/item_img/' . $relId . '/' . $fileName)],
+            ['modules/manufacturing/uploads/products/' . $relId . '/' . $fileName, site_url('modules/manufacturing/uploads/products/' . $relId . '/' . $fileName)],
+        ];
+        foreach ($paths as $pair) {
+            if (@file_exists($pair[0])) {
+                return $pair[1];
+            }
+        }
+
+        return $use_placeholder ? site_url('modules/purchase/uploads/nul_image.jpg') : null;
+    }
+}
+
+if (!function_exists('pur_commodity_attachment_img_html')) {
+    function pur_commodity_attachment_img_html($attachment, $class = 'images_w_table', $extra_attr = '')
+    {
+        if (function_exists('wh_commodity_attachment_img_html')) {
+            return wh_commodity_attachment_img_html($attachment, $class, $extra_attr);
+        }
+        if (is_object($attachment)) {
+            $attachment = (array) $attachment;
+        }
+        $url = pur_get_commodity_attachment_url($attachment, true);
+        $alt = htmlspecialchars((string) ($attachment['file_name'] ?? 'nul_image.jpg'), ENT_QUOTES, 'UTF-8');
+
+        return '<img class="' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '" ' . $extra_attr . ' src="' . $url . '" alt="' . $alt . '">';
+    }
 }
 
 

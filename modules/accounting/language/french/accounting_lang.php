@@ -1215,3 +1215,5 @@ $lang['expand_all'] = 'Tout développer';
 $lang['collapse_all'] = 'Tout réduire';
 $lang['liabilities'] = 'Passifs';
 $lang['load_more'] = 'Charger plus';
+$lang['acc_budget_category'] = 'Catégorie budgétaire';
+$lang['acc_select_category'] = 'Sélectionner une catégorie';

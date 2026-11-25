@@ -82,27 +82,12 @@
                                 <div class="wrapper-masonry">
                                   <div id="masonry" class="masonry-layout columns-3">
                                 <?php if(isset($commodity_file) && count($commodity_file) > 0){ ?>
-                                  <?php foreach ($commodity_file as $key => $value) { ?>
-
-                                      <?php if(file_exists(WAREHOUSE_ITEM_UPLOAD .$value["rel_id"].'/'.$value["file_name"])){ ?>
-                                          <a  class="images_w_table" href="<?php echo site_url('modules/warehouse/uploads/item_img/'.$value["rel_id"].'/'.$value["file_name"]); ?>"><img class="images_w_table" src="<?php echo site_url('modules/warehouse/uploads/item_img/'.$value["rel_id"].'/'.$value["file_name"]); ?>" alt="<?php echo new_html_entity_decode($value['file_name']) ?>"/></a>
-                                           
-                                        <?php }elseif(file_exists('modules/purchase/uploads/item_img/' . $value["rel_id"] . '/' . $value["file_name"])) { ?>
-                                          <a  class="images_w_table" href="<?php echo site_url('modules/purchase/uploads/item_img/'.$value["rel_id"].'/'.$value["file_name"]); ?>"><img class="images_w_table" src="<?php echo site_url('modules/purchase/uploads/item_img/'.$value["rel_id"].'/'.$value["file_name"]); ?>" alt="<?php echo new_html_entity_decode($value['file_name']) ?>"/></a>
-                                            
-
-                                       <?php }elseif(file_exists('modules/manufacturing/uploads/products/' . $value["rel_id"] . '/' . $value["file_name"])){ ?>
-                                          <a  class="images_w_table" href="<?php echo site_url('modules/manufacturing/uploads/products/'.$value["rel_id"].'/'.$value["file_name"]); ?>"><img class="images_w_table" src="<?php echo site_url('modules/manufacturing/uploads/products/'.$value["rel_id"].'/'.$value["file_name"]); ?>" alt="<?php echo new_html_entity_decode($value['file_name']) ?>"/></a>
-                                          
-                                       <?php }elseif(file_exists('modules/rental/uploads/products/' . $value["rel_id"] . '/' . $value["file_name"])){ ?>
-                                          <a  class="images_w_table" href="<?php echo site_url('modules/rental/uploads/products/'.$value["rel_id"].'/'.$value["file_name"]); ?>"><img class="images_w_table" src="<?php echo site_url('modules/rental/uploads/products/'.$value["rel_id"].'/'.$value["file_name"]); ?>" alt="<?php echo new_html_entity_decode($value['file_name']) ?>"/></a>
-                                          
-                                        <?php }else{ ?>
-                                          
-                                           <a  href="<?php echo site_url('modules/warehouse/uploads/nul_image.jpg'); ?>"><img class="images_w_table" src="<?php echo site_url('modules/warehouse/uploads/nul_image.jpg'); ?>" alt="nul_image.jpg"/></a>
-                                        <?php } ?>
-
-
+                                  <?php foreach ($commodity_file as $key => $value) {
+                                      $img_url = function_exists('wh_get_commodity_attachment_url')
+                                          ? wh_get_commodity_attachment_url($value, true)
+                                          : site_url('modules/warehouse/uploads/nul_image.jpg');
+                                  ?>
+                                          <a  class="images_w_table" href="<?php echo $img_url; ?>"><img class="images_w_table" src="<?php echo $img_url; ?>" alt="<?php echo new_html_entity_decode($value['file_name']) ?>"/></a>
                                 <?php } ?>
                               <?php }else{ ?>
                                 <?php  if(isset($vendor_image) && count($vendor_image) == 0){  ?>

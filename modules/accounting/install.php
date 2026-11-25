@@ -227,6 +227,17 @@ if (!$CI->db->table_exists(db_prefix() . 'acc_expense_category_mappings')) {
     ) ENGINE=InnoDB DEFAULT CHARSET=" . $CI->db->char_set . ';');
 }
 
+if ($CI->db->table_exists(db_prefix() . 'expenses_categories')
+    && !$CI->db->field_exists('budget_category_id', db_prefix() . 'expenses_categories')
+) {
+    $CI->db->query('ALTER TABLE `' . db_prefix() . 'expenses_categories`
+        ADD COLUMN `budget_category_id` INT(11) NULL DEFAULT NULL,
+        ADD KEY `budget_category_id` (`budget_category_id`)');
+}
+
+add_option('acc_cf_expense_automatic_conversion', 1);
+add_option('acc_active_cf_expense_category_mapping', 1);
+
 if (!$CI->db->field_exists('tax' ,db_prefix() . 'acc_account_history')) {
   $CI->db->query('ALTER TABLE `' . db_prefix() . 'acc_account_history`
     ADD COLUMN `tax` INT(11) NULL;');

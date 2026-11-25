@@ -744,10 +744,13 @@ class Expenses_model extends App_Model
      */
     public function add_category($data)
     {
-        $data['description'] = nl2br($data['description']);
+        $links = $this->extract_category_accounting_links($data);
+        $data = $links['category'];
+        $data['description'] = nl2br($data['description'] ?? '');
         $this->db->insert(db_prefix() . 'expenses_categories', $data);
         $insert_id = $this->db->insert_id();
         if ($insert_id) {
+            $this->sync_category_accounting_mapping($insert_id, $links['payment_account'], $links['deposit_to']);
             log_activity('New Expense Category Added [ID: ' . $insert_id . ']');
 
             return $insert_id;
@@ -764,16 +767,90 @@ class Expenses_model extends App_Model
      */
     public function update_category($data, $id)
     {
-        $data['description'] = nl2br($data['description']);
+        $links = $this->extract_category_accounting_links($data);
+        $data = $links['category'];
+        $data['description'] = nl2br($data['description'] ?? '');
         $this->db->where('id', $id);
         $this->db->update(db_prefix() . 'expenses_categories', $data);
-        if ($this->db->affected_rows() > 0) {
-            log_activity('Expense Category Updated [ID: ' . $id . ']');
+        $this->sync_category_accounting_mapping($id, $links['payment_account'], $links['deposit_to']);
+        log_activity('Expense Category Updated [ID: ' . $id . ']');
 
-            return true;
+        return true;
+    }
+
+    /**
+     * Split category POST into category columns vs accounting mapping fields.
+     *
+     * @param  array $data
+     * @return array{category: array, payment_account: int, deposit_to: int}
+     */
+    private function extract_category_accounting_links(array $data)
+    {
+        $payment_account = isset($data['payment_account']) ? (int) $data['payment_account'] : 0;
+        $deposit_to = isset($data['deposit_to']) ? (int) $data['deposit_to'] : 0;
+        unset($data['payment_account'], $data['deposit_to']);
+
+        if ($this->db->field_exists('budget_category_id', db_prefix() . 'expenses_categories')) {
+            if (!isset($data['budget_category_id']) || $data['budget_category_id'] === '') {
+                $data['budget_category_id'] = null;
+            } else {
+                $data['budget_category_id'] = (int) $data['budget_category_id'];
+            }
+        } else {
+            unset($data['budget_category_id']);
         }
 
-        return false;
+        // Keep only known category columns
+        $allowed = ['name', 'description'];
+        if ($this->db->field_exists('budget_category_id', db_prefix() . 'expenses_categories')) {
+            $allowed[] = 'budget_category_id';
+        }
+        $clean = [];
+        foreach ($allowed as $field) {
+            if (array_key_exists($field, $data)) {
+                $clean[$field] = $data[$field];
+            }
+        }
+
+        return [
+            'category'         => $clean,
+            'payment_account'  => $payment_account,
+            'deposit_to'       => $deposit_to,
+        ];
+    }
+
+    /**
+     * Upsert / remove acc_expense_category_mappings for a charge category.
+     */
+    private function sync_category_accounting_mapping($category_id, $payment_account, $deposit_to)
+    {
+        $category_id = (int) $category_id;
+        if ($category_id <= 0 || !$this->db->table_exists(db_prefix() . 'acc_expense_category_mappings')) {
+            return;
+        }
+
+        $this->db->where('category_id', $category_id);
+        $existing = $this->db->get(db_prefix() . 'acc_expense_category_mappings')->row();
+
+        if ($payment_account > 0 && $deposit_to > 0) {
+            $payload = [
+                'category_id'      => $category_id,
+                'payment_account'  => $payment_account,
+                'deposit_to'       => $deposit_to,
+            ];
+            if ($existing) {
+                $this->db->where('id', $existing->id);
+                $this->db->update(db_prefix() . 'acc_expense_category_mappings', $payload);
+            } else {
+                $this->db->insert(db_prefix() . 'acc_expense_category_mappings', $payload);
+            }
+            if (function_exists('update_option')) {
+                update_option('acc_active_expense_category_mapping', 1);
+            }
+        } elseif ($existing) {
+            $this->db->where('id', $existing->id);
+            $this->db->delete(db_prefix() . 'acc_expense_category_mappings');
+        }
     }
 
     /**

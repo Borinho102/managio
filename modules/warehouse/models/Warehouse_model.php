@@ -22587,60 +22587,32 @@ class Warehouse_model extends App_Model {
     		return $item_image;
     	}
     	$item_images = $this->item_attachments($id);
-    	if (isset($item_images[$id]) && isset($item_images[$id][0])) {
-
-    		if (file_exists(WAREHOUSE_ITEM_UPLOAD . $item_images[$id][0]['rel_id'] . '/' . $item_images[$id][0]['file_name'])) {
-    			$item_image = '<img class="article_w_table" '.$image_attr.' src="' . site_url('modules/warehouse/uploads/item_img/' . $item_images[$id][0]['rel_id'] . '/' . $item_images[$id][0]['file_name']) . '" alt="' . $item_images[$id][0]['file_name'] . '" >';
-    		} elseif(file_exists('modules/purchase/uploads/item_img/' . $item_images[$id][0]['rel_id'] . '/' . $item_images[$id][0]['file_name'])) {
-    			$item_image = '<img class="article_w_table" '.$image_attr.' src="' . site_url('modules/purchase/uploads/item_img/' . $item_images[$id][0]['rel_id'] . '/' . $item_images[$id][0]['file_name']) . '" alt="' . $item_images[$id][0]['file_name'] . '" >';
-    		}elseif(file_exists('modules/manufacturing/uploads/products/' . $item_images[$id][0]['rel_id'] . '/' . $item_images[$id][0]['file_name'])) {
-    			$item_image = '<img class="article_w_table" '.$image_attr.' src="' . site_url('modules/manufacturing/uploads/products/' . $item_images[$id][0]['rel_id'] . '/' . $item_images[$id][0]['file_name']) . '" alt="' . $item_images[$id][0]['file_name'] . '" >';
-    		}elseif(file_exists('modules/rental/uploads/products/' . $item_images[$id][0]['rel_id'] . '/' . $item_images[$id][0]['file_name'])) {
-    			$item_image = '<img class="article_w_table" '.$image_attr.' src="' . site_url('modules/rental/uploads/products/' . $item_images[$id][0]['rel_id'] . '/' . $item_images[$id][0]['file_name']) . '" alt="' . $item_images[$id][0]['file_name'] . '" >';
-			}else{
-    			if (get_status_modules_wh('purchase')) {
-    				$this->load->model('purchase/purchase_model');
-    				$get_commodity = $this->get_commodity($id);
-    				if(isset($get_commodity->from_vendor_item) && is_numeric($get_commodity->from_vendor_item)){
-    					$vendor_image = $this->purchase_model->get_vendor_item_file($get_commodity->from_vendor_item);
-    					if(count($vendor_image) > 0){
-    						if(file_exists(PURCHASE_PATH.'vendor_items/' .$get_commodity->from_vendor_item .'/'.$vendor_image[0]['file_name'])){
-    							$item_image = '<img class="article_w_table" '.$image_attr.' src="' . site_url('modules/purchase/uploads/vendor_items/' . $vendor_image[0]['rel_id'] .'/'.$vendor_image[0]['file_name']).'" alt="'.$vendor_image[0]['file_name'] .'" >';
-    						}else{
-    							$item_image = '<img class="article_w_table" '.$image_attr.' src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
-    						}
-    					}
-    				}else{
-    					$item_image = '<img class="article_w_table" '.$image_attr.' src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
-    				}
-    			}else{
-
-    				$item_image = '<img class="article_w_table" '.$image_attr.' src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
-    			}
-    		}
-
-    	} else {
-    		if (get_status_modules_wh('purchase')) {
-    			$this->load->model('purchase/purchase_model');
-    			$get_commodity = $this->get_commodity($id);
-
-    			if(isset($get_commodity->from_vendor_item) && is_numeric($get_commodity->from_vendor_item)){
-    				$vendor_image = $this->purchase_model->get_vendor_item_file($get_commodity->from_vendor_item);
-    				if(count($vendor_image) > 0){
-    					if(file_exists(PURCHASE_PATH.'vendor_items/' .$get_commodity->from_vendor_item .'/'.$vendor_image[0]['file_name'])){
-    						$item_image = '<img class="article_w_table" '.$image_attr.' src="' . site_url('modules/purchase/uploads/vendor_items/' . $vendor_image[0]['rel_id'] .'/'.$vendor_image[0]['file_name']).'" alt="'.$vendor_image[0]['file_name'] .'" >';
-    					}else{
-    						$item_image = '<img class="article_w_table" '.$image_attr.' src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
-    					}
-    				}
-    			}else{
-    				$item_image = '<img class="article_w_table" '.$image_attr.' src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
-    			}
-    		}else{
-    			$item_image = '<img class="article_w_table" '.$image_attr.' src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
+    	if (isset($item_images[$id]) && isset($item_images[$id][0]) && function_exists('wh_commodity_attachment_img_html')) {
+    		$url = wh_get_commodity_attachment_url($item_images[$id][0], false);
+    		if ($url) {
+    			return wh_commodity_attachment_img_html($item_images[$id][0], 'article_w_table', $image_attr);
     		}
     	}
-    	return $item_image;	
+
+    	// Vendor-item fallback when no commodity attachment (or Wasabi/local missing)
+    	if (function_exists('get_status_modules_wh') && get_status_modules_wh('purchase')) {
+    		$this->load->model('purchase/purchase_model');
+    		$get_commodity = $this->get_commodity($id);
+    		if (isset($get_commodity->from_vendor_item) && is_numeric($get_commodity->from_vendor_item)) {
+    			$vendor_image = $this->purchase_model->get_vendor_item_file($get_commodity->from_vendor_item);
+    			if (count($vendor_image) > 0
+    				&& file_exists(PURCHASE_PATH . 'vendor_items/' . $get_commodity->from_vendor_item . '/' . $vendor_image[0]['file_name'])
+    			) {
+    				return '<img class="article_w_table" ' . $image_attr . ' src="' . site_url('modules/purchase/uploads/vendor_items/' . $vendor_image[0]['rel_id'] . '/' . $vendor_image[0]['file_name']) . '" alt="' . $vendor_image[0]['file_name'] . '" >';
+    			}
+    		}
+    	}
+
+    	if (isset($item_images[$id]) && isset($item_images[$id][0]) && function_exists('wh_commodity_attachment_img_html')) {
+    		return wh_commodity_attachment_img_html($item_images[$id][0], 'article_w_table', $image_attr);
+    	}
+
+    	return '<img class="article_w_table" ' . $image_attr . ' src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
     }
 
     /**

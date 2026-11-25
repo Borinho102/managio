@@ -208,11 +208,12 @@ function purchase_module_init_menu_items() {
             ]);
         }
 
-        if(has_permission('purchase_vendors', '', 'view') || has_permission('purchase_vendors', '', 'view_own')){
+        if(has_permission('purchase_vendors', '', 'view') || has_permission('purchase_vendors', '', 'view_own')
+            || (function_exists('staff_can') && (staff_can('view', 'fournisseurs') || staff_can('create', 'fournisseurs')))){
             $CI->app_menu->add_sidebar_children_item('purchase', [
                 'slug' => 'vendors',
                 'name' => _l('vendor'),
-                'icon' => 'fa fa-users',
+                'icon' => 'fa-solid fa-truck-field',
                 'href' => admin_url('purchase/vendors'),
                 'position' => 2,
             ]);

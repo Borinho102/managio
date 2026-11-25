@@ -96,6 +96,13 @@ hooks()->add_action('expense_updated', 'acc_automatic_expense_conversion');
 hooks()->add_action('after_expense_deleted', 'acc_delete_expense_convert');
 hooks()->add_action('before_expense_form_name','init_acc_class_option');
 
+// cash flow (treasury) expenses → accounting + project budgets
+hooks()->add_action('after_cf_expense_added', 'acc_automatic_cf_expense_conversion');
+hooks()->add_action('cf_expense_updated', 'acc_automatic_cf_expense_conversion');
+hooks()->add_action('after_cf_expense_added', 'acc_save_cf_expense_budget_mapping');
+hooks()->add_action('cf_expense_updated', 'acc_save_cf_expense_budget_mapping');
+hooks()->add_action('admin_init', 'acc_ensure_expense_category_budget_link');
+
 // credit note
 hooks()->add_filter('credits_applied', 'acc_automatic_credit_note_apply_conversion');
 hooks()->add_filter('after_applied_credit_deleted', 'acc_delete_applied_credit_convert');
@@ -223,7 +230,7 @@ hooks()->add_action('not_importable_expense_fields', 'acc_not_importable_expense
 
 // vendor
 
-define('ACCOUNTING_REVISION', 145);
+define('ACCOUNTING_REVISION', 146);
 
 /**
  * Register activation module hook
@@ -926,10 +933,12 @@ function accounting_load_js() {
 
         // Project Budget Category dropdown insertion and enforcement logic
         var path = window.location.pathname;
-        var is_expense = <?php echo (get_option('acc_enforce_expense') == '1') ? 'true' : 'false'; ?> && path.indexOf('admin/expenses/expense') !== -1;
+        var is_expense = path.indexOf('admin/expenses/expense') !== -1 || path.indexOf('admin/expenses/list_expenses') !== -1;
+        var is_cf_expense = path.indexOf('admin/cash_flow') !== -1;
         var is_pur_order = <?php echo (get_option('acc_enforce_purchase_order') == '1') ? 'true' : 'false'; ?> && (path.indexOf('admin/purchase/purchase_order') !== -1 || path.indexOf('admin/purchase/pur_order') !== -1);
+        var show_budget_category = is_expense || is_cf_expense || is_pur_order;
 
-        if (is_expense || is_pur_order) {
+        if (show_budget_category) {
             var budget_categories = <?php echo json_encode($budget_categories); ?>;
             var expense_id = <?php echo (int) $expense_id; ?>;
             var po_id = <?php echo (int) $po_id; ?>;
@@ -938,11 +947,11 @@ function accounting_load_js() {
                 if (typeof jQuery !== 'undefined') {
                     var $ = jQuery;
                     if ($('#acc_budget_category_id').length === 0) {
-                        var project_select = is_expense ? $('select[name="project_id"]') : $('select[name="project"]');
+                        var project_select = (is_expense || is_cf_expense) ? $('select[name="project_id"]') : $('select[name="project"]');
                         if (project_select.length > 0) {
                             var project_col = project_select.closest('.form-group, .col-md-6');
                             if (project_col.length > 0) {
-                                var container_class = is_expense ? 'form-group select-placeholder' : 'col-md-6 form-group';
+                                var container_class = (is_expense || is_cf_expense) ? 'form-group select-placeholder' : 'col-md-6 form-group';
                                 var select_html = '<div class="' + container_class + '" id="acc_budget_cat_container">';
                                 select_html += '<label for="acc_budget_category_id" class="control-label">Project Budget Category</label>';
                                 select_html += '<select name="acc_budget_category_id" id="acc_budget_category_id" class="selectpicker" data-width="100%" data-none-selected-text="Select Budget Category">';
@@ -958,8 +967,12 @@ function accounting_load_js() {
                                 $('#acc_budget_category_id').selectpicker();
 
                                 // Fetch existing mapping if editing
-                                var current_rel_id = is_expense ? expense_id : po_id;
-                                var current_rel_type = is_expense ? 'expense' : 'po';
+                                var current_rel_id = is_expense ? expense_id : (is_pur_order ? po_id : 0);
+                                var current_rel_type = is_expense ? 'expense' : (is_cf_expense ? 'cf_expense' : 'po');
+                                if (is_cf_expense) {
+                                    var cfMatch = path.match(/\/(\d+)(?:\/)?$/);
+                                    if (cfMatch) { current_rel_id = parseInt(cfMatch[1], 10) || 0; }
+                                }
                                 if (current_rel_id > 0) {
                                     $.get(admin_url + 'accounting/get_budget_mapping_ajax/' + current_rel_id + '/' + current_rel_type, function(response) {
                                         if (response) {
@@ -984,7 +997,7 @@ function accounting_load_js() {
                 var $ = jQuery;
                 
                 var project_id = 0;
-                if (is_expense) {
+                if (is_expense || is_cf_expense) {
                     project_id = $('select[name="project_id"]').val();
                 } else if (is_pur_order) {
                     project_id = $('select[name="project"]').val();
@@ -993,7 +1006,7 @@ function accounting_load_js() {
                 var category_id = $('#acc_budget_category_id').val();
                 
                 var amount = 0;
-                if (is_expense) {
+                if (is_expense || is_cf_expense) {
                     amount = parseFloat($('input[name="amount"]').val()) || 0;
                 } else if (is_pur_order) {
                     amount = parseFloat($('input[name="grand_total"]').val()) || parseFloat($('.wh-total').text().replace(/[^0-9.-]+/g,"")) || 0;
@@ -1009,11 +1022,11 @@ function accounting_load_js() {
                     return;
                 }
                 
-                var exclude_id = is_expense ? expense_id : po_id;
-                var type = is_expense ? 'expense' : 'po';
+                var exclude_id = is_expense ? expense_id : (is_pur_order ? po_id : 0);
+                var type = is_expense ? 'expense' : (is_cf_expense ? 'cf_expense' : 'po');
                 
                 var date = '';
-                if (is_expense) {
+                if (is_expense || is_cf_expense) {
                     date = $('input[name="date"]').val();
                 } else if (is_pur_order) {
                     date = $('input[name="order_date"]').val() || $('input[name="date"]').val();
@@ -1059,6 +1072,29 @@ function accounting_load_js() {
                 $(document).on('keyup change', 'input[name="amount"], input[name="grand_total"], input[name="currency_rate"], input.quantity, input.rate, input[name="shipping_fee"], input[name="order_discount"]', function() {
                     acc_check_budget_limits();
                 });
+
+                // Auto-fill project budget category from expense charge category
+                function acc_autofill_budget_from_expense_category() {
+                    if (!is_expense && !is_cf_expense) { return; }
+                    var expenseCategoryId = $('select[name="category"]').val();
+                    if (!expenseCategoryId) { return; }
+                    $.get(admin_url + 'expenses/category_links/' + expenseCategoryId, function(response) {
+                        try {
+                            var data = typeof response === 'string' ? JSON.parse(response) : response;
+                            if (data && data.budget_category_id && $('#acc_budget_category_id').length) {
+                                var current = $('#acc_budget_category_id').val();
+                                if (!current || current === '' || current === '0') {
+                                    $('#acc_budget_category_id').val(String(data.budget_category_id)).selectpicker('refresh');
+                                    acc_check_budget_limits();
+                                }
+                            }
+                        } catch (e) {}
+                    });
+                }
+                $(document).on('change', 'select[name="category"], select[name="project_id"]', function() {
+                    acc_autofill_budget_from_expense_category();
+                });
+                setTimeout(acc_autofill_budget_from_expense_category, 600);
 
                 setInterval(function() {
                     if ($('#acc_budget_category_id').length > 0) {
@@ -1678,6 +1714,65 @@ function acc_automatic_expense_conversion($data) {
 
 	}
 	return $data;
+}
+
+function acc_ensure_expense_category_budget_link()
+{
+    $CI = &get_instance();
+    if ($CI->db->table_exists(db_prefix() . 'expenses_categories')
+        && !$CI->db->field_exists('budget_category_id', db_prefix() . 'expenses_categories')
+    ) {
+        $CI->db->query('ALTER TABLE `' . db_prefix() . 'expenses_categories`
+            ADD COLUMN `budget_category_id` INT(11) NULL DEFAULT NULL,
+            ADD KEY `budget_category_id` (`budget_category_id`)');
+    }
+}
+
+/**
+ * Auto-convert treasury (cash flow) expenses into accounting journals.
+ */
+function acc_automatic_cf_expense_conversion($data)
+{
+    if (!$data) {
+        return $data;
+    }
+    if (get_option('acc_cf_expense_automatic_conversion') != 1
+        && get_option('acc_active_cf_expense_category_mapping') != 1
+        && get_option('acc_active_expense_category_mapping') != 1
+        && get_option('acc_expense_automatic_conversion') != 1
+    ) {
+        return $data;
+    }
+
+    $CI = &get_instance();
+    $CI->load->model('accounting/accounting_model');
+    $id = is_array($data) ? ($data['id'] ?? 0) : $data;
+    if ($id) {
+        $CI->accounting_model->automatic_cf_expense_conversion((int) $id);
+    }
+
+    return $data;
+}
+
+/**
+ * Resolve budget category from expense charge category when not posted explicitly.
+ */
+function acc_resolve_budget_category_from_expense_category($expense_category_id)
+{
+    $expense_category_id = (int) $expense_category_id;
+    if ($expense_category_id <= 0) {
+        return 0;
+    }
+    $CI = &get_instance();
+    if (!$CI->db->field_exists('budget_category_id', db_prefix() . 'expenses_categories')) {
+        return 0;
+    }
+    $row = $CI->db->select('budget_category_id')
+        ->where('id', $expense_category_id)
+        ->get(db_prefix() . 'expenses_categories')
+        ->row();
+
+    return ($row && (int) $row->budget_category_id > 0) ? (int) $row->budget_category_id : 0;
 }
 
 function acc_delete_invoice_convert($invoice_id) {
@@ -2710,21 +2805,72 @@ function acc_save_expense_budget_mapping($id) {
     if (is_array($id)) { $id = isset($id['id']) ? $id['id'] : 0; }
     if (!$id) { return; }
     $CI =& get_instance();
-    if ($CI->input->post('acc_budget_category_id') !== null) {
-        $category_id = intval($CI->input->post('acc_budget_category_id'));
-        $expense = $CI->db->select('project_id, amount, date')->where('id', $id)->get(db_prefix() . 'expenses')->row();
-        if ($expense && $expense->project_id > 0 && $category_id > 0) {
-            $CI->load->model('accounting/accounting_model');
-            $result = $CI->accounting_model->get_project_budget_enforcement_result($expense->project_id, $category_id, $expense->amount, $id, 'expense', $expense->date);
-            $mapping_amount = !empty($result['check']['has_budget']) ? $expense->amount : 0;
-            $old_mapping = $CI->db->where('rel_type', 'expense')->where('rel_id', $id)->get(db_prefix() . 'acc_project_budget_mappings')->row();
-            $CI->accounting_model->update_project_budget_mapping($id, 'expense', $expense->project_id, $category_id, $mapping_amount, $result['status']);
-            if ($result['status'] == 'pending' && (!$old_mapping || $old_mapping->budget_approval_status != 'pending')) {
-                $CI->accounting_model->send_budget_approval_required_notifications('expense', $id);
-            }
-            acc_handle_budget_notify_if_needed($result, $expense->project_id, 'Project Budget warning: Expense EXP-' . $id . ' exceeds remaining budget.', 'expenses/list_expenses/' . $id);
-        }
+    $expense = $CI->db->select('project_id, amount, date, category')->where('id', $id)->get(db_prefix() . 'expenses')->row();
+    if (!$expense || (int) $expense->project_id <= 0) {
+        return;
     }
+
+    $category_id = 0;
+    if ($CI->input->post('acc_budget_category_id') !== null && $CI->input->post('acc_budget_category_id') !== '') {
+        $category_id = intval($CI->input->post('acc_budget_category_id'));
+    }
+    if ($category_id <= 0) {
+        $category_id = acc_resolve_budget_category_from_expense_category($expense->category);
+    }
+    if ($category_id <= 0) {
+        return;
+    }
+
+    $CI->load->model('accounting/accounting_model');
+    $result = $CI->accounting_model->get_project_budget_enforcement_result($expense->project_id, $category_id, $expense->amount, $id, 'expense', $expense->date);
+    $mapping_amount = !empty($result['check']['has_budget']) ? $expense->amount : 0;
+    $old_mapping = $CI->db->where('rel_type', 'expense')->where('rel_id', $id)->get(db_prefix() . 'acc_project_budget_mappings')->row();
+    $CI->accounting_model->update_project_budget_mapping($id, 'expense', $expense->project_id, $category_id, $mapping_amount, $result['status']);
+    if ($result['status'] == 'pending' && (!$old_mapping || $old_mapping->budget_approval_status != 'pending')) {
+        $CI->accounting_model->send_budget_approval_required_notifications('expense', $id);
+    }
+    acc_handle_budget_notify_if_needed($result, $expense->project_id, 'Project Budget warning: Expense EXP-' . $id . ' exceeds remaining budget.', 'expenses/list_expenses/' . $id);
+}
+
+function acc_save_cf_expense_budget_mapping($id) {
+    if (is_array($id)) { $id = isset($id['id']) ? $id['id'] : 0; }
+    if (!$id) { return; }
+    $CI =& get_instance();
+    if (!$CI->db->table_exists(db_prefix() . 'cf_expenses')) {
+        return;
+    }
+    $expense = $CI->db->select('project_id, amount, date, category, operation')
+        ->where('id', $id)
+        ->get(db_prefix() . 'cf_expenses')
+        ->row();
+    if (!$expense || (int) $expense->project_id <= 0) {
+        return;
+    }
+    // Only cash-out charges consume project budget
+    if (isset($expense->operation) && $expense->operation === 'cash-in') {
+        return;
+    }
+
+    $category_id = 0;
+    if ($CI->input->post('acc_budget_category_id') !== null && $CI->input->post('acc_budget_category_id') !== '') {
+        $category_id = intval($CI->input->post('acc_budget_category_id'));
+    }
+    if ($category_id <= 0) {
+        $category_id = acc_resolve_budget_category_from_expense_category($expense->category);
+    }
+    if ($category_id <= 0) {
+        return;
+    }
+
+    $CI->load->model('accounting/accounting_model');
+    $result = $CI->accounting_model->get_project_budget_enforcement_result($expense->project_id, $category_id, $expense->amount, $id, 'cf_expense', $expense->date);
+    $mapping_amount = !empty($result['check']['has_budget']) ? $expense->amount : 0;
+    $old_mapping = $CI->db->where('rel_type', 'cf_expense')->where('rel_id', $id)->get(db_prefix() . 'acc_project_budget_mappings')->row();
+    $CI->accounting_model->update_project_budget_mapping($id, 'cf_expense', $expense->project_id, $category_id, $mapping_amount, $result['status']);
+    if ($result['status'] == 'pending' && (!$old_mapping || $old_mapping->budget_approval_status != 'pending')) {
+        $CI->accounting_model->send_budget_approval_required_notifications('cf_expense', $id);
+    }
+    acc_handle_budget_notify_if_needed($result, $expense->project_id, 'Project Budget warning: Cash Flow expense CF-' . $id . ' exceeds remaining budget.', 'cash_flow');
 }
 
 function acc_save_po_budget_mapping($id) {

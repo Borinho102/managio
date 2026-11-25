@@ -2969,3 +2969,147 @@ function build_label_html(
     $html .= '</span>';
     return $html;
 }
+
+/**
+ * Resolve a commodity_item_file attachment to a public image URL.
+ * Prefers Wasabi preview when the file is stored remotely; otherwise local module paths.
+ *
+ * @param  array|object $attachment  row from tblfiles
+ * @param  bool         $use_placeholder
+ * @return string|null  URL or null when missing and placeholder disabled
+ */
+function wh_get_commodity_attachment_url($attachment, $use_placeholder = true)
+{
+    if (is_object($attachment)) {
+        $attachment = (array) $attachment;
+    }
+    if (empty($attachment) || empty($attachment['file_name'])) {
+        return $use_placeholder ? site_url('modules/warehouse/uploads/nul_image.jpg') : null;
+    }
+
+    if (function_exists('wasabi_storage_attachment_preview_url')) {
+        $wasabiUrl = wasabi_storage_attachment_preview_url($attachment);
+        if (!empty($wasabiUrl)) {
+            return $wasabiUrl;
+        }
+    }
+
+    $relId = $attachment['rel_id'] ?? '';
+    $fileName = $attachment['file_name'];
+
+    $candidates = [
+        [
+            'disk' => (defined('WAREHOUSE_ITEM_UPLOAD') ? WAREHOUSE_ITEM_UPLOAD : (FCPATH . 'modules/warehouse/uploads/item_img/')) . $relId . '/' . $fileName,
+            'url'  => site_url('modules/warehouse/uploads/item_img/' . $relId . '/' . $fileName),
+        ],
+        [
+            'disk' => FCPATH . 'modules/purchase/uploads/item_img/' . $relId . '/' . $fileName,
+            'url'  => site_url('modules/purchase/uploads/item_img/' . $relId . '/' . $fileName),
+        ],
+        [
+            'disk' => FCPATH . 'modules/manufacturing/uploads/products/' . $relId . '/' . $fileName,
+            'url'  => site_url('modules/manufacturing/uploads/products/' . $relId . '/' . $fileName),
+        ],
+        [
+            'disk' => FCPATH . 'modules/rental/uploads/products/' . $relId . '/' . $fileName,
+            'url'  => site_url('modules/rental/uploads/products/' . $relId . '/' . $fileName),
+        ],
+        // Relative paths (cwd = project root) for older installs
+        [
+            'disk' => 'modules/warehouse/uploads/item_img/' . $relId . '/' . $fileName,
+            'url'  => site_url('modules/warehouse/uploads/item_img/' . $relId . '/' . $fileName),
+        ],
+        [
+            'disk' => 'modules/purchase/uploads/item_img/' . $relId . '/' . $fileName,
+            'url'  => site_url('modules/purchase/uploads/item_img/' . $relId . '/' . $fileName),
+        ],
+        [
+            'disk' => 'modules/manufacturing/uploads/products/' . $relId . '/' . $fileName,
+            'url'  => site_url('modules/manufacturing/uploads/products/' . $relId . '/' . $fileName),
+        ],
+        [
+            'disk' => 'modules/rental/uploads/products/' . $relId . '/' . $fileName,
+            'url'  => site_url('modules/rental/uploads/products/' . $relId . '/' . $fileName),
+        ],
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (@file_exists($candidate['disk'])) {
+            return $candidate['url'];
+        }
+    }
+
+    return $use_placeholder ? site_url('modules/warehouse/uploads/nul_image.jpg') : null;
+}
+
+/**
+ * Build an <img> tag for a commodity attachment.
+ *
+ * @param  array|object $attachment
+ * @param  string       $class
+ * @param  string       $extra_attr  raw HTML attributes
+ * @return string
+ */
+function wh_commodity_attachment_img_html($attachment, $class = 'images_w_table', $extra_attr = '')
+{
+    if (is_object($attachment)) {
+        $attachment = (array) $attachment;
+    }
+    $url = wh_get_commodity_attachment_url($attachment, true);
+    $alt = htmlspecialchars((string) ($attachment['file_name'] ?? 'nul_image.jpg'), ENT_QUOTES, 'UTF-8');
+
+    return '<img class="' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '" ' . $extra_attr . ' src="' . $url . '" alt="' . $alt . '">';
+}
+
+/**
+ * Which storage "rel_type" folder an attachment lives in (for delete UI).
+ *
+ * @param  array|object $attachment
+ * @return string  warehouse|purchase|manufacturing|rental|wasabi|''
+ */
+function wh_get_commodity_attachment_rel_type($attachment)
+{
+    if (is_object($attachment)) {
+        $attachment = (array) $attachment;
+    }
+    if (empty($attachment['file_name'])) {
+        return '';
+    }
+    if (function_exists('wasabi_storage_attachment_uses_wasabi') && wasabi_storage_attachment_uses_wasabi($attachment)) {
+        return 'warehouse';
+    }
+    $relId = $attachment['rel_id'] ?? '';
+    $fileName = $attachment['file_name'];
+    $map = [
+        'warehouse' => [
+            (defined('WAREHOUSE_ITEM_UPLOAD') ? WAREHOUSE_ITEM_UPLOAD : '') . $relId . '/' . $fileName,
+            'modules/warehouse/uploads/item_img/' . $relId . '/' . $fileName,
+        ],
+        'purchase' => [
+            FCPATH . 'modules/purchase/uploads/item_img/' . $relId . '/' . $fileName,
+            'modules/purchase/uploads/item_img/' . $relId . '/' . $fileName,
+        ],
+        'manufacturing' => [
+            FCPATH . 'modules/manufacturing/uploads/products/' . $relId . '/' . $fileName,
+            'modules/manufacturing/uploads/products/' . $relId . '/' . $fileName,
+        ],
+        'rental' => [
+            FCPATH . 'modules/rental/uploads/products/' . $relId . '/' . $fileName,
+            'modules/rental/uploads/products/' . $relId . '/' . $fileName,
+        ],
+    ];
+    foreach ($map as $type => $paths) {
+        foreach ($paths as $path) {
+            if ($path !== '' && @file_exists($path)) {
+                return $type;
+            }
+        }
+    }
+
+    // Wasabi-only attachment still deletable via warehouse handler
+    if (function_exists('wasabi_storage_attachment_preview_url') && wasabi_storage_attachment_preview_url($attachment)) {
+        return 'warehouse';
+    }
+
+    return '';
+}

@@ -28,6 +28,7 @@ return App_table::find('cf_expenses')
             $join = [
                 'LEFT JOIN ' . db_prefix() . 'clients ON ' . db_prefix() . 'clients.userid = ' . db_prefix() . 'cf_expenses.clientid',
                 'LEFT JOIN ' . db_prefix() . 'expenses_categories ON ' . db_prefix() . 'expenses_categories.id = ' . db_prefix() . 'cf_expenses.category',
+                'LEFT JOIN ' . db_prefix() . 'projects ON ' . db_prefix() . 'projects.id = ' . db_prefix() . 'cf_expenses.project_id',
                 'LEFT JOIN ' . db_prefix() . 'currencies ON ' . db_prefix() . 'currencies.id = ' . db_prefix() . 'cf_expenses.currency',
                 'LEFT JOIN ' . db_prefix() . 'cf_buisness_types ON ' . db_prefix() . 'cf_buisness_types.id = ' . db_prefix() . 'cf_expenses.buisness_id',
             ];
@@ -61,6 +62,9 @@ return App_table::find('cf_expenses')
                 db_prefix() . 'currencies.name as currency_name',
                 db_prefix() . 'cf_expenses.clientid',
                 db_prefix() . 'cf_expenses.buisness_id as buisness_id',
+                db_prefix() . 'cf_expenses.project_id as project_id',
+                db_prefix() . 'projects.name as project_name',
+                db_prefix() . 'expenses_categories.name as category_name',
             ]);
 
             $output  = $result['output'];
@@ -87,6 +91,15 @@ return App_table::find('cf_expenses')
                 }
 
                 $expense .= '</div>';
+                if (!empty($aRow['project_name'])) {
+                    $expense .= '<div class="text-muted tw-text-sm">' . _l('project') . ': ' . e($aRow['project_name']);
+                    if (!empty($aRow['category_name'])) {
+                        $expense .= ' · ' . e($aRow['category_name']);
+                    }
+                    $expense .= '</div>';
+                } elseif (!empty($aRow['category_name'])) {
+                    $expense .= '<div class="text-muted tw-text-sm">' . e($aRow['category_name']) . '</div>';
+                }
                 $row[] = $expense;
 
                 $operation = isset($aRow['operation']) ? $aRow['operation'] : '';

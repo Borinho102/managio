@@ -1256,6 +1256,9 @@ $lang['acs_expense_categories'] = 'Catégories dépenses';
 # Dépenses
 $lang['expense_category']                             = 'Catégorie d\'dépenses';
 $lang['expense_category_lowercase']                   = 'catégorie d\'dépenses';
+$lang['expense_category_budget_help']                 = 'Catégorie budgétaire projet associée — remplie automatiquement sur les dépenses et la trésorerie lorsqu\'un projet est sélectionné.';
+$lang['expense_category_accounting_mapping']          = 'Comptes comptables';
+$lang['expense_category_accounting_mapped']           = 'Liée au plan comptable';
 $lang['new_expense']                                  = 'Enregistrer un dépenses';
 $lang['expense_add_edit_name']                        = 'Nom de l\'dépenses';
 $lang['expense_add_edit_description']                 = 'Description';

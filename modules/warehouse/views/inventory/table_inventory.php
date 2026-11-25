@@ -308,52 +308,27 @@ foreach ($rResult as $aRow) {
 
 		/*get commodity file*/
 		if ($aColumns[$i] == db_prefix() . 'items.id') {
-			if (isset($arr_images[$aRow['id']]) && isset($arr_images[$aRow['id']][0])) {
-
-				if (file_exists(WAREHOUSE_ITEM_UPLOAD . $arr_images[$aRow['id']][0]['rel_id'] . '/' . $arr_images[$aRow['id']][0]['file_name'])) {
-					$_data = '<img class="images_w_table" src="' . site_url('modules/warehouse/uploads/item_img/' . $arr_images[$aRow['id']][0]['rel_id'] . '/' . $arr_images[$aRow['id']][0]['file_name']) . '" alt="' . $arr_images[$aRow['id']][0]['file_name'] . '" >';
-				} elseif (file_exists('modules/purchase/uploads/item_img/' . $arr_images[$aRow['id']][0]['rel_id'] . '/' . $arr_images[$aRow['id']][0]['file_name'])) {
-					$_data = '<img class="images_w_table" src="' . site_url('modules/purchase/uploads/item_img/' . $arr_images[$aRow['id']][0]['rel_id'] . '/' . $arr_images[$aRow['id']][0]['file_name']) . '" alt="' . $arr_images[$aRow['id']][0]['file_name'] . '" >';
-				} elseif (file_exists('modules/manufacturing/uploads/products/' . $arr_images[$aRow['id']][0]['rel_id'] . '/' . $arr_images[$aRow['id']][0]['file_name'])) {
-					$_data = '<img class="images_w_table" src="' . site_url('modules/manufacturing/uploads/products/' . $arr_images[$aRow['id']][0]['rel_id'] . '/' . $arr_images[$aRow['id']][0]['file_name']) . '" alt="' . $arr_images[$aRow['id']][0]['file_name'] . '" >';
-				} else {
-					if (get_status_modules_wh('purchase')) {
-						$this->ci->load->model('purchase/purchase_model');
-						if (is_numeric($aRow['from_vendor_item'])) {
-							$vendor_image = $this->ci->purchase_model->get_vendor_item_file($aRow['from_vendor_item']);
-							if (count($vendor_image) > 0) {
-								if (file_exists(PURCHASE_PATH . 'vendor_items/' . $aRow['from_vendor_item'] . '/' . $vendor_image[0]['file_name'])) {
-									$_data = '<img class="images_w_table" src="' . site_url('modules/purchase/uploads/vendor_items/' . $vendor_image[0]['rel_id'] . '/' . $vendor_image[0]['file_name']) . '" alt="' . $vendor_image[0]['file_name'] . '" >';
-								} else {
-									$_data = '<img class="images_w_table" src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
-								}
-							}
-						} else {
-							$_data = '<img class="images_w_table" src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
-						}
-					} else {
-
-						$_data = '<img class="images_w_table" src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
-					}
-				}
-
-			} else {
-				if (get_status_modules_wh('purchase')) {
+			$_data = '<img class="images_w_table" src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
+			if (isset($arr_images[$aRow['id']]) && isset($arr_images[$aRow['id']][0]) && function_exists('wh_commodity_attachment_img_html')) {
+				$url = wh_get_commodity_attachment_url($arr_images[$aRow['id']][0], false);
+				if ($url) {
+					$_data = wh_commodity_attachment_img_html($arr_images[$aRow['id']][0], 'images_w_table');
+				} elseif (get_status_modules_wh('purchase') && is_numeric($aRow['from_vendor_item'])) {
 					$this->ci->load->model('purchase/purchase_model');
-					if (is_numeric($aRow['from_vendor_item'])) {
-						$vendor_image = $this->ci->purchase_model->get_vendor_item_file($aRow['from_vendor_item']);
-						if (count($vendor_image) > 0) {
-							if (file_exists(PURCHASE_PATH . 'vendor_items/' . $aRow['from_vendor_item'] . '/' . $vendor_image[0]['file_name'])) {
-								$_data = '<img class="images_w_table" src="' . site_url('modules/purchase/uploads/vendor_items/' . $vendor_image[0]['rel_id'] . '/' . $vendor_image[0]['file_name']) . '" alt="' . $vendor_image[0]['file_name'] . '" >';
-							} else {
-								$_data = '<img class="images_w_table" src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
-							}
-						}
+					$vendor_image = $this->ci->purchase_model->get_vendor_item_file($aRow['from_vendor_item']);
+					if (count($vendor_image) > 0 && file_exists(PURCHASE_PATH . 'vendor_items/' . $aRow['from_vendor_item'] . '/' . $vendor_image[0]['file_name'])) {
+						$_data = '<img class="images_w_table" src="' . site_url('modules/purchase/uploads/vendor_items/' . $vendor_image[0]['rel_id'] . '/' . $vendor_image[0]['file_name']) . '" alt="' . $vendor_image[0]['file_name'] . '" >';
 					} else {
-						$_data = '<img class="images_w_table" src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
+						$_data = wh_commodity_attachment_img_html($arr_images[$aRow['id']][0], 'images_w_table');
 					}
 				} else {
-					$_data = '<img class="images_w_table" src="' . site_url('modules/warehouse/uploads/nul_image.jpg') . '" alt="nul_image.jpg">';
+					$_data = wh_commodity_attachment_img_html($arr_images[$aRow['id']][0], 'images_w_table');
+				}
+			} elseif (get_status_modules_wh('purchase') && is_numeric($aRow['from_vendor_item'])) {
+				$this->ci->load->model('purchase/purchase_model');
+				$vendor_image = $this->ci->purchase_model->get_vendor_item_file($aRow['from_vendor_item']);
+				if (count($vendor_image) > 0 && file_exists(PURCHASE_PATH . 'vendor_items/' . $aRow['from_vendor_item'] . '/' . $vendor_image[0]['file_name'])) {
+					$_data = '<img class="images_w_table" src="' . site_url('modules/purchase/uploads/vendor_items/' . $vendor_image[0]['rel_id'] . '/' . $vendor_image[0]['file_name']) . '" alt="' . $vendor_image[0]['file_name'] . '" >';
 				}
 			}
 		}

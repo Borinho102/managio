@@ -653,9 +653,12 @@ class Usercontrol extends App_Controller
 
         if (isset($commodity_file) && count($commodity_file) > 0) {
             foreach ($commodity_file as $key => $value) {
-                if (file_exists('modules/warehouse/uploads/item_img/' . $value["rel_id"] . '/' . $value["file_name"])) {
+                if (function_exists('wh_get_commodity_attachment_url')) {
+                    $img_url = wh_get_commodity_attachment_url($value, true);
+                    $html .= '<a  class="images_w_table" href="' . $img_url . '"><img class="images_w_table" src="' . $img_url . '" alt="' . html_entity_decode($value['file_name'] ?? '') . '"/></a>';
+                } elseif (file_exists('modules/warehouse/uploads/item_img/' . $value["rel_id"] . '/' . $value["file_name"])) {
                     $html .= '<a  class="images_w_table" href="' . site_url('modules/warehouse/uploads/item_img/' . $value["rel_id"] . '/' . $value["file_name"]) . '"><img class="images_w_table" src="' . site_url('modules/warehouse/uploads/item_img/' . $value["rel_id"] . '/' . $value["file_name"]) . '" alt="' . html_entity_decode($value['file_name'] ?? '') . '"/></a>';
-                } elseif (site_url('modules/purchase/uploads/item_img/' . $value["rel_id"] . '/' . $value["file_name"])) {
+                } elseif (file_exists('modules/purchase/uploads/item_img/' . $value["rel_id"] . '/' . $value["file_name"])) {
                     $html .= '<a  class="images_w_table" href="' . site_url('modules/purchase/uploads/item_img/' . $value["rel_id"] . '/' . $value["file_name"]) . '"><img class="images_w_table" src="' . site_url('modules/purchase/uploads/item_img/' . $value["rel_id"] . '/' . $value["file_name"]) . '" alt="' . html_entity_decode($value['file_name'] ?? '') . '"/></a>';
                 } else {
                     $html .= '<a href="' . site_url('modules/affiliate/uploads/nul_image.jpg') . '"><img class="images_w_table" src="' . site_url('modules/affiliate/uploads/nul_image.jpg') . '" alt="nul_image.jpg"/></a>';

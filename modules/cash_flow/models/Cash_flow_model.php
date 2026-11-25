@@ -233,6 +233,8 @@ class Cash_flow_model extends App_Model
 
             log_activity('New Expense Added [' . $insert_id . ']');
 
+            hooks()->do_action('after_cf_expense_added', $insert_id);
+
             return $insert_id;
         }
 
@@ -298,8 +300,8 @@ class Cash_flow_model extends App_Model
         if ($this->db->affected_rows() > 0) {
             $updated = true;
         }
-        do_action_deprecated('after_expense_updated', [$id], '2.9.4', 'expense_updated');
-        hooks()->do_action('expense_updated', [
+        // Dedicated CF hooks (do not reuse expense_updated — that converts against tbl expenses IDs)
+        hooks()->do_action('cf_expense_updated', [
             'id' => $id,
             'data' => $data,
             'custom_fields' => $custom_fields,

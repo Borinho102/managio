@@ -12480,6 +12480,117 @@ class Accounting_model extends App_Model
         return false;
     }
 
+    /**
+     * Convert a cash-flow (treasury) expense into accounting journal entries.
+     * Uses same category → GL mapping as core expenses; rel_type = cf_expense.
+     *
+     * @param  int $cf_expense_id
+     * @return bool
+     */
+    public function automatic_cf_expense_conversion($cf_expense_id)
+    {
+        if (!$this->db->table_exists(db_prefix() . 'cf_expenses')) {
+            return false;
+        }
+        if (get_option('acc_cf_expense_automatic_conversion') == 0
+            && get_option('acc_expense_automatic_conversion') == 0
+            && get_option('acc_active_expense_category_mapping') == 0
+            && get_option('acc_active_cf_expense_category_mapping') == 0
+        ) {
+            return false;
+        }
+
+        $this->delete_convert($cf_expense_id, 'cf_expense');
+
+        $expense = $this->db->where('id', (int) $cf_expense_id)->get(db_prefix() . 'cf_expenses')->row();
+        if (!$expense) {
+            return false;
+        }
+
+        // Only convert cash-out as expense charges
+        if (isset($expense->operation) && $expense->operation === 'cash-in') {
+            return false;
+        }
+
+        if (get_option('acc_close_the_books') == 1) {
+            if (strtotime($expense->date) <= strtotime(get_option('acc_closing_date'))
+                && strtotime(date('Y-m-d')) > strtotime(get_option('acc_closing_date'))
+            ) {
+                return false;
+            }
+        }
+
+        $this->load->model('currencies_model');
+        $currency = $this->currencies_model->get_base_currency();
+        $expense_total = (float) $expense->amount;
+        $currency_rate = 0;
+
+        if (!empty($expense->currency)) {
+            $exp_currency = $this->currencies_model->get($expense->currency);
+            if ($exp_currency && $currency && $exp_currency->name != $currency->name) {
+                $currency_rate = acc_get_currency_rate($exp_currency->name, $currency->name);
+                $expense_total = round($currency_rate * (float) $expense->amount, 2);
+            }
+        }
+
+        $payment_account = get_option('acc_expense_payment_account');
+        $deposit_to = get_option('acc_expense_deposit_to');
+        $data_insert = [];
+
+        $use_category_mapping = get_option('acc_active_expense_category_mapping') == 1
+            || get_option('acc_active_cf_expense_category_mapping') == 1;
+
+        if ($use_category_mapping && !empty($expense->category)) {
+            $expense_category_mapping = $this->get_expense_category_mapping($expense->category);
+            if ($expense_category_mapping) {
+                $payment_account = $expense_category_mapping->payment_account;
+                $deposit_to = $expense_category_mapping->deposit_to;
+            }
+        }
+
+        if ((int) $payment_account > 0 && (int) $deposit_to > 0) {
+            $node = [];
+            $node['split'] = $payment_account;
+            $node['account'] = $deposit_to;
+            $node['tax'] = 0;
+            $node['debit'] = $expense_total;
+            $node['credit'] = 0;
+            $node['customer'] = $expense->clientid ?? 0;
+            $node['date'] = $expense->date;
+            $node['description'] = $expense->expense_name ?? ($expense->note ?? '');
+            $node['rel_id'] = $cf_expense_id;
+            $node['rel_type'] = 'cf_expense';
+            $node['datecreated'] = date('Y-m-d H:i:s');
+            $node['addedfrom'] = get_staff_user_id();
+            $node['currency_rate'] = $currency_rate;
+            $data_insert[] = $node;
+
+            $node = [];
+            $node['split'] = $deposit_to;
+            $node['account'] = $payment_account;
+            $node['tax'] = 0;
+            $node['debit'] = 0;
+            $node['credit'] = $expense_total;
+            $node['customer'] = $expense->clientid ?? 0;
+            $node['date'] = $expense->date;
+            $node['description'] = $expense->expense_name ?? ($expense->note ?? '');
+            $node['rel_id'] = $cf_expense_id;
+            $node['rel_type'] = 'cf_expense';
+            $node['datecreated'] = date('Y-m-d H:i:s');
+            $node['addedfrom'] = get_staff_user_id();
+            $node['currency_rate'] = $currency_rate;
+            $data_insert[] = $node;
+        }
+
+        if ($data_insert === []) {
+            return false;
+        }
+
+        $affectedRows = $this->db->insert_batch(db_prefix() . 'acc_account_history', $data_insert);
+
+        return $affectedRows > 0;
+    }
+
     
     /**
      * count invoice not convert yet
@@ -35897,6 +36008,12 @@ class Accounting_model extends App_Model
             $data['reference'] = 'EXP-' . $rel_id;
             $data['link'] = 'expenses/list_expenses/' . $rel_id;
             $data['project_id'] = $expense ? intval($expense->project_id) : 0;
+        } elseif ($rel_type == 'cf_expense' && $this->db->table_exists(db_prefix() . 'cf_expenses')) {
+            $expense = $this->db->select('id, project_id, buisness_id')->where('id', $rel_id)->get(db_prefix() . 'cf_expenses')->row();
+            $data['type'] = _l('cash_flow_menu_name');
+            $data['reference'] = 'CF-' . $rel_id;
+            $data['link'] = $expense ? ('cash_flow/list_cf_expenses/' . $expense->buisness_id . '/' . $rel_id) : 'cash_flow';
+            $data['project_id'] = $expense ? intval($expense->project_id) : 0;
         } elseif ($rel_type == 'po') {
             $po = $this->db->select('id, project, pur_order_number, order_date')->where('id', $rel_id)->get(db_prefix() . 'pur_orders')->row();
             $data['type'] = _l('purchase_order');
@@ -36041,6 +36158,9 @@ class Accounting_model extends App_Model
                 if ($type == 'expense') {
                     $exp = $this->db->select('date')->where('id', $exclude_transaction_id)->get(db_prefix() . 'expenses')->row();
                     if ($exp) { $date = $exp->date; }
+                } elseif ($type == 'cf_expense' && $this->db->table_exists(db_prefix() . 'cf_expenses')) {
+                    $cf = $this->db->select('date')->where('id', $exclude_transaction_id)->get(db_prefix() . 'cf_expenses')->row();
+                    if ($cf) { $date = $cf->date; }
                 } elseif ($type == 'po') {
                     $po = $this->db->select('order_date')->where('id', $exclude_transaction_id)->get(db_prefix() . 'pur_orders')->row();
                     if ($po) { $date = $po->order_date; }
@@ -36151,6 +36271,28 @@ class Accounting_model extends App_Model
         }
         $exp_val = $spent_exp->get()->row()->amount;
         $spent_val += $exp_val ? floatval($exp_val) : 0.0;
+
+        // Cash-flow (treasury) expense spent
+        if ($this->db->table_exists(db_prefix() . 'cf_expenses')) {
+            $spent_cf = $this->db->select('SUM(m.amount) as amount')
+                ->from(db_prefix() . 'acc_project_budget_mappings m')
+                ->join(db_prefix() . 'cf_expenses e', 'e.id = m.rel_id')
+                ->where('m.project_id', $project_id)
+                ->where('m.category_id', $category_id)
+                ->where('m.rel_type', 'cf_expense')
+                ->where('m.budget_approval_status', 'approved');
+            if (!empty($budget_start)) {
+                $spent_cf->where('e.date >=', $budget_start);
+            }
+            if (!empty($budget_end)) {
+                $spent_cf->where('e.date <=', $budget_end);
+            }
+            if ($exclude_transaction_id && $type == 'cf_expense') {
+                $spent_cf->where('e.id !=', intval($exclude_transaction_id));
+            }
+            $cf_val = $spent_cf->get()->row()->amount;
+            $spent_val += $cf_val ? floatval($cf_val) : 0.0;
+        }
 
         // 3. Get imprests that match the budget date range.
         // Non-completed imprests reserve requested amount; completed imprests consume retired amount.
